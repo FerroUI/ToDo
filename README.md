@@ -11,6 +11,7 @@ The application includes the main personal task workflows and optional Microsoft
 - My Day, Important, Planned, All, Completed, custom lists, and collapsible list groups.
 - Task details with steps, notes, importance, due dates, reminders, and repeat schedules.
 - Search across task names, notes, steps, and tags; suggestions; sorting; manual move commands; task and list duplication.
+- Multiple selection with modifier-click and ranges, select-all, and bulk completion, move, and deletion.
 - Calendar-aware daily, weekday, weekly, monthly, yearly, and custom interval recurrence.
 - Undo/redo, JSON backup and restore, print view, and browser file attachments.
 - Light, dark, and system themes; per-list colors; original vector icons and My Day landscape.
@@ -66,12 +67,12 @@ The integration has automated synchronization tests with a simulated Graph servi
 ## Check changes
 
 ```bash
-cargo fmt --all --check
+cargo fmt -p todo-domain -p todo-state -p todo-controls -p todo-ui -p todo-browser -p todo-desktop --check
 cargo test --locked -p todo-domain -p todo-state
-node --test scripts/graph-sync.test.mjs
+node --test scripts/*.test.mjs
 ```
 
-Initial validation includes 25 passing domain and state tests. The Graph suite tests creation, updates, imports, deletion, conflicts, interrupted requests, and account isolation with a simulated service. Browser rendering and interaction still need validation on the intended browser/device combinations.
+The Rust suites cover domain behavior, state transitions, bulk-selection transactions, and callback reentrancy. The JavaScript suites exercise storage conflicts and retries, plus Graph creation, updates, imports, deletion, conflicts, interrupted requests, and account isolation with a simulated service. Browser rendering and interaction still need validation on the intended browser/device combinations.
 
 ## Architecture
 

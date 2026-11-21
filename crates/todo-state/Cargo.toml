@@ -1,0 +1,15 @@
+[package]
+name = "todo-state"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+todo-domain = { path = "../todo-domain" }
+ferroui-system.workspace = true
+ferroui-reactive.workspace = true
+ferroui-reactiveui.workspace = true
+ferroui-dynamic-data.workspace = true
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

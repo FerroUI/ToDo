@@ -1,0 +1,11 @@
+[package]
+name = "todo-domain"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Portable task, list, recurrence and persistence model for FerroUI To Do"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["std", "serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

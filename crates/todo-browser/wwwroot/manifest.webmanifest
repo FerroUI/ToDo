@@ -1,0 +1,12 @@
+{
+  "name": "To Do — FerroUI",
+  "short_name": "To Do",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f3f3",
+  "theme_color": "#2564cf",
+  "description": "A focused task manager built with FerroUI. Tasks are stored on your device.",
+  "icons": [{ "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

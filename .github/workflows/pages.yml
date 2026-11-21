@@ -1,0 +1,57 @@
+name: Build and publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_BUILD_JOBS: 1
+  CARGO_PROFILE_BROWSER_CODEGEN_UNITS: 16
+  CARGO_PROFILE_TEST_DEBUG: 0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: recursive
+      - uses: ./FerroUI/.github/actions/browser-toolchain
+        with:
+          ferroui: FerroUI
+          cache-key: todo-browser
+      - name: Check task state and synchronization
+        run: |
+          cargo test --locked -p todo-domain -p todo-state
+          node --test scripts/*.test.mjs
+      - name: Build browser app
+        run: bash scripts/build-browser.sh
+      - name: Check the app draws
+        run: node FerroUI/scripts/apps/smoke-site.mjs target/browser/todo-browser
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: target/browser/todo-browser
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

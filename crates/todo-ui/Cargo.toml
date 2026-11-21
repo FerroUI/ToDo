@@ -1,0 +1,23 @@
+[package]
+name = "todo-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+build = "build.rs"
+
+[dependencies]
+todo-domain = { path = "../todo-domain" }
+todo-state = { path = "../todo-state" }
+todo-controls = { path = "../todo-controls" }
+ferroui-base.workspace = true
+ferroui-controls.workspace = true
+ferroui-view.workspace = true
+ferroui-reactive.workspace = true
+ferroui-reactiveui.workspace = true
+ferroui-dynamic-data.workspace = true
+ferroui-system.workspace = true
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+
+[build-dependencies]
+ferroui-build.workspace = true

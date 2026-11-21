@@ -1,0 +1,25 @@
+[package]
+name = "todo-desktop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "todo-desktop"
+path = "src/main.rs"
+test = false
+
+[dependencies]
+todo-domain.workspace = true
+todo-state.workspace = true
+todo-controls.workspace = true
+todo-ui.workspace = true
+ferroui-base.workspace = true
+ferroui-controls.workspace = true
+ferroui-desktop.workspace = true
+ferroui-fonts-inter.workspace = true
+chrono = { workspace = true, features = ["clock"] }
+url.workspace = true
