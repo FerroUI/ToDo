@@ -7,6 +7,7 @@ use ferroui_base::threading::{DispatcherPriority, DispatcherTimer};
 use ferroui_controls::{AppBuilder, Application, Control, Window};
 use ferroui_desktop::AppBuilderDesktopExtensions;
 use ferroui_fonts_inter::AppBuilderExtension;
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 use todo_domain::AppState;
@@ -44,6 +45,8 @@ fn main() {
                         }
                     }),
                 );
+                let now = Local::now();
+                vm.set_current_minutes((now.hour() * 60 + now.minute()) as u16);
                 let window = Window::new();
                 window.set_title(Some("To Do".into()));
                 window.set_width(1240.0);
@@ -55,6 +58,17 @@ fn main() {
                     vm.report_error(error);
                 }
                 window.set_content(Some(Control::boxed(&todo_ui::create_view(vm.clone()))));
+                let layout_vm = Rc::downgrade(&vm);
+                let layout_window = window.downgrade();
+                window
+                    .layout_updated(move || {
+                        if let (Some(vm), Some(window)) =
+                            (layout_vm.upgrade(), layout_window.upgrade())
+                        {
+                            vm.set_viewport(window.client_size().width);
+                        }
+                    })
+                    .detach();
                 let closing_vm = Rc::downgrade(&vm);
                 let closing_window = window.downgrade();
                 window
@@ -79,7 +93,15 @@ fn main() {
                     Duration::from_secs(30),
                     DispatcherPriority::BACKGROUND,
                 );
-                window.closed(move || timer.dispose()).detach();
+                let timer = RefCell::new(Some(timer));
+                window
+                    .closed(move || {
+                        let stopped = timer.borrow_mut().take();
+                        if let Some(timer) = stopped {
+                            timer.dispose();
+                        }
+                    })
+                    .detach();
                 app.run_window(window);
             },
             &args,

@@ -43,12 +43,13 @@ pub(super) fn landscape(dark: bool, sky: &str) -> Element {
                 .stretch(Stretch::None),
         );
     }
-    // A fixed viewBox preserves the skyline's empty upper area and original proportions.
+    // Viewbox owns a typed Child property; it is not a Decorator or ContentControl.
+    // Mount through that property so the reconciler can retain and update the scene.
     viewbox()
         .stretch(Stretch::UniformToFill)
         .clip_to_bounds(true)
         .is_hit_test_visible(false)
-        .child(scene)
+        .set(ferroui_controls::Viewbox::child_property(), scene)
         .into()
 }
 

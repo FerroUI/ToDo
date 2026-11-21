@@ -70,9 +70,10 @@ The integration has automated synchronization tests with a simulated Graph servi
 cargo fmt -p todo-domain -p todo-state -p todo-controls -p todo-ui -p todo-browser -p todo-desktop --check
 cargo test --locked -p todo-domain -p todo-state
 node --test scripts/*.test.mjs
+node scripts/ui-smoke.mjs target/browser/todo-browser
 ```
 
-The Rust suites cover domain behavior, state transitions, bulk-selection transactions, and callback reentrancy. The JavaScript suites exercise storage conflicts and retries, plus Graph creation, updates, imports, deletion, conflicts, interrupted requests, and account isolation with a simulated service. Browser rendering and interaction still need validation on the intended browser/device combinations.
+The Rust suites cover domain behavior, state transitions, bulk-selection transactions, and callback reentrancy. The JavaScript suites exercise storage conflicts and retries, plus Graph creation, updates, imports, deletion, conflicts, interrupted requests, and account isolation with a simulated service. The browser gate uses the built app and Chromium to check task and list creation, retained title editing, steps, and saving a focused note on reload. It also captures desktop, detail, and narrow layouts. Other browser/device combinations need separate validation.
 
 ## Architecture
 
