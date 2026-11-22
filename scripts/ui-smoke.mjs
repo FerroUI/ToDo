@@ -52,7 +52,8 @@ async function control(match, label) {
   }, `visible, hit-testable ${label}`);
 }
 async function clickText(text) {
-  await clickControl(element => element.type.endsWith("TextBlock") && element.text === text, text);
+  // WinUI string content uses AccessText for access-key labels.
+  await clickControl(element => /(?:TextBlock|AccessText)$/.test(element.type) && element.text === text, text);
 }
 async function clickControl(match, label) {
   const element = await control(match, label);
