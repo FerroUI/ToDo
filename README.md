@@ -2,7 +2,7 @@
 
 A Rust task manager built with **FerroUI**, using Microsoft To Do's Windows layout and workflows as its reference. The interface uses FerroUI's declarative Rust builders, templated controls, WinUI 3 theme, ReactiveUI view models, and DynamicData collections. The browser runs the same Rust UI as the desktop host.
 
-**GitHub Pages deployment target:** [ferroui.github.io/ToDo](https://ferroui.github.io/ToDo/). The [Build and publish workflow](https://github.com/FerroUI/ToDo/actions/workflows/pages.yml) publishes successful builds from `main`.
+**Live application:** [ferroui.com/ToDo](https://ferroui.com/ToDo/) · [Demo with sample tasks](https://ferroui.com/ToDo/?demo=1). The [Build and publish workflow](https://github.com/FerroUI/ToDo/actions/workflows/pages.yml) publishes successful builds from `main`.
 
 The application includes the main personal task workflows and optional Microsoft Graph synchronization. It does **not** yet establish 100% visual or feature parity with Microsoft's application. See the [feature matrix](docs/features.md) for implemented behavior, platform differences, and remaining work.
 
@@ -74,7 +74,7 @@ node --test scripts/*.test.mjs
 node scripts/ui-smoke.mjs target/browser/todo-browser
 ```
 
-The Rust suites cover domain behavior, conservative date/time recognition, atomic scheduled-task creation, state transitions, bulk-selection transactions, and callback reentrancy. The JavaScript suites exercise storage conflicts and retries, plus Graph creation, updates, imports, deletion, conflicts, interrupted requests, and account isolation with a simulated service. The browser gate uses the built app and Chromium to check task/list creation, keyboard activation and modal focus restoration, retained title editing, step promotion, and saving a focused note on reload. It also captures desktop, detail, and narrow layouts. Other browser/device combinations need separate validation.
+The Rust suites cover domain behavior, conservative date/time recognition, atomic scheduled-task creation, state transitions, bulk-selection transactions, and callback reentrancy. The JavaScript suites exercise storage conflicts and retries, plus Graph creation, updates, imports, deletion, conflicts, interrupted requests, and account isolation with a simulated service. The browser gate uses the built app and Chromium to check task/list creation, keyboard activation and modal focus restoration, retained title editing, step promotion, and saving a focused note on reload. It also captures desktop, detail, dark-theme, and narrow layouts. Other browser/device combinations need separate validation.
 
 ## Architecture
 
@@ -112,7 +112,7 @@ Commit the updated submodule pointer, manifest, and lockfile together. CI checks
 
 ## Deployment
 
-The repository uses one workflow with a cached browser build and a Pages deployment job. It runs on pushes to `main` and manual dispatch. The toolchain comes from FerroUI's setup script. An explicit compiler cache retains its submodule path dependencies, keyed by the pinned framework revision, toolchain, and build configuration; successful compilation is cached before the browser gate. There is no platform matrix or release-packaging pipeline. Configure repository Pages to use **GitHub Actions**; the workflow uploads the generated site and publishes it using GitHub's Pages actions.
+The repository uses one workflow with a cached browser build and a Pages deployment job. A short post-deployment HTTP check verifies the page, JavaScript, WASM, and narrow-layout preview over HTTPS. It runs on pushes to `main` and manual dispatch. The toolchain comes from FerroUI's setup script. An explicit compiler cache retains its submodule path dependencies, keyed by the pinned framework revision, toolchain, and build configuration; successful compilation is cached before the browser gate. There is no platform matrix or release-packaging pipeline. Configure repository Pages to use **GitHub Actions**; the workflow uploads the generated site and publishes it using GitHub's Pages actions.
 
 ## License
 
