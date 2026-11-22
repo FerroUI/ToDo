@@ -1,5 +1,7 @@
 mod common;
 use common::*;
+use ferroui_dynamic_data::IConnectableCache;
+use ferroui_reactive::ObservableExt;
 use std::{cell::Cell, rc::Rc};
 use todo_domain::{AppState, View, TASKS_LIST};
 use todo_state::{AppViewModel, RenameTarget};
@@ -92,4 +94,44 @@ fn protected_and_removed_targets_cannot_retain_an_editor() {
     vm.create_group_inline();
     vm.navigate(View::Important);
     assert!(vm.rename_session().is_none());
+}
+
+#[test]
+fn queued_creation_opens_the_editor_for_the_entity_that_command_created() {
+    let vm = vm();
+    let weak = Rc::downgrade(&vm);
+    let once = Rc::new(Cell::new(false));
+    let _subscription = vm.tasks.connect().subscribe_next(move |_| {
+        if once.replace(true) {
+            return;
+        }
+        let vm = weak.upgrade().unwrap();
+        vm.create_list_inline();
+        vm.dispatch(todo_domain::Action::AddGroup {
+            name: "Queued group".into(),
+        });
+        vm.create_group_inline();
+    });
+    vm.add_task("Reentrant creation".into());
+    let state = vm.state();
+    let list = state
+        .lists
+        .iter()
+        .find(|list| list.name == "Untitled list")
+        .unwrap();
+    let group = state
+        .groups
+        .iter()
+        .find(|group| group.name == "Untitled group")
+        .unwrap();
+    assert_eq!(vm.view(), View::List(list.id));
+    assert_eq!(
+        vm.rename_session().unwrap().target,
+        RenameTarget::Group(group.id)
+    );
+    assert!(state
+        .groups
+        .iter()
+        .any(|group| group.name == "Queued group"));
+    state.validate().unwrap();
 }

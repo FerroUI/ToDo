@@ -52,7 +52,7 @@ pub struct AppViewModel {
     undo: RefCell<VecDeque<history::HistoryEntry>>,
     redo: RefCell<Vec<history::HistoryEntry>>,
     applying: Cell<bool>,
-    pending: RefCell<VecDeque<Action>>,
+    pending: RefCell<VecDeque<commands::PendingAction>>,
     delivered_reminders: RefCell<BTreeSet<(Id, Date, u16)>>,
     dirty: Cell<bool>,
     save: SaveCallback,
@@ -104,7 +104,7 @@ impl AppViewModel {
                 tasks,
                 execute: ReactiveCommand::create_param_with(
                     move |action: Option<Action>| {
-                        if let (Some(vm), Some(action)) = (receiver.upgrade(), action) {
+                        if let Some(vm) = receiver.upgrade() {
                             vm.apply(action);
                         }
                     },
@@ -117,7 +117,9 @@ impl AppViewModel {
 
     pub fn dispatch(&self, action: Action) {
         if self.applying.get() {
-            self.pending.borrow_mut().push_back(action);
+            self.pending
+                .borrow_mut()
+                .push_back(commands::PendingAction::new(action));
             return;
         }
         let _subscription = self.execute.execute(Some(action)).subscribe_next(|_| {});

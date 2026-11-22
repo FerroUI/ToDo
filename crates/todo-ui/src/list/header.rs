@@ -28,15 +28,17 @@ pub(super) fn view(vm: Rc<AppViewModel>, foreground: &str, inset: f64) -> Elemen
     header = header.child(
         stack_panel()
             .spacing(8.0)
-            .child(todo_controls::colored_icon_button(
-                Icon::Menu,
-                if vm.sidebar_visible() {
-                    "Hide navigation"
-                } else {
-                    "Show navigation"
-                },
-                foreground,
-                move || show_nav.toggle_sidebar(),
+            .child(border().horizontal_alignment(H::Left).child(
+                todo_controls::colored_icon_button(
+                    Icon::Menu,
+                    if vm.sidebar_visible() {
+                        "Hide navigation"
+                    } else {
+                        "Show navigation"
+                    },
+                    foreground,
+                    move || show_nav.toggle_sidebar(),
+                ),
             ))
             .child(title),
     );

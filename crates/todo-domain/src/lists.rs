@@ -1,7 +1,7 @@
 mod order;
 
 use crate::{
-    Action, AppState, Changes, Date, DomainError, ListGroup, TASKS_LIST, TaskList, action::nonempty,
+    action::nonempty, Action, AppState, Changes, Date, DomainError, ListGroup, TaskList, TASKS_LIST,
 };
 
 impl AppState {
@@ -13,8 +13,11 @@ impl AppState {
         match action {
             Action::AddList { name } => {
                 let name = nonempty(name)?;
+                let position = self.next_list_position(None)?;
                 let id = self.allocate_id();
-                self.lists.push(TaskList::new(id, name));
+                let mut list = TaskList::new(id, name);
+                list.position = position;
+                self.lists.push(list);
                 Ok(Changes {
                     created_list: Some(id),
                     ..Changes::lists()
@@ -53,16 +56,11 @@ impl AppState {
             Action::DuplicateList(id) => {
                 let index = self.list_index(id)?;
                 let mut list = self.lists[index].clone();
+                let position = self.next_list_position(list.group_id)?;
                 let list_id = self.allocate_id();
                 list.id = list_id;
                 list.name.push_str(" (copy)");
-                list.position = self
-                    .lists
-                    .iter()
-                    .map(|list| list.position)
-                    .max()
-                    .unwrap_or(0)
-                    + 1;
+                list.position = position;
                 self.lists.push(list);
                 let tasks: Vec<_> = self
                     .tasks
@@ -118,12 +116,22 @@ impl AppState {
             Action::ReorderGroup { id, before } => self.reorder_group(id, before),
             Action::AddGroup { name } => {
                 let name = nonempty(name)?;
+                let position = self
+                    .groups
+                    .iter()
+                    .map(|group| group.position)
+                    .max()
+                    .unwrap_or(-1)
+                    .checked_add(1)
+                    .ok_or_else(|| {
+                        DomainError::InvalidValue("The group order is out of range".into())
+                    })?;
                 let id = self.allocate_id();
                 self.groups.push(ListGroup {
                     id,
                     name,
                     collapsed: false,
-                    position: id as i64,
+                    position,
                 });
                 Ok(Changes {
                     created_group: Some(id),

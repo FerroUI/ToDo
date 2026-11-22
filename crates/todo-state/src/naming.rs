@@ -102,22 +102,28 @@ impl AppViewModel {
     }
 
     pub fn create_list_inline(&self) {
-        let id = self.state().next_id;
-        self.dispatch(Action::AddList {
-            name: "Untitled list".into(),
-        });
-        if self.state().list(id).is_some() {
-            self.begin_rename(RenameTarget::List(id));
-        }
+        self.dispatch_after(
+            Action::AddList {
+                name: "Untitled list".into(),
+            },
+            |vm, changes| {
+                if let Some(id) = changes.created_list {
+                    vm.begin_rename(RenameTarget::List(id));
+                }
+            },
+        );
     }
 
     pub fn create_group_inline(&self) {
-        let id = self.state().next_id;
-        self.dispatch(Action::AddGroup {
-            name: "Untitled group".into(),
-        });
-        if self.state().group(id).is_some() {
-            self.begin_rename(RenameTarget::Group(id));
-        }
+        self.dispatch_after(
+            Action::AddGroup {
+                name: "Untitled group".into(),
+            },
+            |vm, changes| {
+                if let Some(id) = changes.created_group {
+                    vm.begin_rename(RenameTarget::Group(id));
+                }
+            },
+        );
     }
 }

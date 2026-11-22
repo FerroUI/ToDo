@@ -2,6 +2,19 @@ use crate::{AppState, Changes, DomainError, Id, TASKS_LIST};
 use std::collections::HashMap;
 
 impl AppState {
+    pub(super) fn next_list_position(&self, group_id: Option<Id>) -> Result<i64, DomainError> {
+        self.lists
+            .iter()
+            .filter(|list| list.id != TASKS_LIST && list.group_id == group_id)
+            .map(|list| list.position)
+            .max()
+            .unwrap_or(-1)
+            .checked_add(1)
+            .ok_or_else(|| {
+                DomainError::InvalidValue("The destination list order is out of range".into())
+            })
+    }
+
     pub(super) fn move_list(
         &mut self,
         id: Id,
@@ -17,17 +30,7 @@ impl AppState {
         if self.lists[index].group_id == group_id {
             return Ok(Changes::default());
         }
-        let position = self
-            .lists
-            .iter()
-            .filter(|list| list.id != TASKS_LIST && list.group_id == group_id)
-            .map(|list| list.position)
-            .max()
-            .unwrap_or(-1)
-            .checked_add(1)
-            .ok_or_else(|| {
-                DomainError::InvalidValue("The destination list order is out of range".into())
-            })?;
+        let position = self.next_list_position(group_id)?;
         self.lists[index].group_id = group_id;
         self.lists[index].position = position;
         Ok(Changes::lists())

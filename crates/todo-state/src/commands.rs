@@ -1,9 +1,45 @@
 use super::{history::HistoryEntry, AppViewModel, HostRequest, Panel};
+use ferroui_reactive::ObservableExt;
 use todo_domain::{Action, Changes, Id, SortOrder, View, TASKS_LIST};
 
+type Applied = Box<dyn FnOnce(&AppViewModel, &Changes)>;
+
+pub(crate) struct PendingAction {
+    action: Action,
+    applied: Option<Applied>,
+}
+
+impl PendingAction {
+    pub fn new(action: Action) -> Self {
+        Self {
+            action,
+            applied: None,
+        }
+    }
+}
+
 impl AppViewModel {
-    pub(crate) fn apply(&self, action: Action) {
-        self.pending.borrow_mut().push_back(action);
+    /// Completion follows this exact queued command, including when a cache callback reenters.
+    pub(crate) fn dispatch_after(
+        &self,
+        action: Action,
+        applied: impl FnOnce(&Self, &Changes) + 'static,
+    ) {
+        self.pending.borrow_mut().push_back(PendingAction {
+            action,
+            applied: Some(Box::new(applied)),
+        });
+        if !self.applying.get() {
+            let _subscription = self.execute.execute(None).subscribe_next(|_| {});
+        }
+    }
+
+    pub(crate) fn apply(&self, action: Option<Action>) {
+        if let Some(action) = action {
+            self.pending
+                .borrow_mut()
+                .push_back(PendingAction::new(action));
+        }
         if self.applying.replace(true) {
             return;
         }
@@ -17,7 +53,8 @@ impl AppViewModel {
         self.applying.set(false);
     }
 
-    fn apply_one(&self, action: Action) {
+    fn apply_one(&self, command: PendingAction) {
+        let PendingAction { action, applied } = command;
         let (mut before, completing) = {
             let state = self.document.borrow();
             (
@@ -40,10 +77,17 @@ impl AppViewModel {
                 if let Some(id) = changes.created_list {
                     self.navigate(View::List(id));
                 }
+                if let Some(applied) = applied {
+                    applied(self, &changes);
+                }
                 let _ = self.persist();
                 self.notify();
             }
-            Ok(_) => {}
+            Ok(changes) => {
+                if let Some(applied) = applied {
+                    applied(self, &changes);
+                }
+            }
             Err(error) => self.report_error(error.to_string()),
         }
     }

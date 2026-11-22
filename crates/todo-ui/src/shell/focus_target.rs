@@ -54,12 +54,18 @@ pub(super) fn restore(
     if focus_pane(root, vm) {
         return;
     }
-    if let Some(list) = drafts
-        .task_list
-        .get_untracked()
-        .filter(|list| FocusManager::can_focus(list))
-    {
+    if let Some(list) = drafts.task_list.get_untracked().filter(|list| {
+        list.is_attached_to_visual_tree()
+            && list.is_effectively_visible()
+            && list.is_effectively_enabled()
+    }) {
         if let Some(index) = vm.task_cursor().and_then(|id| rows.index_of(id)) {
+            // ListBox delegates focus to its containers and is not itself focusable.
+            // A compact detail view remounts the list when it closes; realize its
+            // virtualized presenter before resolving the saved task's container.
+            if !list.is_measure_valid() || !list.is_arrange_valid() {
+                list.update_layout();
+            }
             list.set_selected_index(index);
             list.scroll_into_view(index);
             if list
