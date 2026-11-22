@@ -4,11 +4,13 @@ import assert from "node:assert/strict";
 import { open, sleep, colours } from "../../FerroUI/scripts/browser/harness.mjs";
 import { typeText } from "./text-input.mjs";
 import { boundPage, withDeadline } from "./deadline.mjs";
+import { inputTraceScript } from "./input-diagnostics.mjs";
 
 // Shared driver over the actual compiled controls. No application commands bypass input handling.
 export async function createHarness(site, output) {
   await mkdir(output, { recursive: true });
-  const page = boundPage(await open(site, { query: "?nooffline=1", width: 1280, height: 800, network: true, navigate: false }));
+  const page = boundPage(await open(site, { query: "?nooffline=1", width: 1280, height: 800,
+    network: true, navigate: false, initScript: inputTraceScript }));
   const failures = [], requests = new Map();
   page.on("Network.requestWillBeSent", event => requests.set(event.requestId, event.request.url));
   page.on("Network.responseReceived", event => {
@@ -19,6 +21,7 @@ export async function createHarness(site, output) {
   });
 
   const snapshot = async () => JSON.parse(await page.evaluate("globalThis.todoApp.inspectView()"));
+  const inputTrace = () => page.evaluate("globalThis.__todoInputTrace?.read() || { unavailable: true }");
   // exportData() flushes editors and would mask a broken blur/pagehide commit handler.
   const saved = async () => JSON.parse(await page.evaluate("localStorage.getItem('ferroui.todo.v1') || '{}'"));
   function healthy() {
@@ -99,6 +102,6 @@ export async function createHarness(site, output) {
     assert(colours(image) > 40, `${name} does not contain a rendered interface`);
     await writeFile(path.join(output, `${name}.json`), JSON.stringify(await snapshot()));
   }
-  return { page, snapshot, saved, healthy, until, ready, control, clickControl, clickText,
+  return { page, snapshot, inputTrace, saved, healthy, until, ready, control, clickControl, clickText,
     focusControl, edit, navigate, capture, resize };
 }

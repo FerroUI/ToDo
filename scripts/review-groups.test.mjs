@@ -61,6 +61,22 @@ test("independent failures retain their own evidence and original errors", async
   assert.deepEqual(report.at(-1).precedingFailures, ["detail", "touch"]);
 });
 
+test("a failed input stage retains its pre-release trace alongside normal recovery evidence", async t => {
+  const h = await harness(t);
+  const original = new Error("native insertion marker missing (back-cancel)");
+  original.inputDiagnostics = { stage: "back-cancel", phase: "insertion-marker",
+    mouse: { x: 196, y: 188 }, trace: { events: [{ type: "pointerdown", buttons: 1 }] },
+    snapshot: { ...h.view, elements: [{ name: "Touch 04", pressed: true }] } };
+  const failures = await runReviewGroups(h.ui, h.output, [
+    { name: "touch-mixed-pointer", run: async () => { throw original; } },
+  ]);
+  assert.equal(failures[0].error, original);
+  assert.deepEqual(JSON.parse(await readFile(path.join(h.output, "failure-touch-mixed-pointer.input.json"), "utf8")),
+    original.inputDiagnostics);
+  assert.deepEqual(JSON.parse(await readFile(path.join(h.output, "failure-touch-mixed-pointer.json"), "utf8")), h.view);
+  assert.equal(await readFile(path.join(h.output, "failure-touch-mixed-pointer.txt"), "utf8"), original.stack);
+});
+
 test("failed recovery blocks its review without hiding the original assertion", async t => {
   const h = await harness(t);
   const original = new Error("detail failed"), reload = new Error("reload failed");

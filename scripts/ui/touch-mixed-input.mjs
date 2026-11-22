@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { center, noDetails } from "./touch-input.mjs";
 import { browserBack, dropMarker, noTransient, topTasks } from "./touch-combination-helpers.mjs";
+import { runPointerStage } from "./input-diagnostics.mjs";
 
 async function moveMouse(ctx, point) {
   const result = await ctx.page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point, buttons: 1, pointerType: "mouse" });
@@ -8,50 +9,73 @@ async function moveMouse(ctx, point) {
   await ctx.touch.frame();
 }
 
-async function beginMouse(ctx, source, target) {
-  const from = center(await ctx.row(source.title)), row = await ctx.row(target.title);
+async function beginMouse(ctx, source, target, state) {
+  state.source = { id: source.id, title: source.title, list_id: source.list_id,
+    flagged_email: source.flagged_email, external: source.external };
+  state.target = { id: target.id, title: target.title, list_id: target.list_id,
+    flagged_email: target.flagged_email, external: target.external };
+  state.phase = "source-and-target";
+  state.sourceControl = await ctx.row(source.title);
+  state.targetControl = await ctx.row(target.title);
+  const from = center(state.sourceControl), row = state.targetControl;
   const drop = { x: center(row).x, y: row.y + row.height * .2 };
+  state.phase = "hover-source";
   await ctx.page.mouseMove(from.x, from.y);
+  state.phase = "press-source";
+  state.mouse = from;
   await ctx.page.mouseDown(from.x, from.y);
-  await moveMouse(ctx, { x: from.x + 12, y: from.y });
-  await moveMouse(ctx, { x: from.x + 14, y: from.y });
+  state.phase = "cross-drag-threshold";
+  state.mouse = { x: from.x + 12, y: from.y };
+  await moveMouse(ctx, state.mouse);
+  state.mouse = { x: from.x + 14, y: from.y };
+  await moveMouse(ctx, state.mouse);
+  state.phase = "move-to-target";
+  state.mouse = drop;
   await moveMouse(ctx, drop);
-  await ctx.until(async () => (await ctx.snapshot()).elements.some(dropMarker), "native mouse drag exposes a valid insertion marker");
+  state.phase = "insertion-marker";
+  await ctx.until(async () => (await ctx.snapshot()).elements.some(dropMarker),
+    `native mouse drag exposes a valid insertion marker (${state.stage})`);
+  console.log(`ok: native insertion marker (${state.stage})`);
   return drop;
 }
 
 export async function verifyMixedPointerCancellation(ctx) {
   const { touch, page, saved, until, snapshot } = ctx;
   const tasks = await topTasks(ctx), baseline = await saved();
-  for (const interrupt of [async () => {
+  for (const [stage, interrupt] of [["touch-cancel", async () => {
     await touch.start(center(await ctx.row(tasks[2].title)));
     await touch.end();
-  }, () => browserBack(page)]) {
-    const drop = await beginMouse(ctx, tasks[1], tasks[0]);
-    try {
+  }], ["back-cancel", () => browserBack(page)]]) {
+    await runPointerStage(ctx, stage, async state => {
+      const drop = await beginMouse(ctx, tasks[1], tasks[0], state);
+      state.phase = "interrupt-drag";
       await interrupt();
+      state.phase = "cancelled-feedback";
       await noTransient(ctx, "touch or Back invalidates native mouse drag feedback");
-      await moveMouse(ctx, { x: drop.x + 2, y: drop.y + 2 });
-    } finally {
-      await page.mouseUp(drop.x + 2, drop.y + 2);
-    }
+      state.phase = "late-mouse-move";
+      state.mouse = { x: drop.x + 2, y: drop.y + 2 };
+      await moveMouse(ctx, state.mouse);
+    });
     await noTransient(ctx, "late mouse release cannot revive a cancelled payload");
     await noDetails(ctx, "neither pointer in a cancelled mixed-input drag activates a row");
     assert.deepEqual(await saved(), baseline, "touch/Back cancellation preserves the complete document");
   }
 
   // A new native drag must work; ordinary wheel scrolling remains supported during it.
-  let drop = await beginMouse(ctx, tasks[1], tasks[0]);
-  try {
+  await runPointerStage(ctx, "recovery", async state => {
+    let drop = await beginMouse(ctx, tasks[1], tasks[0], state);
+    state.phase = "wheel-during-drag";
     await page.wheel(drop.x, drop.y, 0, 40);
     await until(async () => (await snapshot()).elements.some(dropMarker), "wheel input does not cancel the native mouse drag");
+    state.phase = "wheel-adjusted-target";
     const row = await ctx.row(tasks[3].title);
+    state.target = { id: tasks[3].id, title: tasks[3].title, list_id: tasks[3].list_id };
+    state.targetControl = row;
     drop = { x: center(row).x, y: row.y + row.height * .2 };
+    state.mouse = drop;
     await moveMouse(ctx, drop);
     await until(async () => (await snapshot()).elements.some(dropMarker), "the wheel-adjusted destination remains valid");
-  } finally {
-    await page.mouseUp(drop.x, drop.y);
-  }
+  });
   const order = data => data.tasks.filter(task => task.list_id === ctx.source.id)
     .sort((a, b) => a.position - b.position).map(task => task.id);
   const expected = order(baseline).filter(id => id !== tasks[1].id);

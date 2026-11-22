@@ -6,13 +6,20 @@ const stackOf = error => error?.stack || String(error);
 
 async function failureArtifacts(ui, output, name, error) {
   const stem = path.join(output, `failure-${name}`);
-  const writes = await Promise.allSettled([
+  const artifacts = ["screenshot", "snapshot", "stack"];
+  const operations = [
     withDeadline(() => ui.page.screenshot(`${stem}.png`), `${name} diagnostic screenshot`),
     withDeadline(async () => writeFile(`${stem}.json`, JSON.stringify(await ui.snapshot())), `${name} diagnostic snapshot`),
     withDeadline(() => writeFile(`${stem}.txt`, stackOf(error)), `${name} original failure`),
-  ]);
+  ];
+  if (error?.inputDiagnostics) {
+    artifacts.push("input");
+    operations.push(withDeadline(() => writeFile(`${stem}.input.json`, JSON.stringify(error.inputDiagnostics, null, 2)),
+      `${name} input diagnostics`));
+  }
+  const writes = await Promise.allSettled(operations);
   return writes.flatMap((result, index) => result.status === "rejected"
-    ? [{ artifact: ["screenshot", "snapshot", "stack"][index], error: stackOf(result.reason) }] : []);
+    ? [{ artifact: artifacts[index], error: stackOf(result.reason) }] : []);
 }
 
 // A failed review keeps its original evidence and document. Only ordinary navigation
