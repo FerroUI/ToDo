@@ -15,6 +15,7 @@ import { verifySettingsPresentation } from "./ui/settings-review.mjs";
 import { verifyTouch } from "./ui/touch.mjs";
 import { runReviewGroups } from "./ui/review-groups.mjs";
 import { verifyDemo } from "./ui/demo.mjs";
+import { verifyPstRoundTrip } from "./ui/pst-roundtrip.mjs";
 
 const [site, output = "test-results/ui", ...extra] = process.argv.slice(2);
 if (!site || extra.length) throw new Error("usage: ui-smoke.mjs <built-site> [output-directory]");
@@ -144,6 +145,7 @@ try {
     { name: "touch", run: () => verifyTouch(ui, output) },
     { name: "sidebar", run: () => verifySidebar(ui) },
     { name: "demo", run: () => verifyDemo(ui, output) },
+    { name: "pst-roundtrip", run: () => verifyPstRoundTrip(ui, output) },
   ]);
 } catch (error) {
   failure = error;
