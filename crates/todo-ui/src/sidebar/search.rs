@@ -22,6 +22,7 @@ pub(super) fn view(
         .child(
             text_box()
                 .name("SearchTasks")
+                .class("todo-no-clear")
                 .node_ref(drafts.search_input)
                 .text(search.two_way())
                 .placeholder_text("Search")

@@ -181,11 +181,12 @@ pub fn inspect_view() -> String {
     };
     let viewport = top_level.bounds();
     let elements = top_level.get_visual_descendants().filter_map(|visual| {
+        let name = visual.name();
         let text = if let Some(text) = visual.cast::<TextBlock>() { text.text() }
             else if let Some(text) = visual.cast::<TextBox>() { text.text() }
             else if visual.cast::<Button>().is_some() || visual.cast::<ferroui_controls::MenuItem>().is_some()
                 || visual.cast::<Calendar>().is_some() || visual.cast::<ComboBox>().is_some()
-                || visual.cast::<ListBox>().is_some() { None }
+                || visual.cast::<ListBox>().is_some() || name.is_some() { None }
             else { return None; };
         let bounds = visual.bounds();
         if !visual.is_effectively_visible() || bounds.width <= 0.0 || bounds.height <= 0.0 { return None; }
@@ -196,7 +197,12 @@ pub fn inspect_view() -> String {
             let hit: &Visual = &hit;
             std::ptr::eq(hit, &*visual) || visual.is_visual_ancestor_of(hit) || hit.is_visual_ancestor_of(&visual)
         });
-        Some(json!({ "type": visual.get_type().name(), "name": visual.name(), "text": text,
+        let text_box_name = visual.cast::<TextBox>().and_then(|field| field.name()).or_else(|| {
+            visual.get_visual_ancestors().filter_map(|parent| parent.cast::<TextBox>())
+                .find_map(|field| field.name())
+        });
+        Some(json!({ "type": visual.get_type().name(), "name": name, "text": text,
+            "textBoxName": text_box_name,
             "automationName": AutomationProperties::get_name(&visual),
             "automationItemStatus": AutomationProperties::get_item_status(&visual),
             "focused": visual.cast::<InputElement>().is_some_and(|input| input.is_focused()),

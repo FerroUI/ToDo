@@ -1,3 +1,5 @@
+import { verifySuggestions } from "./suggestions-review.mjs";
+
 export async function verifyDemo(ui, output) {
   const { page, snapshot, healthy, until, control, clickControl, clickText, navigate, capture } = ui;
   const demo = new URL(page.url);
@@ -24,6 +26,7 @@ export async function verifyDemo(ui, output) {
   await until(async () => (await snapshot()).width < 400, "the narrow viewport");
   await control(element => element.name === "NewTask", "narrow task composer");
   await capture("my-day-narrow");
+  await verifySuggestions(ui, chooseTheme);
   healthy();
   console.log(`ok: desktop, task-detail, dark-theme and narrow renders; ${page.requests.length} requests; previews in ${output}`);
 }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { centerY, close, one, sameBounds, textPresenter } from "./layout-geometry.mjs";
 import { dragSidebar, pressFunction, rightClick } from "./sidebar-input.mjs";
 
 const button = label => element => element.type.endsWith("Button") && element.automationName === label;
@@ -76,9 +77,29 @@ export async function verifySidebar(ui) {
   await control(element => listButton(first.id)(element) && element.focused, "Down follows visible sibling order");
   await page.press("ArrowLeft");
   await control(element => groupButton(group.id)(element) && element.focused, "Left returns to the parent group");
+  const beforeName = await snapshot();
+  const optionsBefore = one(beforeName.elements, element => element.name === `GroupOptions${group.id}`, "group options before rename");
+  const memberBefore = one(beforeName.elements, listButton(second.id), "first group member before rename");
+  const labelBefore = one(beforeName.elements, element => /TextBlock$/.test(element.type) && element.text === group.name,
+    "group label before rename");
   await pressFunction(page, 2);
   await control(element => element.name === "GroupName" && element.focused, "F2 opens inline group naming");
+  await until(async () => {
+    const view = await snapshot();
+    sameBounds(one(view.elements, element => element.name === `GroupOptions${group.id}`, "group options during rename"),
+      optionsBefore, "group options stay in place during rename");
+    close(one(view.elements, listButton(second.id), "member during group rename").y, memberBefore.y,
+      "group rename preserves the following member's position");
+    const text = textPresenter(view, "GroupName");
+    close(text.x, labelBefore.x, "group editor preserves the label's text origin");
+    close(centerY(text), centerY(labelBefore), "group editor preserves the label's vertical center");
+    return true;
+  }, "group renaming preserves label and member geometry");
+  await capture("sidebar-group-rename");
   await edit("GroupName", "Sidebar renamed", true);
+  await control(element => groupButton(group.id)(element) && element.automationName === "Sidebar renamed", "renamed group header");
+  close(one((await snapshot()).elements, listButton(second.id), "member after group rename").y, memberBefore.y,
+    "saving the group name preserves the following member's position");
 
   await rightClick(ui, listButton(second.id));
   await clickControl(menu("Remove from group"), "Remove from group");

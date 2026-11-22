@@ -6,6 +6,7 @@
 mod buttons;
 mod fonts;
 mod icons;
+mod input_styles;
 mod list_styles;
 mod palette;
 mod templates;

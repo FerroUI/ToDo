@@ -1,11 +1,11 @@
 use super::{
-    action_row::{action, row},
+    action_row::{action, clear_button, row},
     fields::section,
 };
 use crate::palette;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{icon_button, Icon};
+use todo_controls::Icon;
 use todo_domain::{Action, Task};
 use todo_state::{AppViewModel, HostRequest};
 
@@ -14,10 +14,12 @@ pub(super) fn attachments(vm: Rc<AppViewModel>, task: &Task) -> Element {
     let p = palette(&vm);
     let attach = vm.clone();
     let mut files = stack_panel().child(
-        action(Icon::Attachment, "Add file", p.secondary).on_click(move |event| {
-            attach.request(HostRequest::Attach { task_id: id });
-            event.set_handled(true);
-        }),
+        action(Icon::Attachment, "Add file", p.secondary)
+            .name("AddAttachment")
+            .on_click(move |event| {
+                attach.request(HostRequest::Attach { task_id: id });
+                event.set_handled(true);
+            }),
     );
     for file in &task.attachments {
         let open = vm.clone();
@@ -31,9 +33,10 @@ pub(super) fn attachments(vm: Rc<AppViewModel>, task: &Task) -> Element {
                     open.request(HostRequest::OpenAttachment { key: key.clone() });
                     event.set_handled(true);
                 }),
-            Some(icon_button(
-                Icon::Close,
+            Some(clear_button(
                 &format!("Remove {}", file.name),
+                p.secondary,
+                "AddAttachment",
                 move || {
                     // Blob retention allows undo to restore a removed attachment. Storage cleanup is explicit.
                     remove.dispatch(Action::DeleteAttachment {

@@ -4,6 +4,28 @@ Reviewed 22 November 2026 against the public Microsoft references in [the intera
 
 The target remains the Windows To Do composition: navigation at the left, a themed list, optional details at the right, and the same destinations presented separately when space is limited. The documentation and screenshots establish workflows and visual hierarchy. They do not establish Microsoft's current private implementation, exact breakpoints, pixel metrics across every release, or authenticated service behavior.
 
+## Fine alignment pass
+
+A second pass starts from `cf00e258d95b30f0f41ce9b90a6dd68e6b95a72e` and addresses the supplied composer screenshot. Microsoft's [Windows task-list reference](https://support.microsoft.com/en-us/todo/media/microsoft-to-do-001.png) establishes the shared completion/add and task-title/editor columns. Its [Windows settings reference](https://support.microsoft.com/en-us/todo/media/get-support-windows-c3-201722718418.png) supports retaining the existing label-above-switch composition. These public references, the deployed app, and the captured light, dark, narrow, detail, calendar, menu, settings, and touch states were reviewed together.
+
+| Surface | Concrete defect | Correction |
+| --- | --- | --- |
+| Task composer | A 54px bar contained a 35px automatic row plus symmetric 4px padding, leaving 11px of spare height below the row; its contents were approximately 5.5px above center | Give the primary row a 46px minimum height and center the native editor, plus, and submit button within it; allow the row to grow with its content |
+| Composer columns | The plus and submit centers were inset 7px and 8px farther than their corresponding task-row actions; the editor text also started farther right | Reuse the task row's 42px leading and 40px trailing columns and align the native text origin with task-title content |
+| Recognized schedule | Extra metadata must not change the alignment or available width of the entry row | Retain a separate hint row and align its content with the editor text |
+| List rename | Opening the native editor shifted the title text by 4px and moved the subtitle and tasks down by 8px | Match the display title's unpadded native footprint; keep native editing, composition, cancel, and commit behavior |
+| Group rename | The replacement editor dropped the chevron column, changed the label weight, and shortened its 40px row | Retain the chevron, row height, normal text weight, and label origin throughout editing |
+| Add step | Its default native padding indented the text 4px farther than existing steps | Match the existing editor's 6px horizontal padding and center content in the 40px action row |
+| Detail title and footer | Importance was 4px above the completion-control center; the creation label was centered in the space left of the delete button | Center importance in the first 40px title row and balance the footer's leading and trailing 40px columns |
+| Search | Focused, populated search displayed both the WinUI clear button and the application's Clear search action | Add an opt-in native-editor style that suppresses the duplicate template part while preserving the application's cancel-search/focus route |
+| Compact numeric/time fields | The native clear button consumed 30px inside narrow interval/time editors | Apply the same scoped style to these value fields, preserving normal keyboard editing |
+| Attachment removal | Deleting the focused removal control could leave focus on an unmounted element | Move focus to the retained Add file action before dispatching removal |
+| Help and composition | Browser new-task help omitted the required Alt modifier; refresh/Back were undocumented; the legacy name form could submit Return during composition | Match help to the existing platform routes and use the shared composition guard before name submission |
+
+The regression scenarios inspect actual FerroUI layout bounds and native `PART_TextPresenter` ownership. They compare composer centers with its rendered container, compare its columns with actual task controls/text, and verify empty, focused, typed, and recognized-date states at desktop and narrow widths. Existing three-pane checks now verify the same primary-row alignment. Rename checks compare geometry before, during, and after editing, rather than assuming a fixed title or row height. Search and recurrence checks verify the absence of the duplicate clear template part. Populated Suggestions captures and an add/remove round trip cover both desktop and compact layouts.
+
+These scenarios extend the existing browser gate; they add no workflow, browser build, or platform matrix. The application continues to use native WinUI templates, shared Rust controls, reactive drafts, and domain commands. No CSS offsets, HTML replacement editors, or framework-submodule patches are introduced by this pass.
+
 ## Findings addressed in this round
 
 | Surface | Finding | Change |

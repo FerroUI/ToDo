@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { close, one, sameBounds } from "./layout-geometry.mjs";
 
 export async function verifyNativeMenus(ui) {
   const { page, saved, snapshot, until, control, clickControl, edit, focusControl, capture } = ui;
@@ -26,10 +27,26 @@ export async function verifyNativeMenus(ui) {
   await control(element => element.name === "ListName" && element.focused, "new list inline edit");
   const source = await until(async () => (await saved()).lists.find(list => !previousIds.has(list.id)), "untitled list exists immediately");
   assert.equal(source.name, "Untitled list");
+  await page.press("Escape");
+  const titleBefore = await control(element => element.name === "RenameList", "static list title before renaming");
+  const rowsBefore = one((await snapshot()).elements, element => element.name === "TaskList", "list geometry before renaming");
+  await clickControl(element => element.name === "RenameList", "rename the new list");
+  await until(async () => {
+    const view = await snapshot();
+    sameBounds(one(view.elements, element => element.name === "ListName", "inline list editor"), titleBefore,
+      "entering rename preserves the title bounds");
+    close(one(view.elements, element => element.name === "TaskList", "list geometry during renaming").y, rowsBefore.y,
+      "entering rename preserves the task-list top");
+    return true;
+  }, "inline rename preserves header and task-list geometry");
   await edit("ListName", "Discard this name");
   assert.equal((await saved()).lists.find(list => list.id === source.id).name, "Untitled list", "keystrokes must not save");
   await page.press("Escape");
   await until(async () => !(await snapshot()).elements.some(element => element.name === "ListName"), "Escape cancels inline rename");
+  sameBounds(await control(element => element.name === "RenameList", "static title after cancellation"), titleBefore,
+    "cancelling rename preserves the title bounds");
+  close(one((await snapshot()).elements, element => element.name === "TaskList", "list geometry after cancellation").y,
+    rowsBefore.y, "cancelling rename preserves the task-list top");
   assert.equal((await saved()).lists.find(list => list.id === source.id).name, "Untitled list");
   await clickControl(element => element.name === "RenameList", "Rename list header");
   await edit("ListName", "Menu source", true);

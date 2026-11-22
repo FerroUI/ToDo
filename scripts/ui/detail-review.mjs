@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { editorFits } from "./layout-geometry.mjs";
 
 const button = label => element => element.type.endsWith("Button") && element.automationName === label;
 const menu = label => element => element.type.endsWith("MenuItem") && element.automationName === label;
@@ -11,7 +12,7 @@ function bounded(element, width, label) {
 // Review the retained editors and actual native dialogs using only ordinary input.
 // Call after verifyScheduling, with the original task still in its custom list.
 export async function verifyDetailPresentation(ui, taskId) {
-  const { page, resize, saved, control, clickControl, edit, until, capture } = ui;
+  const { page, resize, saved, snapshot, control, clickControl, edit, until, capture } = ui;
   const current = async () => (await saved()).tasks.find(task => task.id === taskId);
   const original = await current();
   const longTitle = "Review accessibility and release notes before the next product planning meeting";
@@ -53,7 +54,15 @@ export async function verifyDetailPresentation(ui, taskId) {
   await clickControl(named("TaskRepeat"), "repeat menu");
   await clickControl(menu("Custom"), "custom recurrence");
   for (const name of ["RepeatInterval", "RepeatUnit"]) bounded(await control(named(name), name), 320, name);
+  const interval = (await control(named("RepeatInterval"), "original repeat interval")).text;
+  await edit("RepeatInterval", "12345");
+  await until(async () => {
+    const field = editorFits(await snapshot(), "RepeatInterval");
+    assert.equal(field.text, "12345", "all five interval digits remain in the focused editor");
+    return field.focused;
+  }, "a five-digit repeat interval fits without a duplicate clear button");
   await capture("repeat-form-narrow");
+  await edit("RepeatInterval", interval);
   await page.press("Escape");
   await clickControl(named("TaskReminder"), "reminder menu");
   await clickControl(menu("Pick a date & time"), "custom reminder");

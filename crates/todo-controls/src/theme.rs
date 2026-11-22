@@ -42,6 +42,7 @@ pub fn install_theme(app: &Application) {
     }
     install_buttons(app);
     crate::list_styles::install(app);
+    crate::input_styles::install(app);
     let body = style("TextBlock")
         .set(TextBlock::font_size_property(), 14.0)
         .build();

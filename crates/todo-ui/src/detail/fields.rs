@@ -51,7 +51,11 @@ pub(crate) fn edit_field(
             FontWeight::Normal
         })
         .min_height(if notes { 96.0 } else { 36.0 })
-        .vertical_content_alignment(VerticalAlignment::Top)
+        .vertical_content_alignment(if multiline {
+            VerticalAlignment::Top
+        } else {
+            VerticalAlignment::Center
+        })
         .background("Transparent")
         .border_thickness(0.0)
         .padding((6.0, 8.0))

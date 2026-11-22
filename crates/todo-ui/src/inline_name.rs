@@ -35,10 +35,20 @@ pub(crate) fn editor(
         })
         .text(draft)
         .font_size(size)
-        .font_weight(FontWeight::SemiBold)
+        .font_weight(if matches!(target, RenameTarget::List(_)) {
+            FontWeight::SemiBold
+        } else {
+            FontWeight::Normal
+        })
         .foreground(color)
         .background("Transparent")
-        .padding((4.0, 4.0))
+        // Match the title Button's native border and unpadded text footprint.
+        // Adding editor padding here moves the subtitle and task list on focus.
+        .padding(if matches!(target, RenameTarget::List(_)) {
+            (0.0, 0.0)
+        } else {
+            (4.0, 4.0)
+        })
         .min_width(0.0)
         .with(move |input| focus::activate(input, target))
         .on_text_changed(move |event| {

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { composerGeometry, verifyComposerLayout } from "./composer-layout.mjs";
 
 export async function verifyListPresentation(ui) {
   const { page, saved, snapshot, control, clickControl, edit, until, resize, capture } = ui;
@@ -14,6 +15,7 @@ export async function verifyListPresentation(ui) {
   await edit("ListName", title, true);
   const list = (await saved()).lists.find(list => list.name === title);
   for (const task of ["Sort bravo", "Sort alpha"]) await edit("NewTask", task, true);
+  await verifyComposerLayout(ui, "Sort bravo");
   await verifyComposerHint(ui, button);
   await clickControl(button("Sort tasks"), "sort menu");
   await choose("Alphabetically");
@@ -63,6 +65,7 @@ async function verifyComposerHint(ui, button) {
     await edit("NewTask", "Read tomorrow");
     const hint = await control(element => element.name === "RecognizedSchedule", `${width}px recognized schedule`);
     const after = await control(element => element.name === "NewTask", `${width}px composer with schedule`);
+    await composerGeometry(ui, `${width}px composer beside details`, { hint: true, focused: true, text: "Read tomorrow" });
     assert(after.width >= 200, `${width}px keeps a usable editor beside details`);
     assert(Math.abs(after.width - before.width) <= 1, "recognized dates must not consume the editor's width");
     assert(hint.y >= after.y + after.height - 1, "the schedule hint occupies a separate line below the editor");

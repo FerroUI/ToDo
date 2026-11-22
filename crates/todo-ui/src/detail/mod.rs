@@ -18,7 +18,7 @@ use ferroui_controls::primitives::ScrollBarVisibility;
 use ferroui_view::prelude::*;
 pub(crate) use fields::edit_field;
 use std::rc::Rc;
-use todo_controls::{icon_button, star_button, task_check, Icon};
+use todo_controls::{icon_button, star_action, task_check, Icon};
 use todo_domain::{Action, Id};
 use todo_state::{AppViewModel, Panel};
 
@@ -71,11 +71,18 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
                                         ),
                                     ),
                                 )
-                                .child(border().grid_column(2).vertical_alignment(V::Top).child(
-                                    star_button(task.important, p.accent, move || {
-                                        starred.dispatch(Action::ToggleImportant(id))
-                                    }),
-                                )),
+                                .child(
+                                    border()
+                                        .grid_column(2)
+                                        .height(40.0)
+                                        .vertical_alignment(V::Top)
+                                        .child(
+                                            star_action(task.important, p.accent, move || {
+                                                starred.dispatch(Action::ToggleImportant(id))
+                                            })
+                                            .vertical_alignment(V::Center),
+                                        ),
+                                ),
                         )
                         .child(steps(vm.clone(), &task)),
                 ),
@@ -201,17 +208,18 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
                 .child(
                     grid()
                         .grid_row(2)
-                        .column_definitions("*,40")
+                        .column_definitions("40,*,40")
                         .margin((16.0, 4.0))
                         .child(
                             text_block()
+                                .grid_column(1)
                                 .text(format!("Created {}", task.created_on.format("%-d %B")))
                                 .font_size(12.0)
                                 .foreground(p.secondary)
                                 .vertical_alignment(V::Center)
                                 .horizontal_alignment(H::Center),
                         )
-                        .child(border().grid_column(1).child(icon_button(
+                        .child(border().grid_column(2).child(icon_button(
                             Icon::Trash,
                             "Delete task",
                             move || delete.delete_task(id),

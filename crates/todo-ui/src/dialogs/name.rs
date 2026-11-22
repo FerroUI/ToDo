@@ -65,7 +65,7 @@ fn content(vm: Rc<AppViewModel>) -> Element {
                 .node_ref(field)
                 .font_size(15.0)
                 .on_key_down(move |event| {
-                    if event.key == Key::Return {
+                    if event.key == Key::Return && !crate::editing::is_composing(event) {
                         enter();
                         event.set_handled(true);
                     }

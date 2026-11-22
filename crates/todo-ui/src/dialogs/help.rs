@@ -7,9 +7,14 @@ use todo_state::AppViewModel;
 pub fn view(vm: Rc<AppViewModel>) -> Element {
     let p = palette(&vm);
     let compact = vm.is_narrow();
+    let new_task = if cfg!(target_arch = "wasm32") {
+        "Ctrl / ⌘ + Alt + N"
+    } else {
+        "Ctrl / ⌘ + N"
+    };
     let mut content = stack_panel().spacing(14.0).margin(8.0);
     for (key, action) in [
-        ("Ctrl / ⌘ + N", "Focus Add a task"),
+        (new_task, "Focus Add a task"),
         ("Ctrl / ⌘ + L", "Create a list"),
         ("Ctrl / ⌘ + F", "Search tasks"),
         ("Ctrl / ⌘ + A", "Select all visible tasks"),
@@ -30,6 +35,8 @@ pub fn view(vm: Rc<AppViewModel>) -> Element {
         ("Ctrl / ⌘ + T", "Add the focused task to My Day"),
         ("Ctrl / ⌘ + Z", "Undo"),
         ("Ctrl / ⌘ + Y", "Redo"),
+        ("Ctrl / ⌘ + R", "Refresh tasks"),
+        ("Alt + Left", "Close the current view or go back"),
         ("Page Up / Page Down", "Move between months in the calendar"),
         ("Escape", "Close a menu, details, or task selection"),
     ] {

@@ -1,5 +1,6 @@
 use crate::palette;
 use ferroui_base::input::Key;
+use ferroui_base::layout::VerticalAlignment;
 use ferroui_controls::{Control, TextBox};
 use ferroui_view::prelude::*;
 use std::rc::Rc;
@@ -26,6 +27,7 @@ pub(super) fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
             }))
         .child(text_box().grid_column(1).name("NewStep").text(vm.step_draft(id))
             .class("todo-input").placeholder_text("Add step").font_size(14.0)
+            .height(40.0).padding((6.0, 8.0)).vertical_content_alignment(VerticalAlignment::Center)
             .automation_properties_name("Add step")
             .automation_properties_help_text("Type a step and press Enter. You can keep adding steps without leaving this field.")
             .foreground(p.accent).background("Transparent").border_thickness(0.0)

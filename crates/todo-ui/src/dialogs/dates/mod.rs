@@ -80,6 +80,7 @@ pub fn date_picker(vm: Rc<AppViewModel>, id: Id, reminder: bool) -> Element {
                     .child(
                         text_box()
                             .name("ReminderTime")
+                            .class("todo-no-clear")
                             .node_ref(field)
                             .grid_column(1)
                             .automation_properties_name("Reminder time")

@@ -95,6 +95,7 @@ pub fn view(vm: Rc<AppViewModel>) -> Element {
                         )
                         .child(border().grid_column(1).vertical_alignment(V::Center).child(
                             todo_controls::toolbar_button(Icon::Add, "Add to My Day", p.accent)
+                                .name(format!("SuggestionAdd{id}"))
                                 .width(40.0).height(40.0)
                                 .on_click(move |event| {
                                     event.set_handled(true);

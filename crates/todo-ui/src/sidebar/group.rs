@@ -14,7 +14,25 @@ pub(super) fn header(vm: Rc<AppViewModel>, group: &ListGroup) -> Element {
         .rename_session()
         .is_some_and(|edit| edit.target == target)
     {
-        crate::inline_name::editor(vm.clone(), target, 14.0, p.text)
+        border()
+            .height(40.0)
+            // Match the normal Button's 12px padding plus its 1px border.
+            .padding((13.0, 0.0))
+            .child(
+                grid()
+                    .column_definitions("28,*")
+                    .child(chevron(group.collapsed, p.secondary))
+                    .child(
+                        border()
+                            .grid_column(1)
+                            .vertical_alignment(V::Center)
+                            // The native editor's 4px padding and 1px border sit outside
+                            // the unchanged text origin, rather than moving its label.
+                            .margin((-5.0, 0.0, 0.0, 0.0))
+                            .child(crate::inline_name::editor(vm.clone(), target, 14.0, p.text)),
+                    ),
+            )
+            .into()
     } else {
         let toggle = vm.clone();
         let context = vm.clone();
@@ -63,15 +81,7 @@ pub(super) fn header(vm: Rc<AppViewModel>, group: &ListGroup) -> Element {
             .child(
                 grid()
                     .column_definitions("28,*")
-                    .child(border().vertical_alignment(V::Center).child(icon(
-                        if group.collapsed {
-                            Icon::ChevronRight
-                        } else {
-                            Icon::ChevronDown
-                        },
-                        14.0,
-                        p.secondary,
-                    )))
+                    .child(chevron(group.collapsed, p.secondary))
                     .child(
                         text_block()
                             .grid_column(1)
@@ -100,6 +110,21 @@ pub(super) fn header(vm: Rc<AppViewModel>, group: &ListGroup) -> Element {
                 .vertical_alignment(V::Center)
                 .with(move |button| crate::menus::group_options(button, vm.clone(), id)),
         )
+        .into()
+}
+
+fn chevron(collapsed: bool, color: &str) -> Element {
+    border()
+        .vertical_alignment(V::Center)
+        .child(icon(
+            if collapsed {
+                Icon::ChevronRight
+            } else {
+                Icon::ChevronDown
+            },
+            14.0,
+            color,
+        ))
         .into()
 }
 

@@ -73,6 +73,7 @@ pub fn repeat(vm: Rc<AppViewModel>, id: Id) -> Element {
                     .child(
                         text_box()
                             .name("RepeatInterval")
+                            .class("todo-no-clear")
                             .node_ref(field)
                             .grid_column(1)
                             .automation_properties_name("Repeat interval")

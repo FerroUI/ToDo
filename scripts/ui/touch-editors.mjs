@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { named } from "./touch-input.mjs";
+import { one } from "./layout-geometry.mjs";
 
 export async function verifyDrawerEditor(ctx) {
   const { touch, control, edit, saved, snapshot, capture } = ctx;
@@ -24,7 +25,12 @@ export async function verifyDrawerEditor(ctx) {
 
   const retained = await control(named("SearchTasks"), "drawer retained after text selection drag");
   assert.equal(retained.text, query, "text selection preserves the unsubmitted search draft");
-  assert(!(await snapshot()).elements.some(named("TouchGestureMessage")),
+  const view = await snapshot();
+  one(view.elements, element => element.type.endsWith("Button") && element.hit
+    && element.automationName === "Clear search", "external search clear action");
+  assert(!view.elements.some(element => element.name === "DeleteButton" && element.textBoxName === "SearchTasks"),
+    "drawer search must not show a duplicate native clear button");
+  assert(!view.elements.some(named("TouchGestureMessage")),
     "text selection leaves no shell gesture feedback");
   assert.deepEqual(await saved(), before, "editing and selecting a search draft cannot change document data");
   await capture("touch-drawer-editor");

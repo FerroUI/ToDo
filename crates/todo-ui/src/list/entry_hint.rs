@@ -29,7 +29,7 @@ pub(super) fn view(vm: &AppViewModel, draft: &str) -> Element {
     grid()
         .column_definitions("16,*")
         .column_spacing(5.0)
-        .margin((4.0, 4.0, 8.0, 4.0))
+        .margin((5.0, 4.0, 8.0, 4.0))
         .vertical_alignment(VerticalAlignment::Center)
         .child(icon(symbol, 15.0, color))
         .child(
