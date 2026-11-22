@@ -86,9 +86,9 @@ pub fn view(vm: Rc<AppViewModel>) -> Element {
                 .border_brush(p.border)
                 .border_thickness(1.0)
                 .corner_radius(8.0)
-                .width(if vm.is_narrow() { 320.0 } else { 360.0 })
+                .max_width(if vm.is_narrow() { 320.0 } else { 360.0 })
                 .max_height(680.0)
-                .horizontal_alignment(H::Center)
+                .horizontal_alignment(H::Stretch)
                 .vertical_alignment(V::Center)
                 .margin(16.0)
                 .child(

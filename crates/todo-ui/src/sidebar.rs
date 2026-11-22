@@ -1,5 +1,6 @@
 mod account;
 mod counts;
+mod group;
 mod item;
 mod search;
 
@@ -11,8 +12,8 @@ use ferroui_view::prelude::*;
 use item::view as nav_item;
 use std::rc::Rc;
 use todo_controls::{icon, icon_button, Icon};
-use todo_domain::{Action, View, TASKS_LIST};
-use todo_state::{AppViewModel, Panel};
+use todo_domain::{View, TASKS_LIST};
+use todo_state::AppViewModel;
 
 pub fn view(vm: Rc<AppViewModel>, drafts: Rc<crate::shell::Drafts>) -> Element {
     let p = palette(&vm);
@@ -23,9 +24,9 @@ pub fn view(vm: Rc<AppViewModel>, drafts: Rc<crate::shell::Drafts>) -> Element {
     let show_assigned = state.settings.show_assigned;
     let show_flagged = state.settings.show_flagged_email;
     let mut lists = state.lists.clone();
-    lists.sort_by_key(|l| l.position);
+    lists.sort_by_key(|l| (l.position, l.id));
     let mut groups = state.groups.clone();
-    groups.sort_by_key(|g| g.position);
+    groups.sort_by_key(|g| (g.position, g.id));
     drop(state);
     let new_list = vm.clone();
     let new_group = vm.clone();
@@ -100,46 +101,8 @@ pub fn view(vm: Rc<AppViewModel>, drafts: Rc<crate::shell::Drafts>) -> Element {
         ));
     }
     for group in groups {
-        let toggle = vm.clone();
-        let manage = vm.clone();
         let id = group.id;
-        nav = nav.child(
-            grid()
-                .column_definitions("*,Auto")
-                .margin((0.0, 6.0, 0.0, 0.0))
-                .child(
-                    button()
-                        .class("todo-flat")
-                        .height(40.0)
-                        .horizontal_content_alignment(H::Stretch)
-                        .on_click(move |_| toggle.dispatch(Action::ToggleGroup(id)))
-                        .child(
-                            stack_panel()
-                                .orientation(Orientation::Horizontal)
-                                .spacing(12.0)
-                                .child(icon(
-                                    if group.collapsed {
-                                        Icon::ChevronRight
-                                    } else {
-                                        Icon::ChevronDown
-                                    },
-                                    14.0,
-                                    p.secondary,
-                                ))
-                                .child(
-                                    text_block()
-                                        .text(group.name)
-                                        .font_size(14.0)
-                                        .foreground(p.text),
-                                ),
-                        ),
-                )
-                .child(border().grid_column(1).child(icon_button(
-                    Icon::More,
-                    "Manage group",
-                    move || manage.show_panel(Panel::RenameGroup(id)),
-                ))),
-        );
+        nav = nav.child(group::header(vm.clone(), &group));
         if !group.collapsed {
             for list in lists.iter().filter(|l| l.group_id == Some(id)) {
                 nav = nav.child(border().margin((16.0, 0.0, 0.0, 0.0)).child(nav_item(
@@ -176,9 +139,10 @@ pub fn view(vm: Rc<AppViewModel>, drafts: Rc<crate::shell::Drafts>) -> Element {
                         .child(
                             button()
                                 .class("todo-flat")
+                                .automation_properties_name("New list")
                                 .foreground(p.accent)
                                 .horizontal_content_alignment(H::Left)
-                                .on_click(move |_| new_list.show_panel(Panel::NewList))
+                                .on_click(move |_| new_list.create_list_inline())
                                 .child(
                                     stack_panel()
                                         .orientation(Orientation::Horizontal)
@@ -189,7 +153,7 @@ pub fn view(vm: Rc<AppViewModel>, drafts: Rc<crate::shell::Drafts>) -> Element {
                         )
                         .child(border().grid_column(1).vertical_alignment(V::Center).child(
                             icon_button(Icon::Folder, "Create a new group", move || {
-                                new_group.show_panel(Panel::NewGroup)
+                                new_group.create_group_inline()
                             }),
                         )),
                 ),

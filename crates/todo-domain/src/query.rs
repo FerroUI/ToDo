@@ -66,6 +66,7 @@ pub enum SortOrder {
     Manual,
     Importance,
     DueDate,
+    MyDay,
     Alphabetical,
     Created,
 }
@@ -76,6 +77,7 @@ impl SortOrder {
             Self::Manual => "My order",
             Self::Importance => "Importance",
             Self::DueDate => "Due date",
+            Self::MyDay => "Added to My Day",
             Self::Alphabetical => "Alphabetically",
             Self::Created => "Creation date",
         }
@@ -147,6 +149,10 @@ impl AppState {
                         let (a, b) = (date(a), date(b));
                         a.is_none().cmp(&b.is_none()).then(a.cmp(&b))
                     }
+                    SortOrder::MyDay => b
+                        .is_my_day(today)
+                        .cmp(&a.is_my_day(today))
+                        .then(a.position.cmp(&b.position)),
                     SortOrder::Alphabetical => {
                         unreachable!("alphabetical sorting uses cached keys")
                     }

@@ -79,6 +79,7 @@ pub(super) fn steps(vm: Rc<AppViewModel>, task: &Task) -> Element {
         );
     }
     let add = vm.clone();
+    let draft = vm.clone();
     items
         .child(
             grid()
@@ -94,12 +95,16 @@ pub(super) fn steps(vm: Rc<AppViewModel>, task: &Task) -> Element {
                     text_box()
                         .grid_column(1)
                         .name("NewStep")
+                        .text(vm.step_draft(id))
                         .class("todo-input")
                         .placeholder_text("Add step")
                         .font_size(13.0)
                         .foreground(p.accent)
                         .background("Transparent")
                         .border_thickness(0.0)
+                        .on_changed(TextBox::text_property(), move |text| {
+                            draft.set_step_draft(id, text.clone().unwrap_or_default());
+                        })
                         .on_key_down(move |event| {
                             if event.key == Key::Return {
                                 if let Some(field) =
@@ -115,6 +120,7 @@ pub(super) fn steps(vm: Rc<AppViewModel>, task: &Task) -> Element {
                                             .task(id)
                                             .is_some_and(|task| task.steps.len() > before)
                                         {
+                                            add.set_step_draft(id, String::new());
                                             field.set_text(Some(""));
                                         }
                                     }

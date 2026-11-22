@@ -33,6 +33,7 @@ impl AppState {
             | Action::ReorderList { .. }
             | Action::AddGroup { .. }
             | Action::RenameGroup { .. }
+            | Action::ReorderGroup { .. }
             | Action::DeleteGroup(_)
             | Action::ToggleGroup(_) => self.apply_list(action, today)?,
             Action::AddStep { .. }

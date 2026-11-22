@@ -137,11 +137,18 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
                         .child(icon_button(Icon::ArrowRight, "Close details", move || {
                             close.select(None)
                         }))
-                        .child(border().grid_column(2).child(icon_button(
-                            Icon::More,
-                            "Task options",
-                            move || menu.show_panel(Panel::TaskMenu(id)),
-                        ))),
+                        .child(
+                            border().grid_column(2).child(
+                                todo_controls::toolbar_button(
+                                    Icon::More,
+                                    "Task options",
+                                    p.secondary,
+                                )
+                                .with(move |button| {
+                                    crate::menus::task_options(button, menu.clone())
+                                }),
+                            ),
+                        ),
                 )
                 .child(
                     scroll_viewer()

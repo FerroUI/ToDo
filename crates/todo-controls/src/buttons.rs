@@ -15,15 +15,32 @@ pub fn colored_icon_button(
     color: &str,
     on_click: impl Fn() + 'static,
 ) -> Element {
-    let action = icon_action(kind, label, on_click).foreground(color);
+    toolbar_button(kind, label, color)
+        .on_click(move |event| {
+            event.set_handled(true);
+            on_click();
+        })
+        .into()
+}
+
+/// Typed toolbar control, allowing feature components to attach native menus and focus behavior.
+pub fn toolbar_button(kind: Icon, label: &str, color: &str) -> El<Button> {
+    let action = icon_base(kind, label).foreground(color);
     if matches!(color, "#FFFFFF" | "#ffffff" | "#FFF" | "#fff" | "White") {
-        action.class("todo-on-color").into()
+        action.class("todo-on-color")
     } else {
-        action.into()
+        action
     }
 }
 
 fn icon_action(kind: Icon, label: &str, on_click: impl Fn() + 'static) -> El<Button> {
+    icon_base(kind, label).on_click(move |event| {
+        event.set_handled(true);
+        on_click();
+    })
+}
+
+fn icon_base(kind: Icon, label: &str) -> El<Button> {
     button()
         .class("todo-toolbar")
         .width(32.0)
@@ -31,10 +48,6 @@ fn icon_action(kind: Icon, label: &str, on_click: impl Fn() + 'static) -> El<But
         .padding(6.0)
         .automation_properties_name(label)
         .tool_tip_tip(label)
-        .on_click(move |e| {
-            e.set_handled(true);
-            on_click();
-        })
         .child(inherited_icon(kind, 18.0))
 }
 

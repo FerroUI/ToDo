@@ -1,13 +1,17 @@
 mod commands;
 mod history;
 mod history_commands;
+mod layout;
 mod list_commands;
+mod naming;
 mod navigation;
 mod persistence;
 mod presentation;
 mod selection;
 mod services;
 
+pub use layout::{PaneLayout, COMPACT_WIDTH, DETAIL_WIDTH, MINIMUM_LIST_WIDTH, NAVIGATION_WIDTH};
+pub use naming::{RenameSession, RenameTarget};
 pub use navigation::{view_title, Panel};
 pub use services::{HostRequest, HostServices, SaveCallback};
 
@@ -16,7 +20,7 @@ use ferroui_reactive::concurrency::ImmediateScheduler;
 use ferroui_reactive::ObservableExt;
 use ferroui_reactiveui::{reactive_object, IReactiveObjectExt, ReactiveCommand, ReactiveObject};
 use std::cell::{Cell, Ref, RefCell};
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::rc::Rc;
 use todo_domain::{Action, AppState, Date, Id, SortOrder, Task, View};
 
@@ -34,7 +38,10 @@ pub struct AppViewModel {
     selection_anchor: Cell<Option<Id>>,
     task_cursor: Cell<Option<Id>>,
     panel: RefCell<Panel>,
+    rename: RefCell<Option<RenameSession>>,
     sidebar: Cell<bool>,
+    navigation_open: Cell<bool>,
+    step_drafts: RefCell<BTreeMap<Id, String>>,
     viewport: Cell<f64>,
     system_dark: Cell<bool>,
     cloud_connected: Cell<bool>,
@@ -75,7 +82,10 @@ impl AppViewModel {
                 selection_anchor: Cell::new(None),
                 task_cursor: Cell::new(None),
                 panel: RefCell::new(Panel::None),
+                rename: RefCell::new(None),
                 sidebar: Cell::new(true),
+                navigation_open: Cell::new(false),
+                step_drafts: RefCell::new(BTreeMap::new()),
                 viewport: Cell::new(1440.0),
                 system_dark: Cell::new(false),
                 cloud_connected: Cell::new(false),
@@ -146,9 +156,6 @@ impl AppViewModel {
     pub fn viewport(&self) -> f64 {
         self.viewport.get()
     }
-    pub fn is_narrow(&self) -> bool {
-        self.viewport.get() < 760.0
-    }
     pub fn is_dark(&self) -> bool {
         match self.state().settings.theme {
             todo_domain::Theme::Dark => true,
@@ -175,9 +182,6 @@ impl AppViewModel {
             self.notify();
         }
     }
-    pub fn sidebar_visible(&self) -> bool {
-        self.sidebar.get()
-    }
     pub fn selection(&self) -> BTreeSet<Id> {
         self.selection.borrow().clone()
     }
@@ -191,6 +195,7 @@ impl AppViewModel {
     }
 
     pub fn navigate(&self, view: View) {
+        self.rename.borrow_mut().take();
         if let View::List(id) = &view {
             if let Some(list) = self.document.borrow().list(*id) {
                 self.sort.set(list.sort);
@@ -209,13 +214,13 @@ impl AppViewModel {
         self.selection_anchor.set(None);
         self.task_cursor.set(None);
         *self.panel.borrow_mut() = Panel::None;
-        if self.is_narrow() {
-            self.sidebar.set(false);
-        }
+        self.navigation_open.set(false);
         self.notify();
     }
 
     pub fn select(&self, id: Option<Id>) {
+        self.rename.borrow_mut().take();
+        self.navigation_open.set(false);
         self.selected.set(id);
         if let Some(id) = id {
             self.task_cursor.set(Some(id));
@@ -237,26 +242,15 @@ impl AppViewModel {
     }
 
     pub fn show_panel(&self, panel: Panel) {
+        if matches!(panel, Panel::Settings | Panel::Suggestions) {
+            self.navigation_open.set(false);
+        }
         *self.panel.borrow_mut() = panel;
-        self.notify();
-    }
-    pub fn toggle_sidebar(&self) {
-        self.sidebar.set(!self.sidebar.get());
         self.notify();
     }
     pub fn toggle_completed(&self) {
         self.completed_expanded.set(!self.completed_expanded.get());
         self.notify();
-    }
-    pub fn set_viewport(&self, width: f64) {
-        if !width.is_finite() || width <= 0.0 {
-            return;
-        }
-        let previous = self.viewport.replace(width);
-        if (previous < 760.0) != (width < 760.0) {
-            self.sidebar.set(width >= 760.0);
-            self.notify();
-        }
     }
     pub fn set_today(&self, today: Date) {
         if self.today.replace(today) != today {

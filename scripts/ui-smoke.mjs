@@ -1,94 +1,18 @@
 // A small integration gate over the shipped WASM: real input, durable edits, and rendered previews.
 // node scripts/ui-smoke.mjs <built-site> [output-directory]
-import { mkdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import assert from "node:assert/strict";
-import { open, sleep, colours } from "../FerroUI/scripts/browser/harness.mjs";
+import { sleep } from "../FerroUI/scripts/browser/harness.mjs";
+import { createHarness } from "./ui/harness.mjs";
+import { verifyAdaptive } from "./ui/adaptive.mjs";
+import { verifyNativeMenus } from "./ui/native-menus.mjs";
 
 const [site, output = "test-results/ui", ...extra] = process.argv.slice(2);
 if (!site || extra.length) throw new Error("usage: ui-smoke.mjs <built-site> [output-directory]");
-await mkdir(output, { recursive: true });
-const page = await open(site, { query: "?nooffline=1", width: 1280, height: 800, network: true, navigate: false });
-const failures = [], requests = new Map();
-page.on("Network.requestWillBeSent", event => requests.set(event.requestId, event.request.url));
-page.on("Network.responseReceived", event => {
-  if (event.response.status >= 400) failures.push(`HTTP ${event.response.status}: ${event.response.url}`);
-});
-page.on("Network.loadingFailed", event => {
-  if (!event.canceled) failures.push(`${event.errorText}: ${requests.get(event.requestId) || event.requestId}`);
-});
-
-const snapshot = async () => JSON.parse(await page.evaluate("globalThis.todoApp.inspectView()"));
-// Read saved data directly: exportData() flushes editors and could mask a broken UI commit handler.
-const saved = async () => JSON.parse(await page.evaluate("localStorage.getItem('ferroui.todo.v1') || '{}'"));
-function healthy() {
-  const errors = [...failures, ...page.errors];
-  if (errors.length) throw new Error(errors.join("\n"));
-}
-async function until(check, label, timeout = 10000) {
-  const end = Date.now() + timeout;
-  let lastError;
-  while (Date.now() < end) {
-    healthy();
-    try { const value = await check(); if (value) return value; }
-    catch (error) { lastError = error; }
-    await sleep(75);
-  }
-  throw new Error(`Timed out: ${label}${lastError ? ` (${lastError.message})` : ""}`);
-}
-async function ready() {
-  await until(() => page.evaluate(`(() => {
-    const splash = document.querySelector('.ferroui-splash');
-    return !!document.querySelector('canvas') && !!globalThis.todoApp?.inspectView
-      && (!splash || (splash.classList.contains('splash-close') && getComputedStyle(splash).display === 'none'));
-  })()`), "the application draws and hides its splash", 60000);
-  await control(element => element.name === "NewTask", "task composer");
-}
-async function control(match, label) {
-  return until(async () => {
-    const matches = (await snapshot())?.elements.filter(element => element.hit && match(element)) || [];
-    assert(matches.length <= 1, `Ambiguous rendered control: ${label}`);
-    return matches[0];
-  }, `visible, hit-testable ${label}`);
-}
-async function clickText(text) {
-  // WinUI string content uses AccessText for access-key labels.
-  await clickControl(element => /(?:TextBlock|AccessText)$/.test(element.type) && element.text === text, text);
-}
-async function clickControl(match, label) {
-  const element = await control(match, label);
-  await page.click(element.x + element.width / 2, element.y + element.height / 2);
-}
-async function focusControl(match, label) {
-  // Use real Tab navigation: clicking an importance toggle would mutate it while focusing.
-  for (let tabs = 0; tabs <= 24; tabs++) {
-    const element = await control(match, label);
-    if (element.focused) return;
-    if (tabs < 24) await page.press("Tab", ["shift"]);
-  }
-  throw new Error(`Cannot reach ${label} with keyboard navigation`);
-}
-async function edit(name, text, enter = false) {
-  const field = await control(element => element.name === name, name);
-  await page.click(field.x + field.width / 2, field.y + field.height / 2);
-  await page.press("a", ["ctrl"]);
-  await page.type(text);
-  if (enter) await page.press("Enter");
-}
-async function navigate(command, parameters) {
-  const previous = page.navigations.length;
-  const result = await page.send(command, parameters);
-  assert(!result.error, result.error?.message);
-  await until(() => page.navigations.length > previous, "a fresh document after navigation");
-  await ready();
-}
-async function capture(name) {
-  await sleep(200);
-  healthy();
-  const image = await page.screenshot(path.join(output, `${name}.png`));
-  assert(colours(image) > 40, `${name} does not contain a rendered interface`);
-  await writeFile(path.join(output, `${name}.json`), JSON.stringify(await snapshot()));
-}
+const ui = await createHarness(site, output);
+const { page, snapshot, saved, healthy, until, ready, control, clickControl, clickText,
+  focusControl, edit, navigate, capture } = ui;
 
 let failure;
 try {
@@ -161,8 +85,8 @@ try {
 
   await clickText("New list");
   await edit("ListName", "Test list", true);
-  await until(async () => (await saved()).lists.some(list => list.name === "Test list"), "the list dialog saves");
-  console.log("ok: list dialog input and Enter submission");
+  await until(async () => (await saved()).lists.some(list => list.name === "Test list"), "the inline list name saves");
+  console.log("ok: inline list-name input and Enter submission");
 
   const textControl = text => control(element => element.type.endsWith("TextBlock") && element.text === text, text);
   const dragText = async (from, to, { before = false, cancel = false } = {}) => {
@@ -200,6 +124,9 @@ try {
   await dragText("Edited task", "Drag task", { before: true, cancel: true });
   assert.deepEqual(await saved(), beforeCancel, "Escape followed by movement and release must not mutate the document");
   console.log("ok: real drag moves between lists, reorders saved/rendered rows, and cancels without changes");
+
+  await verifyAdaptive(ui, { taskId: task.id });
+  await verifyNativeMenus(ui);
 
   const demo = new URL(page.url);
   demo.search = "?demo=1&nooffline=1";

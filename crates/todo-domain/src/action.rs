@@ -135,6 +135,10 @@ pub enum Action {
         id: Id,
         name: String,
     },
+    ReorderGroup {
+        id: Id,
+        before: Option<Id>,
+    },
     DeleteGroup(Id),
     ToggleGroup(Id),
     DeleteCompleted {

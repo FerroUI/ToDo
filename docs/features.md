@@ -14,9 +14,9 @@ This document distinguishes implemented behavior from reference-app parity. The 
 | Notes and search | Multiline notes; case-insensitive search across titles, notes, steps, and tags | Notes are plain text; no complete rich-text editor or dedicated tag-management interface |
 | Dates | Due-date shortcuts and calendar selection, local reminder date/time | Reminder scheduling is active only while the application is open |
 | Repeat | Daily, weekdays, weekly, monthly, yearly, custom intervals including weekdays; month-end and leap-year handling | Arbitrary weekly day sets and end-after-count/date patterns are not exposed |
-| Lists | Create, rename, duplicate, delete, color, sort, completed visibility | Full drag-and-drop list ordering is not exposed |
-| Groups | Create, rename, collapse, delete, move lists into/out of groups | No complete drag-and-drop group ordering |
-| Task order | Manual move up/down; importance, due date, alphabetic, creation-date sort; mouse drag to reorder a manual list or move to a sidebar list | Single-task dragging; reorder stays within a completion group and manual List view; edge scrolling responds to movement |
+| Lists | Immediate creation with inline naming; title rename; duplicate, delete, color, sort, completed visibility; context-menu sibling ordering | Full drag-and-drop list ordering is not exposed |
+| Groups | Immediate creation and inline rename; collapse; empty-group deletion; preserving ungroup; native membership and sibling-order menus | No complete drag-and-drop group ordering or arbitrary interleaving of root groups and lists |
+| Task order | Manual move up/down; importance, due date, My Day membership, alphabetic, creation-date sort; mouse drag to reorder a manual list or move to a sidebar list | Added to My Day uses membership then manual position/ID; Microsoft's undocumented timestamp/tie behavior is not claimed. Single-task dragging; reorder stays within a completion group and manual List view |
 | History | Undo/redo for domain edits, including task/list deletion and import | History is session-local and bounded; cloud replacement clears stale local history |
 | Multi-selection | Selection mode, Ctrl/Command-click toggles, Shift-click ranges, select-all-visible, bulk completion, move, and delete with confirmation | Each bulk edit is one undo step; drag selection and every reference-app bulk operation are not reproduced |
 | Transfer | JSON export/import and print view | JSON includes attachment references, not file bytes |
@@ -29,11 +29,12 @@ This document distinguishes implemented behavior from reference-app parity. The 
 | Desktop composition | Navigation sidebar, colored list headers, task rows, task detail pane, settings, suggestions, and modal dialogs |
 | Themes | Light, dark, and system modes; list and smart-view colors |
 | Controls | FerroUI WinUI theme with app-specific templates for action buttons and task rows; real text inputs, list virtualization, scrolling, and focus |
+| Context menus | Native WinUI ContextMenu/MenuItem templates, anchored pointer/keyboard opening, destination submenus, destructive colors, light dismiss, live multi-selection, explicit sidebar identity, and focus return |
 | Artwork | Original vector icons and My Day landscape; not Microsoft's proprietary wallpaper catalog |
-| Responsive layout | Separate full-width panes below 760 pixels; multi-column layout above that width |
+| Responsive layout | Below 760px: list or right pane with navigation drawer. With a right pane at 760–979px: list/details and temporary navigation. From 980px: 280px navigation + at least 360px list + 340px details. Sidebar preference survives resize; exact thresholds are implementation choices |
 | Accessibility | Named controls and enabled FerroUI browser accessibility bridge; full assistive-technology certification remains unverified |
 | Typography | Bundled Inter through FerroUI; therefore not identical to every platform's Microsoft To Do font rendering |
-| Editing | Task title, notes, and steps commit on their implemented focus/keyboard paths; search is debounced on desktop; dialogs restore focus to their origin or a relevant editor |
+| Editing | Transient inline naming commits once on Enter/blur and cancels on Escape; step drafts survive pane changes; focused account/title/note/step/name edits flush before host departure; desktop search debounce rechecks compact mode; panes and menus restore focus |
 | Task-list navigation | Arrow keys, Home/End, and Page Up/Down move the task cursor and scroll it into view; Shift extends selection; controls expose action names |
 
 The application implements keyboard commands while the app has focus. Browser-reserved shortcuts can still be intercepted by the browser; use Ctrl/Command + Alt + N to focus the task composer in a browser tab. Ctrl/Command + N remains available in the desktop app.
@@ -55,8 +56,8 @@ The application implements keyboard commands while the app has focus. Browser-re
 | Arrow keys / Home / End / Page Up / Page Down in the task list | Move the task cursor; hold Shift to extend the range |
 | Space in the task list | Toggle completion; in selection mode, toggle selection |
 | Enter in the task list | Open task details; in selection mode, toggle selection |
-| Shift + F10 or the context-menu key | Open the current task's menu |
-| Escape | Close the active panel/details, exit selection, or close the narrow sidebar |
+| Shift + F10 or the context-menu key | Open the focused task, list, or group menu |
+| Escape | Cancel inline naming, dismiss a menu/drawer, close a panel/details, or exit selection |
 | Delete, outside text editing | Delete the selected tasks or current task |
 
 ## Platform coverage
@@ -103,4 +104,4 @@ Automated tests exercise a simulated Graph service. Live sign-in, consent, accou
 
 Rust tests across `todo-domain` and `todo-state` cover date/recurrence edge cases, My Day behavior, relationships, import validation, reactive cache changes, reentrant callbacks, undo/redo, persistence failures, and reminder deduplication. Selection regression tests cover atomic bulk edits, recurrence during bulk completion, deletion confirmation, range anchors, navigation resets, and completed-row visibility. The JavaScript Graph tests cover the adapter using a simulated service.
 
-The repository includes a browser editing and rendering gate covering task/list creation, date recognition, focused-button activation, modal focus restoration, steps and promotion, drag/move/reorder/cancellation, retained title editing, focused-note persistence on reload, and light/dark/narrow captures. This check does not establish visual parity, complete accessibility, mobile keyboard fidelity, large-data frame times, native platform certification, or live Microsoft integration.
+The repository includes one browser editing and rendering gate covering task/list creation, inline naming and cancellation, native menus and submenus, live multi-selection, date recognition, focused-button activation, pane/menu/modal focus restoration, step drafts and promotion, drag/move/reorder/cancellation, retained title editing, and focused-note/account persistence on reload. It checks six viewport widths and captures light/dark/desktop/intermediate/narrow/menu views. This check does not establish pixel equivalence, complete accessibility, mobile keyboard fidelity, large-data frame times, native platform certification, or live Microsoft integration. The [reference ledger](reference-behavior.md) records supported interaction decisions and their limits.

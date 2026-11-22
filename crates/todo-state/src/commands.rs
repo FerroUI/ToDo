@@ -49,32 +49,42 @@ impl AppViewModel {
     }
 
     pub(crate) fn publish(&self, changes: &Changes) {
-        let updated = {
-            let document = self.document.borrow();
-            if self
-                .selected
-                .get()
-                .is_some_and(|id| document.task(id).is_none())
+        let updated =
             {
-                self.selected.set(None);
-            }
-            if matches!(self.view(), View::List(id) if document.list(id).is_none()) {
-                *self.view.borrow_mut() = View::List(TASKS_LIST);
-            }
-            self.selection
-                .borrow_mut()
-                .retain(|id| document.task(*id).is_some());
-            if let View::List(id) = self.view() {
-                if let Some(list) = document.list(id) {
-                    self.sort.set(list.sort);
+                let document = self.document.borrow();
+                if self
+                    .selected
+                    .get()
+                    .is_some_and(|id| document.task(id).is_none())
+                {
+                    self.selected.set(None);
                 }
-            }
-            changes
-                .changed_tasks
-                .iter()
-                .filter_map(|id| document.task(*id).cloned())
-                .collect::<Vec<_>>()
-        };
+                if matches!(self.view(), View::List(id) if document.list(id).is_none()) {
+                    *self.view.borrow_mut() = View::List(TASKS_LIST);
+                }
+                self.selection
+                    .borrow_mut()
+                    .retain(|id| document.task(*id).is_some());
+                let obsolete_rename = self.rename.borrow().as_ref().is_some_and(|edit| match edit
+                    .target
+                {
+                    crate::RenameTarget::List(id) => document.list(id).is_none(),
+                    crate::RenameTarget::Group(id) => document.group(id).is_none(),
+                });
+                if obsolete_rename {
+                    self.rename.borrow_mut().take();
+                }
+                if let View::List(id) = self.view() {
+                    if let Some(list) = document.list(id) {
+                        self.sort.set(list.sort);
+                    }
+                }
+                changes
+                    .changed_tasks
+                    .iter()
+                    .filter_map(|id| document.task(*id).cloned())
+                    .collect::<Vec<_>>()
+            };
         // Cache notifications and their callbacks must never run under a document borrow.
         self.tasks.edit(|cache| {
             for id in &changes.deleted_tasks {

@@ -73,6 +73,7 @@ pub fn sort(vm: Rc<AppViewModel>) -> Element {
         SortOrder::DueDate,
         SortOrder::Alphabetical,
         SortOrder::Created,
+        SortOrder::MyDay,
     ] {
         let choose = vm.clone();
         content = content.child(action_button(

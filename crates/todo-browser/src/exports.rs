@@ -139,7 +139,7 @@ pub fn inspect_view() -> String {
     let elements = top_level.get_visual_descendants().filter_map(|visual| {
         let text = if let Some(text) = visual.cast::<TextBlock>() { text.text() }
             else if let Some(text) = visual.cast::<TextBox>() { text.text() }
-            else if visual.cast::<Button>().is_some() { None }
+            else if visual.cast::<Button>().is_some() || visual.cast::<ferroui_controls::MenuItem>().is_some() { None }
             else { return None; };
         let bounds = visual.bounds();
         if !visual.is_effectively_visible() || bounds.width <= 0.0 || bounds.height <= 0.0 { return None; }

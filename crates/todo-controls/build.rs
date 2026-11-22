@@ -19,6 +19,9 @@ fn main() {
             "ComboBox",
             "ComboBoxItem",
             "ToolTip",
+            "ContextMenu",
+            "MenuItem",
+            "Separator",
         ])
         .run();
 }

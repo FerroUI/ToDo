@@ -5,7 +5,7 @@ use ferroui_view::prelude::*;
 use std::rc::Rc;
 use todo_controls::{star_button, task_check};
 use todo_domain::Action;
-use todo_state::{AppViewModel, Panel};
+use todo_state::AppViewModel;
 pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
     match row {
         Row::Header {
@@ -53,6 +53,7 @@ pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
             todo_controls::task_card(
                 grid()
                     .tag(super::interactions::task_tag(id))
+                    .automation_properties_name(format!("Task: {accessible_title}"))
                     .column_definitions(if selection_mode {
                         "34,42,*,40"
                     } else {
@@ -64,11 +65,12 @@ pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
                             row,
                             drop_target.clone(),
                             super::interactions::task_id,
-                        )
-                    })
-                    .on_context_requested(move |event| {
-                        event.set_handled(true);
-                        context.show_panel(Panel::TaskMenu(id));
+                        );
+                        crate::menus::attach_task(
+                            row,
+                            context.clone(),
+                            super::interactions::task_id,
+                        );
                     })
                     .child(if selection_mode {
                         check_box()

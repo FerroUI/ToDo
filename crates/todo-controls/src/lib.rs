@@ -12,9 +12,9 @@ mod theme;
 
 pub use buttons::{
     action_button, colored_icon_button, icon_button, primary_button, star_button, task_card,
-    task_check, text, text_button,
+    task_check, text, text_button, toolbar_button,
 };
-pub use icons::{icon, Icon};
+pub use icons::{icon, inherited_icon, Icon};
 pub use palette::{ListTheme, Palette, ALL_LIST_THEMES};
 pub use theme::{install_theme, set_dark_mode};
 

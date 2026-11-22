@@ -6,7 +6,9 @@ use todo_state::{AppViewModel, HostRequest, Panel};
 
 pub(super) fn handle(vm: &AppViewModel, drafts: &Drafts, event: &KeyEventArgs) {
     if event.key == Key::Escape {
-        if vm.panel() != Panel::None {
+        if vm.navigation_overlay_open() {
+            vm.close_navigation();
+        } else if vm.panel() != Panel::None {
             vm.show_panel(Panel::None);
         } else if vm.selected().is_some() {
             vm.select(None);
@@ -48,7 +50,7 @@ pub(super) fn handle(vm: &AppViewModel, drafts: &Drafts, event: &KeyEventArgs) {
                 }
                 focus_later(drafts.task_input, false);
             }
-            Key::L => vm.show_panel(Panel::NewList),
+            Key::L => vm.create_list_inline(),
             Key::F => {
                 vm.navigate(View::Search(drafts.search.get_untracked()));
                 if !vm.sidebar_visible() {

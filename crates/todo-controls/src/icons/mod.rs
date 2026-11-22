@@ -75,7 +75,7 @@ fn geometry(kind: Icon) -> Ref<Geometry> {
 }
 
 /// A glyph whose foreground follows its owning button or text style.
-pub(crate) fn inherited_icon(kind: Icon, size: f64) -> El<PathIcon> {
+pub fn inherited_icon(kind: Icon, size: f64) -> El<PathIcon> {
     path_icon()
         .data(Some(geometry(kind)))
         .width(size)

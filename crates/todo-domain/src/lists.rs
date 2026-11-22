@@ -1,6 +1,7 @@
+mod order;
+
 use crate::{
-    Action, AppState, Changes, Date, DomainError, Id, ListGroup, TASKS_LIST, TaskList,
-    action::nonempty,
+    Action, AppState, Changes, Date, DomainError, ListGroup, TASKS_LIST, TaskList, action::nonempty,
 };
 
 impl AppState {
@@ -112,18 +113,9 @@ impl AppState {
                 self.lists[index].show_completed = show;
                 Ok(Changes::lists())
             }
-            Action::MoveList { id, group_id } => {
-                if id == TASKS_LIST {
-                    return Err(DomainError::ProtectedList);
-                }
-                let index = self.list_index(id)?;
-                if let Some(id) = group_id {
-                    self.group(id).ok_or(DomainError::NotFound("Group", id))?;
-                }
-                self.lists[index].group_id = group_id;
-                Ok(Changes::lists())
-            }
+            Action::MoveList { id, group_id } => self.move_list(id, group_id),
             Action::ReorderList { id, before } => self.reorder_list(id, before),
+            Action::ReorderGroup { id, before } => self.reorder_group(id, before),
             Action::AddGroup { name } => {
                 let name = nonempty(name)?;
                 let id = self.allocate_id();
@@ -173,52 +165,6 @@ impl AppState {
             }
             _ => Err(DomainError::InvalidValue("Unsupported list command".into())),
         }
-    }
-
-    fn reorder_list(&mut self, id: Id, before: Option<Id>) -> Result<Changes, DomainError> {
-        if id == TASKS_LIST || before == Some(TASKS_LIST) {
-            return Err(DomainError::ProtectedList);
-        }
-        let index = self.list_index(id)?;
-        let group = self.lists[index].group_id;
-        if before == Some(id) {
-            return Ok(Changes::default());
-        }
-        if let Some(before_id) = before {
-            let target = self.list_index(before_id)?;
-            if self.lists[target].group_id != group {
-                return Err(DomainError::InvalidValue(
-                    "Move the list into this group before reordering".into(),
-                ));
-            }
-        }
-        let mut ids: Vec<_> = self
-            .lists
-            .iter()
-            .filter(|list| list.group_id == group && list.id != TASKS_LIST)
-            .map(|list| (list.position, list.id))
-            .collect();
-        ids.sort_unstable();
-        let mut ids: Vec<_> = ids
-            .into_iter()
-            .map(|(_, id)| id)
-            .filter(|value| *value != id)
-            .collect();
-        let position = before
-            .and_then(|before_id| ids.iter().position(|value| *value == before_id))
-            .unwrap_or(ids.len());
-        ids.insert(position, id);
-        let positions: std::collections::HashMap<_, _> = ids
-            .into_iter()
-            .enumerate()
-            .map(|(position, id)| (id, position as i64))
-            .collect();
-        for list in &mut self.lists {
-            if let Some(position) = positions.get(&list.id) {
-                list.position = *position;
-            }
-        }
-        Ok(Changes::lists())
     }
 }
 

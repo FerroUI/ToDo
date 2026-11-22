@@ -1,39 +1,34 @@
+mod focus;
+mod focus_target;
 mod input;
 mod key_route;
 mod keyboard;
 mod title_bar;
 
 use crate::{detail, dialogs, list, palette, rows::Rows, settings, sidebar, suggestions};
-use ferroui_base::layout::{HorizontalAlignment as H, Orientation, VerticalAlignment as V};
+use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
+use ferroui_base::media::TextWrapping;
+use ferroui_controls::Grid;
 use ferroui_view::prelude::*;
 pub(crate) use input::Drafts;
 use std::rc::Rc;
 use todo_controls::{icon_button, Icon};
-use todo_state::{AppViewModel, Panel};
+use todo_state::{AppViewModel, Panel, NAVIGATION_WIDTH};
 
 pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
     let drafts = use_hook(|| Rc::new(Drafts::new(vm.view())));
     drafts.synchronize_route(vm.view());
+    let root_node = use_hook(NodeRef::<Grid>::new);
+    let focus = use_hook(|| Rc::new(focus::PaneFocus::default()));
+    let layout = vm.layout();
+    focus.synchronize(&vm, &rows, &drafts, root_node, layout);
     let p = palette(&vm);
-    let narrow = vm.is_narrow();
-    let sidebar_requested = vm.sidebar_visible();
-    let detail_visible = vm.selected().is_some();
     let panel = vm.panel();
     let side_panel = matches!(panel, Panel::Suggestions | Panel::Settings);
-    let sidebar_visible = sidebar_requested && !(narrow && (detail_visible || side_panel));
-    let left_width = if sidebar_visible {
-        if narrow {
-            "*"
-        } else {
-            "280"
-        }
-    } else {
-        "0"
-    };
-    let show_list = !(narrow && (sidebar_visible || detail_visible || side_panel));
-    let center_width = if show_list { "*" } else { "0" };
-    let right_width = if detail_visible || side_panel {
-        if narrow {
+    let left_width = if layout.navigation_inline { "280" } else { "0" };
+    let center_width = if layout.list_visible { "*" } else { "0" };
+    let right_width = if layout.right_visible {
+        if layout.compact {
             "*"
         } else {
             "340"
@@ -45,6 +40,7 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
     let key_drafts = drafts.clone();
     let mut root = grid()
         .name("TodoApp")
+        .node_ref(root_node)
         .focusable(true)
         .is_tab_stop(false)
         .background(p.background)
@@ -54,18 +50,18 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
     let mut body = grid()
         .grid_row(1)
         .column_definitions(&format!("{left_width},{center_width},{right_width}"));
-    if sidebar_visible {
+    if layout.navigation_inline {
         body = body.child(
             grid()
                 .key("sidebar")
                 .child(sidebar::view(vm.clone(), drafts.clone())),
         );
     }
-    if show_list {
+    if layout.list_visible {
         body = body.child(grid().key("task-list").grid_column(1).child(list::view(
             vm.clone(),
             rows,
-            drafts,
+            drafts.clone(),
         )));
     }
     if side_panel {
@@ -92,7 +88,7 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
             border()
                 .grid_row(1)
                 .vertical_alignment(V::Bottom)
-                .horizontal_alignment(H::Center)
+                .horizontal_alignment(H::Stretch)
                 .margin((16.0, 16.0))
                 .padding((14.0, 8.0))
                 .corner_radius(5.0)
@@ -101,20 +97,71 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
                 .border_thickness(1.0)
                 .max_width(650.0)
                 .child(
-                    stack_panel()
-                        .orientation(Orientation::Horizontal)
-                        .spacing(12.0)
+                    grid()
+                        .column_definitions("*,Auto,Auto")
+                        .column_spacing(12.0)
                         .child(
                             text_block()
                                 .text(vm.status())
                                 .font_size(13.0)
                                 .foreground(p.text)
-                                .max_width(480.0),
+                                .text_wrapping(TextWrapping::Wrap),
                         )
-                        .child(todo_controls::text_button("Undo", move || undo.undo()))
-                        .child(icon_button(Icon::Close, "Dismiss message", move || {
-                            close.clear_status()
-                        })),
+                        .child(
+                            border()
+                                .grid_column(1)
+                                .child(todo_controls::text_button("Undo", move || undo.undo())),
+                        )
+                        .child(border().grid_column(2).child(icon_button(
+                            Icon::Close,
+                            "Dismiss message",
+                            move || close.clear_status(),
+                        ))),
+                ),
+        );
+    }
+    if layout.navigation_overlay {
+        let dismiss = vm.clone();
+        let close = vm.clone();
+        root = root.child(
+            grid()
+                .key("navigation-drawer")
+                .grid_row(1)
+                .child(
+                    button()
+                        .class("todo-flat")
+                        .background("#55000000")
+                        .focusable(false)
+                        .is_tab_stop(false)
+                        .horizontal_alignment(H::Stretch)
+                        .vertical_alignment(V::Stretch)
+                        .automation_properties_name("Close navigation")
+                        .on_click(move |_| dismiss.close_navigation()),
+                )
+                .child(
+                    border()
+                        .name("NavigationPane")
+                        .width(NAVIGATION_WIDTH)
+                        .horizontal_alignment(H::Left)
+                        .background(p.sidebar)
+                        .keyboard_navigation_tab_navigation(
+                            ferroui_base::input::KeyboardNavigationMode::Cycle,
+                        )
+                        .child(
+                            grid()
+                                .row_definitions("40,*")
+                                .child(
+                                    border()
+                                        .horizontal_alignment(H::Left)
+                                        .margin((8.0, 4.0))
+                                        .child(icon_button(
+                                            Icon::Menu,
+                                            "Hide navigation",
+                                            move || close.close_navigation(),
+                                        )),
+                                )
+                                .child(grid().grid_row(1).child(sidebar::view(vm.clone(), drafts))),
+                        ),
                 ),
         );
     }

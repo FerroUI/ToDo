@@ -13,10 +13,11 @@ The application includes the main personal task workflows and optional Microsoft
 - English date/time recognition in new task titles, a live schedule preview, and configurable title retention.
 - Search across task names, notes, steps, and tags; suggestions; sorting; drag tasks to reorder or move between lists; task and list duplication.
 - Multiple selection with modifier-click and ranges, select-all, and bulk completion, move, and deletion.
+- Native anchored task/list/group menus, selection-aware task commands, and inline list/group naming.
 - Calendar-aware daily, weekday, weekly, monthly, yearly, and custom interval recurrence.
 - Undo/redo, JSON backup and restore, print view, and browser file attachments.
 - Light, dark, and system themes; per-list colors; original vector icons and My Day landscape.
-- Responsive desktop and narrow layouts, virtualized task rows, keyboard shortcuts, and FerroUI accessibility support.
+- Adaptive one-, two-, and three-pane layouts, retained drafts and keyboard focus, virtualized task rows, and FerroUI accessibility support.
 - Browser storage, installable app metadata, and offline resources cached after a successful load.
 - Optional Microsoft account connection and explicit **Sync now** for supported list/task fields and checklist items.
 
@@ -74,7 +75,7 @@ node --test scripts/*.test.mjs
 node scripts/ui-smoke.mjs target/browser/todo-browser
 ```
 
-The Rust suites cover domain behavior, conservative date/time recognition, atomic scheduled-task creation, state transitions, bulk-selection transactions, and callback reentrancy. The JavaScript suites exercise storage conflicts and retries, plus Graph creation, updates, imports, deletion, conflicts, interrupted requests, and account isolation with a simulated service. The browser gate uses the built app and Chromium to check task/list creation, keyboard activation and modal focus restoration, retained title editing, step promotion, and saving a focused note on reload. It also captures desktop, detail, dark-theme, and narrow layouts. Other browser/device combinations need separate validation.
+The Rust suites cover domain behavior, conservative date/time recognition, atomic scheduled-task creation, state transitions, bulk-selection transactions, inline naming, sidebar ordering, adaptive pane budgets, and callback reentrancy. The JavaScript suites exercise storage conflicts and retries, plus Graph creation, updates, imports, deletion, conflicts, interrupted requests, and account isolation with a simulated service. One browser gate uses the built app and Chromium to check real editing, menus, selection, focus restoration, drag/drop, draft retention, and persistence on reload. It verifies widths of 320, 390, 760, 800, 980, and 1024 pixels and captures desktop, intermediate, narrow, menu, and dark-theme views. Other browser/device combinations need separate validation.
 
 ## Architecture
 
@@ -87,11 +88,11 @@ The Rust suites cover domain behavior, conservative date/time recognition, atomi
 | `todo-browser` | FerroUI browser startup, persistence, offline assets, files, notifications, and Graph bridge |
 | `todo-desktop` | Native startup, application-data persistence, file dialogs, and platform services |
 
-Read [Architecture](docs/architecture.md) for state flow, performance decisions, and extension points.
+Read [Architecture](docs/architecture.md) for state flow, performance decisions, and extension points. [Reference behavior](docs/reference-behavior.md) records the Microsoft documentation used for interaction decisions and distinguishes verified workflows from inferred adaptive thresholds.
 
 ## FerroUI submodule
 
-`FerroUI/` is a real Git submodule pinned to [`c5a3aadc230c6b830337525eeab79652b12f9cf0`](https://github.com/wieslawsoltes/FerroUI/commit/c5a3aadc230c6b830337525eeab79652b12f9cf0), the latest upstream `main` revision selected for this build. All framework crates resolve through paths into that checkout.
+`FerroUI/` is a real Git submodule pinned to [`0cdbd6f730ce618f9731b27b39366c80a3f0fafc`](https://github.com/wieslawsoltes/FerroUI/commit/0cdbd6f730ce618f9731b27b39366c80a3f0fafc), the upstream `main` revision verified on 22 November 2026. All framework crates resolve through paths into that checkout.
 
 To recover a missing checkout:
 

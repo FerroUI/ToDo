@@ -20,9 +20,21 @@ pub(super) fn view(
     let count = counts.get(&target);
     let go = vm.clone();
     let drop_target = vm.clone();
+    let context = vm.clone();
+    let list_id = match target {
+        View::List(id) => Some(id),
+        _ => None,
+    };
     button()
+        .key(format!("nav-{target:?}"))
+        .automation_properties_name(title.clone())
         .tag(crate::drag::list_tag(&target))
-        .with(move |button| crate::drag::attach_list_target(button, drop_target.clone()))
+        .with(move |button| {
+            crate::drag::attach_list_target(button, drop_target.clone());
+            if let Some(id) = list_id {
+                crate::menus::attach_list(button, context.clone(), id);
+            }
+        })
         .class(if selected {
             "todo-nav selected"
         } else {

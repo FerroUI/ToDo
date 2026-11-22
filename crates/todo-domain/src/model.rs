@@ -79,7 +79,9 @@ impl Task {
 
     pub fn is_my_day(&self, today: Date) -> bool {
         self.my_day == Some(today)
-            || (self.due_date == Some(today) && self.my_day_excluded != Some(today))
+            || (self.due_date == Some(today)
+                && self.my_day_excluded != Some(today)
+                && (!self.completed || self.completed_on == Some(today)))
     }
 }
 

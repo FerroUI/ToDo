@@ -50,7 +50,11 @@ impl Drafts {
             return;
         }
         *self.search_timer.borrow_mut() = Some(DispatcherTimer::run_once(
-            move || vm.navigate(View::Search(query.clone())),
+            move || {
+                if !vm.is_narrow() {
+                    vm.navigate(View::Search(query.clone()));
+                }
+            },
             Duration::from_millis(180),
             DispatcherPriority::BACKGROUND,
         ));
