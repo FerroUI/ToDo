@@ -4,8 +4,8 @@ use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
 use ferroui_base::media::FontWeight;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, icon};
-use todo_domain::{TASKS_LIST, View};
+use todo_controls::{icon, Icon};
+use todo_domain::{View, TASKS_LIST};
 use todo_state::AppViewModel;
 pub(super) fn view(
     vm: Rc<AppViewModel>,

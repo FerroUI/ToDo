@@ -14,16 +14,16 @@ mod scheduling;
 mod selection;
 mod services;
 
-pub use layout::{COMPACT_WIDTH, DETAIL_WIDTH, MINIMUM_LIST_WIDTH, NAVIGATION_WIDTH, PaneLayout};
+pub use layout::{PaneLayout, COMPACT_WIDTH, DETAIL_WIDTH, MINIMUM_LIST_WIDTH, NAVIGATION_WIDTH};
 pub use naming::{RenameSession, RenameTarget};
-pub use navigation::{Panel, view_title};
+pub use navigation::{view_title, Panel};
 pub use scheduling::{parse_reminder_time, reminder_in_one_hour};
 pub use services::{HostRequest, HostServices, SaveCallback};
 
 use ferroui_dynamic_data::SourceCache;
-use ferroui_reactive::ObservableExt;
 use ferroui_reactive::concurrency::ImmediateScheduler;
-use ferroui_reactiveui::{IReactiveObjectExt, ReactiveCommand, ReactiveObject, reactive_object};
+use ferroui_reactive::ObservableExt;
+use ferroui_reactiveui::{reactive_object, IReactiveObjectExt, ReactiveCommand, ReactiveObject};
 use std::cell::{Cell, Ref, RefCell};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::rc::Rc;

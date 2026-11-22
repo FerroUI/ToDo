@@ -5,7 +5,7 @@ use super::{
 use crate::palette;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, icon_button};
+use todo_controls::{icon_button, Icon};
 use todo_domain::{Action, Task};
 use todo_state::{AppViewModel, HostRequest};
 

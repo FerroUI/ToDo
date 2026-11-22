@@ -1,4 +1,4 @@
-use super::input::{Drafts, focus_later};
+use super::input::{focus_later, Drafts};
 use ferroui_base::input::{Key, KeyEventArgs, KeyModifiers};
 use ferroui_controls::{Control, TextBox};
 use todo_domain::{Action, View};

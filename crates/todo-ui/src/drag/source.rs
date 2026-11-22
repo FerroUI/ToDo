@@ -1,5 +1,5 @@
 use super::cancellation::Cancellation;
-use super::{DragItem, Identity, ItemDrag, feedback, format, sidebar_feedback, sidebar_identity};
+use super::{feedback, format, sidebar_feedback, sidebar_identity, DragItem, Identity, ItemDrag};
 use ferroui_base::input::{
     DataTransfer, DataTransferItem, DragDrop, DragDropEffects, FocusManager, InputElement, Key,
     KeyModifiers, PointerPressedEventArgs, PointerType,
@@ -37,6 +37,7 @@ pub(crate) fn attach_source(button: &Ref<Button>, vm: Rc<AppViewModel>, identity
 }
 
 pub(crate) fn attach_sidebar_source(button: &Ref<Button>, vm: Rc<AppViewModel>) {
+    crate::touch::attach_sidebar_source(button, vm.clone());
     attach(button, vm, Source::Sidebar);
 }
 

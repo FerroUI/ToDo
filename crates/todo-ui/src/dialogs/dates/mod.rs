@@ -12,7 +12,7 @@ pub use recurrence::repeat;
 use std::rc::Rc;
 use todo_controls::primary_button;
 use todo_domain::Id;
-use todo_state::{AppViewModel, reminder_in_one_hour};
+use todo_state::{reminder_in_one_hour, AppViewModel};
 
 pub fn date_picker(vm: Rc<AppViewModel>, id: Id, reminder: bool) -> Element {
     rerender(move || {

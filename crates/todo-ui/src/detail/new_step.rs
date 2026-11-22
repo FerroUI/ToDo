@@ -3,7 +3,7 @@ use ferroui_base::input::Key;
 use ferroui_controls::{Control, TextBox};
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, inherited_icon};
+use todo_controls::{inherited_icon, Icon};
 use todo_domain::{Action, Id};
 use todo_state::AppViewModel;
 

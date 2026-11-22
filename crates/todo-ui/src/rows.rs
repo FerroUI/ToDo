@@ -2,7 +2,7 @@ mod diff;
 mod model;
 pub use model::Row;
 
-use ferroui_base::{BoxedValue, collections::FerroList};
+use ferroui_base::{collections::FerroList, BoxedValue};
 use ferroui_controls::ItemsSource;
 use std::{
     cell::{Cell, RefCell},

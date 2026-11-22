@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { button, center, named, noDetails, noRail } from "./touch-input.mjs";
 
+async function browserBack(page) {
+  const history = await page.send("Page.getNavigationHistory");
+  assert(!history.error, history.error?.message);
+  assert(history.currentIndex > 0, "the app surface exposes a browser Back destination");
+  const back = await page.send("Page.navigateToHistoryEntry", { entryId: history.entries[history.currentIndex - 1].id });
+  assert(!back.error, back.error?.message);
+}
+
 export async function verifyCompactNavigation(ctx) {
   const { page, touch, control, saved, snapshot, edit, until } = ctx;
   await touch.tapControl(button("Touch 01"), "ordinary finger tap on a task");
@@ -8,11 +16,7 @@ export async function verifyCompactNavigation(ctx) {
   const beforeNote = await saved();
   await edit("TaskNotes", "Touch browser Back draft");
   const url = await page.evaluate("location.href");
-  const history = await page.send("Page.getNavigationHistory");
-  assert(!history.error, history.error?.message);
-  assert(history.currentIndex > 0, "opening details exposes a browser Back destination");
-  const back = await page.send("Page.navigateToHistoryEntry", { entryId: history.entries[history.currentIndex - 1].id });
-  assert(!back.error, back.error?.message);
+  await browserBack(page);
   await until(async () => !(await snapshot()).elements.some(named("TaskTitle")), "browser Back closes details");
   await until(async () => (await ctx.task("Touch 01")).notes === "Touch browser Back draft", "browser Back flushes the focused note");
   assert.deepEqual(await saved(), {
@@ -30,12 +34,21 @@ export async function verifyCompactNavigation(ctx) {
   await control(named("NewTask"), "committed edge Back returns to the list");
   await noDetails(ctx, "edge Back closes compact details");
   assert.deepEqual(await saved(), before, "edge Back preserves the complete document");
+  const beforeRename = await saved();
+  await touch.tapControl(named("RenameList"), "touch the inline list title");
+  await edit("ListName", "Uncommitted touch name");
+  await browserBack(page);
+  await until(async () => !(await snapshot()).elements.some(named("ListName")), "browser Back cancels the active rename");
+  await control(named("RenameList"), "the original list remains open after rename cancellation");
+  await control(element => element.type === "TextBlock" && element.text === ctx.source.name, "the original list title is retained");
+  assert.deepEqual(await saved(), beforeRename, "browser Back must not commit or navigate past a transient rename");
+  assert.equal(await page.evaluate("location.href"), url, "rename cancellation retains the URL");
   await touch.tapControl(button("Show navigation"), "open compact navigation by touch");
   await control(named("SearchTasks"), "open navigation drawer");
   await touch.swipe({ x: 240, y: 400 }, { x: 110, y: 400 });
   await until(async () => !(await snapshot()).elements.some(named("SearchTasks")), "left swipe dismisses the drawer");
   await control(named("NewTask"), "the underlying composer remains available");
-  console.log("ok: finger tap, browser Back flush, thresholded edge Back, and drawer swipe dismissal");
+  console.log("ok: finger tap, browser Back note flush/rename cancellation, thresholded edge Back, and drawer dismissal");
 }
 
 export async function verifyScrollAndRefresh(ctx) {

@@ -1,4 +1,4 @@
-use super::{AppViewModel, view_title};
+use super::{view_title, AppViewModel};
 use todo_domain::{Date, Task, View};
 
 impl AppViewModel {

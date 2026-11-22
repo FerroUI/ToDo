@@ -6,7 +6,7 @@ use ferroui_view::prelude::*;
 use std::rc::Rc;
 use todo_controls::Icon;
 use todo_domain::{Action, Id, Recurrence, Reminder};
-use todo_state::{AppViewModel, Panel, reminder_in_one_hour};
+use todo_state::{reminder_in_one_hour, AppViewModel, Panel};
 
 #[derive(Clone, Copy)]
 pub(super) enum Kind {

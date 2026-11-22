@@ -73,7 +73,11 @@ pub(super) fn view(vm: Rc<AppViewModel>, task: &Task) -> Element {
             && !task.completed
             && task.due_date.is_some_and(|date| date < vm.today());
         let color = if overdue {
-            if vm.is_dark() { "#F1707B" } else { "#D13438" }
+            if vm.is_dark() {
+                "#F1707B"
+            } else {
+                "#D13438"
+            }
         } else if active {
             p.accent
         } else {

@@ -2,8 +2,8 @@ use crate::palette;
 use ferroui_base::layout::{HorizontalAlignment as H, Orientation};
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{ALL_LIST_THEMES, Icon, action_button};
-use todo_domain::{Action, Id, SortOrder, TASKS_LIST, View};
+use todo_controls::{action_button, Icon, ALL_LIST_THEMES};
+use todo_domain::{Action, Id, SortOrder, View, TASKS_LIST};
 use todo_state::{AppViewModel, Panel};
 
 pub fn list(vm: Rc<AppViewModel>) -> Element {

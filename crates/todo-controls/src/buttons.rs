@@ -1,7 +1,7 @@
 //! Small declarative components that keep the semantics of native FerroUI Buttons.
 
+use crate::icons::{inherited_icon, Icon};
 use crate::Palette;
-use crate::icons::{Icon, inherited_icon};
 use ferroui_base::layout::{HorizontalAlignment, VerticalAlignment};
 use ferroui_base::media::TextWrapping;
 use ferroui_view::prelude::*;

@@ -1,17 +1,20 @@
-use super::{shell::ShellRecognizer, task::TaskRecognizer};
+use super::{shell::ShellRecognizer, sidebar::SidebarRecognizer, task::TaskRecognizer};
+use ferroui_base::input::gesture_recognizers::GestureRecognizer;
+use ferroui_base::input::{IPointer, InputElement};
 use ferroui_base::{Ref, WeakRef};
 use ferroui_controls::Control;
 use std::cell::RefCell;
+use std::rc::Rc;
 use todo_state::gestures::Axis;
 
 /// One coordinator belongs to one mounted shell. It never retains a row or application strongly.
 #[derive(Default)]
 pub(super) struct Hub {
-    active: RefCell<Option<WeakRef<TaskRecognizer>>>,
+    active: RefCell<Option<WeakRef<GestureRecognizer>>>,
 }
 
 impl Hub {
-    pub fn active(&self) -> Option<Ref<TaskRecognizer>> {
+    fn active(&self) -> Option<Ref<GestureRecognizer>> {
         self.active.borrow().as_ref().and_then(WeakRef::upgrade)
     }
 
@@ -21,53 +24,100 @@ impl Hub {
             .borrow_mut()
             .take()
             .and_then(|weak| weak.upgrade());
-        let handled = active.as_ref().is_some_and(|active| active.active());
-        if let Some(active) = active {
-            active.cancel();
+        if let Some(task) = active
+            .as_ref()
+            .and_then(|active| active.cast::<TaskRecognizer>())
+        {
+            let handled = task.active();
+            task.cancel();
+            handled
+        } else if let Some(sidebar) = active.and_then(|active| active.cast::<SidebarRecognizer>()) {
+            let handled = sidebar.session.borrow().is_some();
+            sidebar.cancel();
+            handled
+        } else {
+            false
         }
-        handled
     }
 
     pub fn held(&self) -> bool {
         self.active().is_some_and(|active| {
-            active
-                .session
-                .borrow()
-                .as_ref()
-                .is_some_and(|session| session.track.axis() == Axis::Held)
+            if let Some(task) = active.cast::<TaskRecognizer>() {
+                task.session
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|session| session.track.axis() == Axis::Held)
+            } else if let Some(sidebar) = active.cast::<SidebarRecognizer>() {
+                sidebar
+                    .session
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|session| session.track.axis() == Axis::Held)
+            } else {
+                false
+            }
         })
     }
 
     pub fn contact(&self) -> bool {
-        self.active()
-            .is_some_and(|active| active.session.borrow().is_some())
+        self.active().is_some_and(|active| {
+            if let Some(task) = active.cast::<TaskRecognizer>() {
+                task.session.borrow().is_some()
+            } else if let Some(sidebar) = active.cast::<SidebarRecognizer>() {
+                sidebar.session.borrow().is_some()
+            } else {
+                false
+            }
+        })
+    }
+
+    pub fn pointer(&self) -> Option<Rc<dyn IPointer>> {
+        let active = self.active()?;
+        if let Some(task) = active.cast::<TaskRecognizer>() {
+            task.session
+                .borrow()
+                .as_ref()
+                .map(|session| session.pointer.clone())
+        } else if let Some(sidebar) = active.cast::<SidebarRecognizer>() {
+            sidebar
+                .session
+                .borrow()
+                .as_ref()
+                .map(|session| session.pointer.clone())
+        } else {
+            None
+        }
     }
 
     pub fn outside(&self, source: &Control) {
+        let source: &InputElement = source;
         if self
             .active()
-            .is_some_and(|active| !active.contains_source(source))
+            .and_then(|active| active.target())
+            .is_some_and(|target| {
+                !std::ptr::eq(&*target, source) && !target.is_visual_ancestor_of(source)
+            })
         {
             self.cancel();
         }
     }
 }
 
-pub(super) fn claim(task: &Ref<TaskRecognizer>) {
-    if let Some(shell) = shell(task) {
-        let previous = shell.hub.active();
-        if previous
-            .as_ref()
-            .is_some_and(|previous| !std::ptr::eq::<TaskRecognizer>(&**previous, &**task))
+pub(super) fn claim(recognizer: &GestureRecognizer) {
+    if let Some(shell) = shell(recognizer) {
+        if shell
+            .hub
+            .active()
+            .is_some_and(|previous| !std::ptr::eq(&*previous, recognizer))
         {
             shell.hub.cancel();
         }
-        *shell.hub.active.borrow_mut() = Some(task.downgrade());
+        *shell.hub.active.borrow_mut() = Some(recognizer.to_ref().downgrade());
     }
 }
 
-pub(super) fn shell(task: &TaskRecognizer) -> Option<Ref<ShellRecognizer>> {
-    let target = task.target()?;
+pub(super) fn shell(recognizer: &GestureRecognizer) -> Option<Ref<ShellRecognizer>> {
+    let target = recognizer.target()?;
     for visual in target.get_visual_ancestors() {
         let Some(control) = visual.cast::<Control>() else {
             continue;

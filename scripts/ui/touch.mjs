@@ -3,6 +3,8 @@ import { button, named, touchInput } from "./touch-input.mjs";
 import { verifyTouchActions } from "./touch-actions.mjs";
 import { verifyTouchDrag } from "./touch-drag.mjs";
 import { verifyCompactNavigation, verifyScrollAndRefresh } from "./touch-navigation.mjs";
+import { verifyTouchEdgeCases } from "./touch-edge-cases.mjs";
+import { verifyTouchSidebar } from "./touch-sidebar.mjs";
 
 export async function verifyTouch(ui) {
   const { page, saved, snapshot, control, clickControl, edit, until, resize } = ui;
@@ -27,7 +29,7 @@ export async function verifyTouch(ui) {
       }
     },
   };
-  const enabled = await page.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+  const enabled = await page.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 2 });
   assert(!enabled.error, enabled.error?.message);
   try {
     await ctx.dismissStatus();
@@ -36,6 +38,8 @@ export async function verifyTouch(ui) {
     await verifyTouchActions(ctx);
     await verifyTouchDrag(ctx);
     await verifyScrollAndRefresh(ctx);
+    await verifyTouchEdgeCases(ctx);
+    await verifyTouchSidebar(ctx);
     await resize(1280, 800);
     // Remove only this scenario's lists so the following sidebar layout fixture stays unchanged.
     for (const list of [source, destination]) {

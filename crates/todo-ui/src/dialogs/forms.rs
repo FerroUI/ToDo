@@ -5,7 +5,7 @@ use ferroui_base::layout::{HorizontalAlignment as H, Orientation};
 use ferroui_base::media::TextWrapping;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, action_button, primary_button, text_button};
+use todo_controls::{action_button, primary_button, text_button, Icon};
 use todo_domain::Action;
 use todo_state::{AppViewModel, HostRequest, Panel};
 

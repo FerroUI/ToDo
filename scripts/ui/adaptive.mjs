@@ -39,6 +39,8 @@ export async function verifyAdaptive(ui, { taskId }) {
     }
   }
 
+  await verifyReducedHeight(ui, task.title);
+
   // A deliberate desktop choice survives both compact and medium layouts.
   await resize(1024, 844);
   await clickControl(element => element.automationName === "Hide navigation", "hide desktop navigation");
@@ -50,6 +52,27 @@ export async function verifyAdaptive(ui, { taskId }) {
   await control(element => element.name === "SearchTasks", "restored desktop search");
   console.log("ok: 320/390 single panes, 760/800 two panes and overlay navigation, 980/1024 three panes; bounded dialogs and keyboard focus return");
   await verifyDrafts(ui, taskId);
+}
+
+async function verifyReducedHeight(ui, title) {
+  const { page, snapshot, control, edit, resize, capture, clickText } = ui;
+  await page.press("Escape");
+  const { width, height } = await snapshot();
+  const previous = (await control(element => element.name === "NewTask", "compact list composer")).text;
+  const draft = "Unsubmitted compact draft";
+  await edit("NewTask", draft);
+  await resize(390, 360);
+  const composer = await control(element => element.name === "NewTask" && element.focused, "focused composer in a reduced-height viewport");
+  bounded(composer, 390, "Reduced-height composer");
+  assert(composer.y >= 0 && composer.y + composer.height <= 360, "the composer stays fully above the reduced viewport edge");
+  assert.equal(composer.text, draft, "resizing preserves the focused draft");
+  await capture("mobile-input-height");
+  await resize(width, height);
+  assert.equal((await control(element => element.name === "NewTask" && element.focused, "composer after restoring viewport height")).text, draft);
+  await edit("NewTask", previous || "");
+  await clickText(title);
+  await control(element => element.name === "TaskTitle", "restored details after reduced-height review");
+  console.log("ok: the 390 × 360 composer stays visible, focused, and retains its draft across height changes");
 }
 
 async function verifyDrawer(ui, composer) {

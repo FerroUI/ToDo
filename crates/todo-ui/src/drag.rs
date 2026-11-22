@@ -6,20 +6,21 @@ mod sidebar_feedback;
 mod source;
 mod target;
 mod touch;
+mod touch_plan;
 
 pub(crate) use feedback::marker;
-pub(crate) use sidebar::{SidebarTarget, attach_sidebar_target, sidebar_marker};
+pub(crate) use sidebar::{attach_sidebar_target, sidebar_marker, SidebarTarget};
 pub(crate) use source::attach_sidebar_source;
 pub(crate) use source::{attach_source, ignore_click};
 pub(crate) use target::{attach_list_target, attach_task_target};
 pub(crate) use touch::TouchDrag;
 
-use ferroui_base::BoxedValue;
 use ferroui_base::input::{DataFormat, DataFormatOf, DataTransferExtensions, DragEventArgs};
+use ferroui_base::BoxedValue;
 use ferroui_controls::Control;
 use std::cell::Cell;
 use std::rc::{Rc, Weak};
-use todo_domain::{Action, Id, SidebarItem, SortOrder, TASKS_LIST, View};
+use todo_domain::{Action, Id, SidebarItem, SortOrder, View, TASKS_LIST};
 use todo_state::{AppViewModel, Panel};
 
 type Identity = fn(&Control) -> Option<Id>;

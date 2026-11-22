@@ -1,7 +1,7 @@
 use crate::drag::sidebar_identity;
-use ferroui_base::Ref;
 use ferroui_base::input::{FocusManager, InputElement, Key, KeyEventArgs, KeyModifiers};
 use ferroui_base::interactivity::RoutingStrategies;
+use ferroui_base::Ref;
 use ferroui_controls::{Button, StackPanel};
 use ferroui_view::on_cleanup;
 use std::rc::Rc;

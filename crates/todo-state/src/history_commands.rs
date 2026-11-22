@@ -1,4 +1,4 @@
-use super::{AppViewModel, history::HistoryEntry};
+use super::{history::HistoryEntry, AppViewModel};
 use ferroui_dynamic_data::IObservableCache;
 use std::collections::HashSet;
 

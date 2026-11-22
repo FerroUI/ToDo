@@ -3,16 +3,16 @@ use ferroui_base::input::gesture_recognizers::GestureRecognizer;
 use ferroui_base::input::{HoldingState, IPointer, InputElement, Pointer, PointerType};
 use ferroui_base::interactivity::RoutingStrategies;
 use ferroui_base::{
-    FerroObjectImpl, Point, Ref, StyledElementImpl, ferro_class, ferro_impl_classes, instantiate,
+    ferro_class, ferro_impl_classes, instantiate, FerroObjectImpl, Point, Ref, StyledElementImpl,
 };
-use ferroui_controls::{Control, Grid};
+use ferroui_controls::Grid;
 use ferroui_view::on_cleanup;
 use std::{
     cell::RefCell,
     rc::{Rc, Weak},
 };
 use todo_domain::{Id, View};
-use todo_state::{AppViewModel, gestures::TouchTrack};
+use todo_state::{gestures::TouchTrack, AppViewModel};
 
 #[repr(C)]
 pub(super) struct TaskRecognizer {
@@ -155,12 +155,5 @@ impl TaskRecognizer {
             vm.begin_selection();
         }
         true
-    }
-
-    pub fn contains_source(&self, source: &Control) -> bool {
-        self.surface.root.upgrade().is_some_and(|root| {
-            let control: &Control = &root;
-            std::ptr::eq(control, source) || root.is_visual_ancestor_of(source)
-        })
     }
 }

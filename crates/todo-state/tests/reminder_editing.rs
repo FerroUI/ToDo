@@ -58,9 +58,25 @@ fn unchanged_reminder_save_survives_reload_without_another_notification() {
         id,
         reminder: reminder(600, false),
     });
-    assert!(vm.state().task(id).unwrap().reminder.as_ref().unwrap().notified);
+    assert!(
+        vm.state()
+            .task(id)
+            .unwrap()
+            .reminder
+            .as_ref()
+            .unwrap()
+            .notified
+    );
     let restored = AppState::from_json(&saved.borrow()).unwrap();
-    assert!(restored.task(id).unwrap().reminder.as_ref().unwrap().notified);
+    assert!(
+        restored
+            .task(id)
+            .unwrap()
+            .reminder
+            .as_ref()
+            .unwrap()
+            .notified
+    );
     let reloaded = session(restored, saved, notifications.clone());
     reloaded.tick(today(), 601);
     assert_eq!(notifications.get(), 1);

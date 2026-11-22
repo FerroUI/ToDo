@@ -3,7 +3,7 @@ use ferroui_base::media::FontWeight;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
 use todo_controls::Icon;
-use todo_domain::{TASKS_LIST, View};
+use todo_domain::{View, TASKS_LIST};
 use todo_state::{AppViewModel, Panel, RenameTarget};
 pub(super) fn view(
     vm: Rc<AppViewModel>,

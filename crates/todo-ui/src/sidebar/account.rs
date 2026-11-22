@@ -3,7 +3,7 @@ use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
 use ferroui_base::media::FontWeight;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, icon};
+use todo_controls::{icon, Icon};
 use todo_state::{AppViewModel, Panel};
 pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
     let p = palette(&vm);

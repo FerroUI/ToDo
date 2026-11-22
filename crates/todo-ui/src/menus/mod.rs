@@ -10,8 +10,8 @@ mod task;
 mod task_action;
 mod task_dates;
 
-use ferroui_base::Ref;
 use ferroui_base::input::ContextRequestedEventArgs;
+use ferroui_base::Ref;
 use ferroui_controls::{Button, Control, Grid};
 use ferroui_view::on_cleanup;
 use std::rc::Rc;

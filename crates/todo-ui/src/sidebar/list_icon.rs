@@ -1,6 +1,6 @@
 use ferroui_base::media::text_formatting::unicode::{Codepoint, GraphemeEnumerator};
 use ferroui_view::prelude::*;
-use todo_controls::{Icon, icon};
+use todo_controls::{icon, Icon};
 
 pub(super) fn view(name: &str, color: &str) -> (Element, String) {
     let (emoji, label) = split_name(name);

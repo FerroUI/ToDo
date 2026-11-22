@@ -3,7 +3,7 @@ use ferroui_base::input::Key;
 use ferroui_base::layout::VerticalAlignment as V;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, icon, icon_button};
+use todo_controls::{icon, icon_button, Icon};
 use todo_state::AppViewModel;
 pub(super) fn view(vm: Rc<AppViewModel>, my_day: bool, drafts: Rc<Drafts>) -> Element {
     rerender(move || content(vm.clone(), my_day, drafts.clone()))

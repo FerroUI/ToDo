@@ -13,7 +13,7 @@ mod suggestions;
 mod touch;
 
 use ferroui_base::Ref;
-use ferroui_controls::{Application, Control};
+use ferroui_controls::{Application, Control, InputPaneAwareBehavior};
 use ferroui_reactive::ObservableExt;
 use ferroui_reactiveui::IReactiveNotifyPropertyChanged;
 use ferroui_view::prelude::*;
@@ -37,13 +37,17 @@ pub fn create_view(vm: Rc<AppViewModel>) -> Ref<Control> {
         });
         on_cleanup(move || subscription.dispose());
         let view_model = vm.clone();
-        rerender(move || {
-            revision.get();
-            if let Some(app) = Application::current() {
-                todo_controls::set_dark_mode(&app, view_model.is_dark());
-            }
-            shell::view(view_model.clone(), rows.clone())
-        })
+        // The outer host owns safe-area padding; this retained decorator handles
+        // only the keyboard's intersection with the remaining content area.
+        input_pane_aware_decorator()
+            .behavior(InputPaneAwareBehavior::Resize)
+            .child(rerender(move || {
+                revision.get();
+                if let Some(app) = Application::current() {
+                    todo_controls::set_dark_mode(&app, view_model.is_dark());
+                }
+                shell::view(view_model.clone(), rows.clone())
+            }))
     })
     .upcast()
 }

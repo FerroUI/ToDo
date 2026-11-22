@@ -2,7 +2,7 @@ use crate::palette;
 use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, icon, toolbar_button};
+use todo_controls::{icon, toolbar_button, Icon};
 use todo_domain::{Action, Id, ListGroup, SidebarItem};
 use todo_state::{AppViewModel, RenameTarget};
 
@@ -106,6 +106,7 @@ pub(super) fn header(vm: Rc<AppViewModel>, group: &ListGroup) -> Element {
 pub(super) fn empty(vm: Rc<AppViewModel>, id: Id) -> Element {
     let p = palette(&vm);
     button()
+        .key(format!("empty-group-{id}"))
         .name(format!("EmptyGroup{id}"))
         .class("todo-flat")
         .min_height(38.0)

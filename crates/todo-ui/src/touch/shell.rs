@@ -3,8 +3,8 @@ use ferroui_base::input::gesture_recognizers::GestureRecognizer;
 use ferroui_base::input::{IPointer, Pointer};
 use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
 use ferroui_base::{
-    FerroObjectImpl, Point, Ref, StyledElementImpl, WeakRef, ferro_class, ferro_impl_classes,
-    instantiate,
+    ferro_class, ferro_impl_classes, instantiate, FerroObjectImpl, Point, Ref, StyledElementImpl,
+    WeakRef,
 };
 use ferroui_controls::{Border, Grid, TextBlock};
 use ferroui_view::prelude::*;
@@ -12,7 +12,7 @@ use std::{
     cell::RefCell,
     rc::{Rc, Weak},
 };
-use todo_state::{AppViewModel, gestures::TouchTrack};
+use todo_state::{gestures::TouchTrack, AppViewModel};
 
 #[repr(C)]
 pub(super) struct ShellRecognizer {
@@ -24,6 +24,7 @@ pub(super) struct ShellRecognizer {
     pub hub: Hub,
     pub session: RefCell<Option<Session>>,
     pub drag: RefCell<Option<DragSession>>,
+    pub contacts: RefCell<todo_state::gestures::contacts::Contacts>,
 }
 
 ferro_class!(ShellRecognizer: GestureRecognizer);
@@ -61,6 +62,7 @@ pub(crate) fn attach_shell(
         hub: Hub::default(),
         session: RefCell::new(None),
         drag: RefCell::new(None),
+        contacts: RefCell::default(),
     });
     root.gesture_recognizers().add(&recognizer);
     super::shell_lifetime::attach(root, recognizer, vm);

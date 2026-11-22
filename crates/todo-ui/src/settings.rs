@@ -4,11 +4,11 @@ use crate::{detail::edit_field, palette};
 use controls::{section_label, toggle};
 use ferroui_base::layout::VerticalAlignment as V;
 use ferroui_base::media::{FontWeight, TextWrapping};
-use ferroui_controls::TextBox;
 use ferroui_controls::primitives::ScrollBarVisibility;
+use ferroui_controls::TextBox;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, action_button, icon_button, primary_button};
+use todo_controls::{action_button, icon_button, primary_button, Icon};
 use todo_domain::{Action, Theme};
 use todo_state::{AppViewModel, HostRequest, Panel};
 

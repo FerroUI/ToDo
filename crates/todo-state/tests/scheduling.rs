@@ -7,7 +7,7 @@ use std::{
     rc::Rc,
 };
 use todo_domain::{Date, RepeatUnit};
-use todo_state::{HostRequest, HostServices, Panel, parse_reminder_time, reminder_in_one_hour};
+use todo_state::{parse_reminder_time, reminder_in_one_hour, HostRequest, HostServices, Panel};
 
 #[test]
 fn reminder_time_validation_and_midnight_rollover_are_explicit() {
@@ -69,10 +69,9 @@ fn custom_repeat_validates_before_mutation_and_is_one_undo_step() {
     vm.show_panel(Panel::Repeat(id));
     let before = vm.export_json().unwrap();
     for invalid in ["0", "-1", "", "1.5", "65536"] {
-        assert!(
-            vm.save_custom_repeat(id, invalid, RepeatUnit::Month)
-                .is_err()
-        );
+        assert!(vm
+            .save_custom_repeat(id, invalid, RepeatUnit::Month)
+            .is_err());
         assert_eq!(vm.export_json().unwrap(), before);
         assert_eq!(vm.panel(), Panel::Repeat(id));
     }

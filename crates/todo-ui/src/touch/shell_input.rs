@@ -6,8 +6,8 @@ use ferroui_base::input::{
 use ferroui_controls::{Grid, ListBox, ScrollViewer};
 use std::rc::Rc;
 use todo_state::{
-    NAVIGATION_WIDTH, Panel,
-    gestures::{Axis, BACK_DISTANCE, EDGE_WIDTH, REFRESH_DISTANCE, TouchTrack},
+    gestures::{Axis, TouchTrack, BACK_DISTANCE, EDGE_WIDTH, REFRESH_DISTANCE},
+    Panel, NAVIGATION_WIDTH,
 };
 
 impl GestureRecognizerImpl for ShellRecognizer {

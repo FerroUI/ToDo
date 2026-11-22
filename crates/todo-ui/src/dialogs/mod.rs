@@ -12,7 +12,7 @@ use ferroui_base::media::{FontWeight, TextWrapping};
 use ferroui_controls::primitives::ScrollBarVisibility;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, icon_button};
+use todo_controls::{icon_button, Icon};
 use todo_state::{AppViewModel, Panel};
 
 pub fn view(vm: Rc<AppViewModel>) -> Element {

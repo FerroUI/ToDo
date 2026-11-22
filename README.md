@@ -12,10 +12,12 @@ The application includes the main personal task workflows and optional Microsoft
 - Task details with steps, step-to-task promotion, notes, importance, due dates, reminders, and repeat schedules.
 - English date/time recognition in new task titles, a live schedule preview, and configurable title retention.
 - Search across task names, notes, steps, and tags; suggestions; sorting; drag tasks to reorder or move between lists; task and list duplication.
-- Multiple selection with modifier-click and ranges, select-all, and bulk completion, move, and deletion.
+- Multiple selection with modifier-click and ranges, native touch hold, select-all, and bulk completion, move, and deletion.
+- Touch swipe actions for Delete, My Day and Move; hold-and-drag task/list/group organization, scroll arbitration, and cancellation.
+- Browser/keyboard/edge Back, swipe-to-dismiss navigation, and pull-to-refresh without losing drafts or reloading the app.
 - Native anchored task/list/group/scheduling menus, selection-aware task commands, and inline list/group naming.
 - Mixed list/group navigation ordering, list-to-group dragging, keyboard tree navigation, and leading-emoji list icons.
-- Visible sort direction with reverse/reset controls, search cancellation, and native keyboard-accessible calendar selection.
+- Visible sort direction with reverse/reset controls, search cancellation, native Calendar selection, and WinUI Settings switches.
 - Calendar-aware daily, weekday, weekly, monthly, yearly, and custom interval recurrence.
 - Undo/redo, JSON backup and restore, print view, and browser file attachments.
 - Light, dark, and system themes; per-list colors; original vector icons and My Day landscape.
@@ -77,7 +79,7 @@ node --test scripts/*.test.mjs
 node scripts/ui-smoke.mjs target/browser/todo-browser
 ```
 
-The Rust suites cover domain behavior, conservative date/time recognition, atomic scheduled-task creation, state transitions, bulk-selection transactions, inline naming, sidebar ordering, adaptive pane budgets, and callback reentrancy. The JavaScript suites exercise storage conflicts and retries, plus Graph creation, updates, imports, deletion, conflicts, interrupted requests, and account isolation with a simulated service. One browser gate uses the built app and Chromium to check real editing, menus, selection, focus restoration, drag/drop, draft retention, and persistence on reload. It verifies widths of 320, 390, 760, 800, 980, and 1024 pixels and captures desktop, intermediate, narrow, menu, and dark-theme views. Other browser/device combinations need separate validation.
+The Rust suites cover domain behavior, conservative date/time recognition, atomic scheduled-task creation, state transitions, bulk-selection transactions, inline naming, sidebar ordering, adaptive pane budgets, and callback reentrancy. The JavaScript suites exercise storage conflicts and retries, plus Graph creation, updates, imports, deletion, conflicts, interrupted requests, and account isolation with a simulated service. One browser gate uses the built app and Chromium to check real editing, menus, selection, focus restoration, drag/drop, draft retention, and persistence on reload. Real touch contacts exercise swipe actions, long press, scrolling, cancellation, navigation, and refresh; browser Back also verifies focused-editor persistence. It verifies widths of 320, 390, 760, 800, 980, and 1024 pixels and captures desktop, intermediate, narrow, menu, and dark-theme views. Other browser/device combinations need separate validation.
 
 ## Architecture
 

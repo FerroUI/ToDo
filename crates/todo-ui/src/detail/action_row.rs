@@ -2,7 +2,7 @@ use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
 use ferroui_base::media::TextWrapping;
 use ferroui_controls::Control;
 use ferroui_view::prelude::*;
-use todo_controls::{Icon, inherited_icon, toolbar_button};
+use todo_controls::{inherited_icon, toolbar_button, Icon};
 
 pub(super) fn action(symbol: Icon, label: &str, color: &str) -> El<Button> {
     button()
@@ -55,11 +55,17 @@ pub(super) fn clear_button(
             if let Some(action) = event
                 .source()
                 .and_then(|source| source.cast::<Control>())
-                .and_then(|source| source.get_visual_parent_of_type::<Grid>())
-                .and_then(|row| {
-                    row.find_descendant_of_type_where::<Button>(false, |button| {
-                        button.name().as_deref() == Some(retained_name)
-                    })
+                .and_then(|source| {
+                    // The clear button is wrapped in a Border; native control
+                    // templates may add further parents before the action row.
+                    source
+                        .get_visual_ancestors()
+                        .filter_map(|ancestor| ancestor.cast::<Grid>())
+                        .find_map(|row| {
+                            row.find_descendant_of_type_where::<Button>(false, |button| {
+                                button.name().as_deref() == Some(retained_name)
+                            })
+                        })
                 })
             {
                 action.focus();

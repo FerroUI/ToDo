@@ -12,8 +12,8 @@ use ferroui_controls::primitives::ToggleButton;
 use ferroui_controls::{Button, CheckBox, Control, TextBox};
 use std::rc::Rc;
 use todo_state::{
+    gestures::{settle_swipe, swipe_offset, Axis, TouchTrack, EDGE_WIDTH},
     Panel,
-    gestures::{Axis, EDGE_WIDTH, TouchTrack, settle_swipe, swipe_offset},
 };
 
 impl GestureRecognizerImpl for TaskRecognizer {

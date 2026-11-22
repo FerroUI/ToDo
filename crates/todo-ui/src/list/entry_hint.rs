@@ -1,6 +1,6 @@
 use ferroui_base::layout::VerticalAlignment;
 use ferroui_view::prelude::*;
-use todo_controls::{Icon, icon};
+use todo_controls::{icon, Icon};
 use todo_domain::TaskEntry;
 use todo_state::AppViewModel;
 

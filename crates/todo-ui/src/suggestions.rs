@@ -3,7 +3,7 @@ use ferroui_base::layout::{HorizontalAlignment as H, Orientation, VerticalAlignm
 use ferroui_base::media::{FontWeight, TextWrapping};
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, icon, icon_button};
+use todo_controls::{icon, icon_button, Icon};
 use todo_domain::Action;
 use todo_state::{AppViewModel, Panel};
 

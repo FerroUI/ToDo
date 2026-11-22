@@ -1,7 +1,7 @@
 use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, icon};
+use todo_controls::{icon, Icon};
 use todo_domain::{SortOrder, View};
 use todo_state::AppViewModel;
 

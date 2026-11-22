@@ -14,8 +14,8 @@ use ferroui_view::prelude::*;
 pub(crate) use input::Drafts;
 pub use navigation::{can_navigate_back, navigate_back};
 use std::rc::Rc;
-use todo_controls::{Icon, icon_button};
-use todo_state::{AppViewModel, NAVIGATION_WIDTH, Panel};
+use todo_controls::{icon_button, Icon};
+use todo_state::{AppViewModel, Panel, NAVIGATION_WIDTH};
 
 pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
     let drafts = use_hook(|| Rc::new(Drafts::new(vm.view())));
@@ -30,7 +30,11 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
     let left_width = if layout.navigation_inline { "280" } else { "0" };
     let center_width = if layout.list_visible { "*" } else { "0" };
     let right_width = if layout.right_visible {
-        if layout.compact { "*" } else { "340" }
+        if layout.compact {
+            "*"
+        } else {
+            "340"
+        }
     } else {
         "0"
     };

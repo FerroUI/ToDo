@@ -17,7 +17,7 @@ use ferroui_controls::primitives::ScrollBarVisibility;
 use ferroui_view::prelude::*;
 pub(crate) use fields::edit_field;
 use std::rc::Rc;
-use todo_controls::{Icon, icon_button, star_button, task_check};
+use todo_controls::{icon_button, star_button, task_check, Icon};
 use todo_domain::{Action, Id};
 use todo_state::{AppViewModel, Panel};
 
@@ -166,9 +166,15 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
                     grid()
                         .column_definitions("Auto,*,Auto")
                         .margin((8.0, 6.0))
-                        .child(icon_button(Icon::ArrowRight, "Close details", move || {
-                            close.select(None)
-                        }))
+                        .child(icon_button(
+                            if vm.layout().compact {
+                                Icon::ArrowLeft
+                            } else {
+                                Icon::ArrowRight
+                            },
+                            "Close details",
+                            move || close.select(None),
+                        ))
                         .child(
                             border().grid_column(2).child(
                                 todo_controls::toolbar_button(

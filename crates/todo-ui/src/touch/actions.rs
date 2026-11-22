@@ -4,7 +4,7 @@ use ferroui_base::layout::{HorizontalAlignment as H, Orientation, VerticalAlignm
 use ferroui_controls::Control;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, icon};
+use todo_controls::{icon, Icon};
 use todo_domain::{Action, Id};
 use todo_state::{AppViewModel, Panel};
 

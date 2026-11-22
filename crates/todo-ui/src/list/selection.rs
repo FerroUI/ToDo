@@ -2,7 +2,7 @@ use crate::{palette, rows::Rows};
 use ferroui_base::layout::{Orientation, VerticalAlignment as V};
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, icon_button};
+use todo_controls::{icon_button, Icon};
 use todo_state::{AppViewModel, Panel};
 
 pub(super) fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {

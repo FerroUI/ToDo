@@ -3,11 +3,11 @@ use ferroui_base::input::FocusManager;
 use ferroui_base::interactivity::RoutedEventArgs;
 use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
 use ferroui_base::media::TextWrapping;
-use ferroui_controls::Control;
 use ferroui_controls::automation::{AutomationLiveSetting, AutomationProperties};
+use ferroui_controls::Control;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, toolbar_button};
+use todo_controls::{toolbar_button, Icon};
 use todo_state::{AppViewModel, Panel};
 
 pub(super) fn view(vm: Rc<AppViewModel>) -> Element {

@@ -1,5 +1,5 @@
-use super::{AppViewModel, view_title};
-use todo_domain::{Action, Id, SortOrder, TASKS_LIST, View};
+use super::{view_title, AppViewModel};
+use todo_domain::{Action, Id, SortOrder, View, TASKS_LIST};
 
 impl AppViewModel {
     /// Root lists and groups share a navigation sequence; grouped lists use their siblings.

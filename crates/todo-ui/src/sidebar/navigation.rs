@@ -3,7 +3,7 @@ use crate::palette;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
 use todo_controls::Icon;
-use todo_domain::{SidebarItem, TASKS_LIST, View};
+use todo_domain::{SidebarItem, View, TASKS_LIST};
 use todo_state::AppViewModel;
 
 pub(super) fn view(vm: Rc<AppViewModel>) -> Element {

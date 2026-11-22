@@ -47,18 +47,13 @@ pub(super) fn attach(root: &Ref<Grid>, recognizer: Ref<ShellRecognizer>, vm: Rc<
                     if !pointer.root().root_element().is_visual_ancestor_of(&root) {
                         return;
                     }
-                    let second_contact = pointer.type_() == RawPointerEventType::TouchBegin
-                        && (recognizer.hub.contact()
-                            || recognizer.session.borrow().is_some()
-                            || recognizer.drag.borrow().is_some());
-                    if second_contact
-                        || matches!(
-                            pointer.type_(),
-                            RawPointerEventType::TouchCancel
-                                | RawPointerEventType::CancelCapture
-                                | RawPointerEventType::Wheel
-                        )
-                    {
+                    super::contacts::process(&recognizer, pointer);
+                    if matches!(
+                        pointer.type_(),
+                        RawPointerEventType::TouchCancel
+                            | RawPointerEventType::CancelCapture
+                            | RawPointerEventType::Wheel
+                    ) {
                         recognizer.hub.cancel();
                         recognizer.cancel();
                     }
@@ -106,6 +101,7 @@ pub(super) fn attach(root: &Ref<Grid>, recognizer: Ref<ShellRecognizer>, vm: Rc<
         if let Some(recognizer) = weak.upgrade() {
             recognizer.hub.cancel();
             recognizer.cancel();
+            *recognizer.contacts.borrow_mut() = Default::default();
         }
     });
     let weak = root.downgrade();

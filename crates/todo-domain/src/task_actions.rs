@@ -123,7 +123,9 @@ impl AppState {
                     .unwrap_or(-1)
                     .checked_add(1)
                     .ok_or_else(|| {
-                        DomainError::InvalidValue("The destination task order is out of range".into())
+                        DomainError::InvalidValue(
+                            "The destination task order is out of range".into(),
+                        )
                     })?;
                 self.edit_task(id, today, |task| {
                     task.list_id = list_id;

@@ -3,7 +3,7 @@ use crate::palette;
 use ferroui_base::layout::VerticalAlignment;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, inherited_icon};
+use todo_controls::{inherited_icon, Icon};
 use todo_domain::{Action, Task};
 use todo_state::AppViewModel;
 

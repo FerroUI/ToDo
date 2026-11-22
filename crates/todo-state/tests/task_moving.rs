@@ -40,7 +40,10 @@ fn moving_to_a_list_appends_once_and_undo_restores_the_source_position() {
     });
     vm.undo();
     assert_eq!(vm.state().task(source.id).unwrap().list_id, TASKS_LIST);
-    assert_eq!(vm.state().task(source.id).unwrap().position, source.position);
+    assert_eq!(
+        vm.state().task(source.id).unwrap().position,
+        source.position
+    );
 
     let mut overflow = vm.state().clone();
     overflow

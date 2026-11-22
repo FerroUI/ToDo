@@ -8,11 +8,13 @@ export const center = element => ({ x: element.x + element.width / 2, y: element
 export function touchInput(ui) {
   const { page, control } = ui;
   let contact = null;
+  let additional = null;
   const frame = () => page.evaluate("new Promise(resolve => requestAnimationFrame(resolve))");
   async function send(type, point) {
     const result = await page.send("Input.dispatchTouchEvent", {
       type,
-      touchPoints: point ? [{ ...point, id: 1, radiusX: 4, radiusY: 4, force: 1 }] : [],
+      touchPoints: point ? [point, ...(additional ? [additional] : [])]
+        .map((position, index) => ({ ...position, id: index + 1, radiusX: 4, radiusY: 4, force: 1 })) : [],
     });
     assert(!result.error, result.error?.message);
   }
@@ -30,9 +32,16 @@ export function touchInput(ui) {
       await frame();
     }
   }
+  async function addContact(point) {
+    assert(contact && !additional, "a second finger requires exactly one active contact");
+    additional = point;
+    await send("touchStart", contact);
+    await frame();
+  }
   async function finish(cancel = false) {
     if (!contact) return;
     contact = null;
+    additional = null;
     await send(cancel ? "touchCancel" : "touchEnd");
     await frame();
     await frame();
@@ -51,7 +60,7 @@ export function touchInput(ui) {
     await move(to);
     await finish(cancel);
   }
-  return { start, move, end: () => finish(), cancel: () => finish(true), tap, tapControl, swipe, frame };
+  return { start, move, addContact, end: () => finish(), cancel: () => finish(true), tap, tapControl, swipe, frame };
 }
 
 export async function noDetails(ui, label) {

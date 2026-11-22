@@ -1,6 +1,6 @@
-use super::{AppViewModel, HostRequest, Panel, history::HistoryEntry};
+use super::{history::HistoryEntry, AppViewModel, HostRequest, Panel};
 use ferroui_reactive::ObservableExt;
-use todo_domain::{Action, Changes, Id, SortOrder, TASKS_LIST, View};
+use todo_domain::{Action, Changes, Id, SortOrder, View, TASKS_LIST};
 
 type Applied = Box<dyn FnOnce(&AppViewModel, &Changes)>;
 

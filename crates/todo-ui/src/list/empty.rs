@@ -3,7 +3,7 @@ use ferroui_base::media::{FontWeight, TextWrapping};
 use ferroui_controls::primitives::ScrollBarVisibility;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, icon};
+use todo_controls::{icon, Icon};
 use todo_domain::View;
 use todo_state::AppViewModel;
 pub(super) fn view(vm: Rc<AppViewModel>, color: &str) -> Element {

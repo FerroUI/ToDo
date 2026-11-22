@@ -1,6 +1,6 @@
-use super::{DragItem, feedback, payload, sidebar_feedback, sidebar_identity};
-use ferroui_base::Ref;
+use super::{feedback, payload, sidebar_feedback, sidebar_identity, DragItem};
 use ferroui_base::input::{DragDrop, DragDropEffects, DragEventArgs};
+use ferroui_base::{Point, Ref};
 use ferroui_controls::primitives::TemplatedControl;
 use ferroui_controls::{Button, Control};
 use ferroui_view::{on_cleanup, style};
@@ -11,21 +11,20 @@ use todo_state::AppViewModel;
 
 pub(crate) use sidebar_feedback::marker as sidebar_marker;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SidebarTarget {
     Row,
     GroupContents(Id),
     End,
 }
 
-fn plan(
+pub(super) fn plan(
     control: &Control,
     vm: &AppViewModel,
     source: SidebarItem,
     target: SidebarTarget,
-    event: &DragEventArgs,
+    point: Point,
 ) -> Option<(Action, Placement)> {
-    let point = event.get_position(control);
     let bounds = control.bounds();
     if point.x < 0.0 || point.x > bounds.width || point.y < 0.0 || point.y > bounds.height {
         return None;
@@ -58,11 +57,23 @@ fn plan(
         .map(|action| (action, placement))
 }
 
+pub(super) fn target(control: &Control) -> Option<SidebarTarget> {
+    control
+        .tag()
+        .and_then(|tag| tag.downcast_ref::<SidebarTarget>().copied())
+        .or_else(|| sidebar_identity(control).map(|_| SidebarTarget::Row))
+}
+
 pub(crate) fn attach_sidebar_target(
     control: &Ref<Button>,
     vm: Rc<AppViewModel>,
     target: SidebarTarget,
 ) {
+    // Row tags keep their typed SidebarItem identity. The two non-row targets have no
+    // item identity, so their tag records the shared mouse/touch drop destination.
+    if target != SidebarTarget::Row {
+        control.set_tag(Some(Rc::new(target)));
+    }
     control.styles().add(
         style("Button.todo-sidebar-into")
             .set(TemplatedControl::background_property(), "#263D73DD")
@@ -83,7 +94,13 @@ pub(crate) fn attach_sidebar_target(
             event.set_drag_effects(DragDropEffects::NONE);
             return;
         };
-        let planned = plan(&control, &hover_vm, source, target, event);
+        let planned = plan(
+            &control,
+            &hover_vm,
+            source,
+            target,
+            event.get_position(&control),
+        );
         event.set_drag_effects(if planned.is_some() {
             DragDropEffects::MOVE
         } else {
@@ -116,7 +133,8 @@ pub(crate) fn attach_sidebar_target(
         sidebar_feedback::show(&control, None);
         event.set_drag_effects(DragDropEffects::NONE);
         event.set_handled(true);
-        let Some((action, _)) = plan(&control, &vm, source, target, event) else {
+        let Some((action, _)) = plan(&control, &vm, source, target, event.get_position(&control))
+        else {
             return;
         };
         if drag.active.replace(false) {

@@ -1,15 +1,19 @@
 //! Touch behavior shares the desktop controls, commands, and native input arbitration.
 mod actions;
+mod contacts;
 mod drag_session;
 mod hub;
 mod shell;
 mod shell_input;
 mod shell_lifetime;
+mod sidebar;
+mod sidebar_input;
 mod surface;
 mod task;
 mod task_input;
 
 pub(crate) use shell::{attach_shell, shell_feedback};
+pub(crate) use sidebar::attach_sidebar_source;
 pub(crate) use surface::task_surface;
 
 use ferroui_controls::Control;

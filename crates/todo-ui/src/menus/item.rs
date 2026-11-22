@@ -1,8 +1,8 @@
-use ferroui_base::StyledElement;
 use ferroui_base::interactivity::RoutedEventArgs;
+use ferroui_base::StyledElement;
 use ferroui_controls::{ContextMenu, MenuItem};
 use ferroui_view::prelude::*;
-use todo_controls::{Icon, inherited_icon};
+use todo_controls::{inherited_icon, Icon};
 
 pub(crate) fn command(
     label: impl Into<String>,
