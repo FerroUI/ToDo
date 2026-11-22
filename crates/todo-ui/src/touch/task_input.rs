@@ -3,7 +3,6 @@ use super::{
     task::{Session, TaskRecognizer},
     task_id,
 };
-use crate::drag::TouchDrag;
 use ferroui_base::input::gesture_recognizers::GestureRecognizerImpl;
 use ferroui_base::input::{
     IPointer, PointerEventArgs, PointerPressedEventArgs, PointerReleasedEventArgs, PointerType,
@@ -61,7 +60,7 @@ impl GestureRecognizerImpl for TaskRecognizer {
             return;
         };
         let point = event.get_position(None);
-        let (axis, offset, held_id) = {
+        let (axis, offset) = {
             let mut sessions = this.session.borrow_mut();
             let Some(session) = sessions
                 .as_mut()
@@ -87,7 +86,6 @@ impl GestureRecognizerImpl for TaskRecognizer {
                 } else {
                     None
                 },
-                session.track.moved_after_hold().then_some(session.id),
             )
         };
         match axis {
@@ -96,19 +94,7 @@ impl GestureRecognizerImpl for TaskRecognizer {
                 this.surface.render(offset.unwrap());
                 event.set_handled(true);
             }
-            Axis::Held => {
-                if let (Some(id), Some(root), Some(shell)) =
-                    (held_id, this.surface.root.upgrade(), hub::shell(this))
-                {
-                    if let Some(operation) = TouchDrag::new(&root, &vm, id, point) {
-                        // Capture-lost is synchronous. Remove the row's session before handing
-                        // capture to the shell, so a recycled row cannot cancel an active drag.
-                        this.session.borrow_mut().take();
-                        shell.begin_drag(event.pointer().clone(), operation, &this.surface);
-                    }
-                }
-                event.set_handled(true);
-            }
+            Axis::Held => event.set_handled(true), // Holding transfers its session to the shell.
             Axis::Vertical | Axis::Canceled | Axis::Horizontal => this.cancel(),
             Axis::Pending => {}
         }

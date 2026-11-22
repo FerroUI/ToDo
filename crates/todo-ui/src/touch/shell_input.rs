@@ -48,13 +48,16 @@ impl GestureRecognizerImpl for ShellRecognizer {
 
     fn pointer_moved(this: &Self, event: &PointerEventArgs) {
         let point = event.get_position(None);
-        if let Some(drag) = this
-            .drag
-            .borrow()
-            .as_ref()
-            .filter(|drag| drag.pointer.id() == event.pointer().id())
-        {
-            drag.update(point);
+        let drag_update = {
+            let mut drag = this.drag.borrow_mut();
+            drag.as_mut()
+                .filter(|drag| drag.pointer.id() == event.pointer().id())
+                .map(|drag| drag.update(point))
+        };
+        if let Some(message) = drag_update {
+            if let Some(message) = message {
+                this.feedback(Some(message));
+            }
             event.set_handled(true);
             return;
         }

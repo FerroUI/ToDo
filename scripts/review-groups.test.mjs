@@ -81,3 +81,28 @@ test("failed recovery blocks its review without hiding the original assertion", 
   assert.equal(report[0].diagnostics[0].artifact, "screenshot");
   assert.equal(await readFile(path.join(h.output, "failure-detail.txt"), "utf8"), original.stack);
 });
+
+test("nested gesture reviews retain failures and use only their own recovery and report", async t => {
+  const h = await harness(t);
+  const original = new Error("held drag failed"), recovery = new Error("fixture navigation failed");
+  let attempts = 0, blockedRan = false, finalRan = false;
+  await writeFile(path.join(h.output, "reviews.json"), "parent report");
+  const failures = await runReviewGroups(h.ui, h.output, [
+    { name: "touch-drag", run: async () => { throw original; } },
+    { name: "touch-refresh", run: async () => { blockedRan = true; } },
+    { name: "touch-sidebar", run: async () => { finalRan = true; } },
+  ], {
+    recover: async () => { if (++attempts === 1) throw recovery; },
+    reportName: "touch-reviews.json",
+  });
+  assert.deepEqual(failures.map(failure => failure.error), [original, recovery]);
+  assert.equal(blockedRan, false);
+  assert.equal(finalRan, true);
+  assert.equal(attempts, 2);
+  assert.deepEqual(h.calls, [], "custom recovery must not also run the generic reload path");
+  assert.equal(await readFile(path.join(h.output, "reviews.json"), "utf8"), "parent report");
+  const report = JSON.parse(await readFile(path.join(h.output, "touch-reviews.json"), "utf8"));
+  assert.deepEqual(report.map(result => result.status), ["failed", "blocked", "passed"]);
+  assert.deepEqual(report.at(-1).precedingFailures, ["touch-drag", "touch-refresh"]);
+  assert.equal(await readFile(path.join(h.output, "failure-touch-drag.txt"), "utf8"), original.stack);
+});

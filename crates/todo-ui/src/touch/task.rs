@@ -132,12 +132,12 @@ impl TaskRecognizer {
     }
 
     pub fn hold(&self, pointer: &Rc<dyn IPointer>) -> bool {
-        let Some(vm) = self.vm.upgrade() else {
+        let (Some(vm), Some(shell)) = (self.vm.upgrade(), hub::shell(&self.base)) else {
             return false;
         };
-        let id = {
-            let mut session = self.session.borrow_mut();
-            let Some(session) = session
+        let session = {
+            let mut state = self.session.borrow_mut();
+            let Some(session) = state
                 .as_mut()
                 .filter(|session| session.pointer.id() == pointer.id())
             else {
@@ -146,11 +146,13 @@ impl TaskRecognizer {
             if !session.track.hold() {
                 return false;
             }
-            session.id
+            state.take().unwrap()
         };
+        let id = session.id;
         self.surface.close();
-        self.capture(pointer);
-        hub::claim(&self.to_ref());
+        // Selection replaces the realized row immediately. Move capture and the held
+        // contact out of that row before its detach/identity cleanup can cancel them.
+        shell.begin_task_hold(session, &self.surface);
         if !vm.selection().contains(&id) {
             vm.toggle_task_selection(id);
         } else {

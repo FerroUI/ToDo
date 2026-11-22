@@ -141,7 +141,7 @@ try {
     { name: "detail", run: () => verifyDetailPresentation(ui, task.id) },
     { name: "settings", run: () => verifySettingsPresentation(ui) },
     { name: "list", run: () => verifyListPresentation(ui) },
-    { name: "touch", run: () => verifyTouch(ui) },
+    { name: "touch", run: () => verifyTouch(ui, output) },
     { name: "sidebar", run: () => verifySidebar(ui) },
     { name: "demo", run: () => verifyDemo(ui, output) },
   ]);

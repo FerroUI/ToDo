@@ -1,8 +1,10 @@
-use super::{shell::ShellRecognizer, surface::Surface};
+use super::{shell::ShellRecognizer, surface::Surface, task, task_id};
 use crate::drag::TouchDrag;
 use ferroui_base::{input::IPointer, Point, Ref, WeakRef};
 use ferroui_controls::Button;
 use std::rc::{Rc, Weak};
+use todo_domain::Id;
+use todo_state::gestures::TouchTrack;
 
 /// A virtualized row can leave the tree during edge scrolling. The mounted shell owns
 /// the operation and capture; its source visual is only a weak, optional decoration.
@@ -10,18 +12,23 @@ pub(super) struct DragSession {
     pub pointer: Rc<dyn IPointer>,
     operation: Option<TouchDrag>,
     source: Source,
+    pending: Option<(Point, TouchTrack)>,
 }
 
 enum Source {
-    Task(Weak<Surface>),
+    Task(Weak<Surface>, Id),
     Sidebar(WeakRef<Button>, f64),
 }
 
 impl Source {
     fn dim(&self, active: bool) {
         match self {
-            Self::Task(weak) => {
-                if let Some(source) = weak.upgrade() {
+            Self::Task(weak, id) => {
+                if let Some(source) = weak.upgrade().filter(|source| {
+                    source.root.upgrade().is_some_and(|root| {
+                        root.is_attached_to_visual_tree() && task_id(&root) == Some(*id)
+                    })
+                }) {
                     source.dim(active);
                 }
             }
@@ -35,10 +42,23 @@ impl Source {
 }
 
 impl DragSession {
-    pub fn update(&self, point: Point) {
+    pub fn update(&mut self, point: Point) -> Option<&'static str> {
+        if let Some((start, track)) = &mut self.pending {
+            track.update(point.x - start.x, point.y - start.y);
+            if !track.moved_after_hold() {
+                return None;
+            }
+            self.pending.take();
+            if let Some(operation) = &mut self.operation {
+                operation.activate(point);
+                self.source.dim(true);
+                return Some(operation.label());
+            }
+        }
         if let Some(operation) = &self.operation {
             operation.update(point);
         }
+        None
     }
 
     pub fn finish(mut self, point: Point) {
@@ -56,13 +76,21 @@ impl Drop for DragSession {
 }
 
 impl ShellRecognizer {
-    pub fn begin_drag(
-        &self,
-        pointer: Rc<dyn IPointer>,
-        operation: TouchDrag,
-        source: &Rc<Surface>,
-    ) {
-        self.start_drag(pointer, operation, Source::Task(Rc::downgrade(source)));
+    pub fn begin_task_hold(&self, session: task::Session, source: &Rc<Surface>) {
+        let operation = self.vm.upgrade().and_then(|vm| {
+            source
+                .root
+                .upgrade()
+                .and_then(|root| TouchDrag::pending_task(&root, &vm, session.id, session.start))
+        });
+        // Sorted/smart views still own the held contact, even though they cannot reorder.
+        // The shell must capture before selection's item replacements detach the source.
+        self.start_drag(DragSession {
+            pointer: session.pointer,
+            operation,
+            source: Source::Task(Rc::downgrade(source), session.id),
+            pending: Some((session.start, session.track)),
+        });
     }
 
     pub fn begin_sidebar_drag(
@@ -71,23 +99,25 @@ impl ShellRecognizer {
         operation: TouchDrag,
         source: &Ref<Button>,
     ) {
-        self.start_drag(
+        self.start_drag(DragSession {
             pointer,
-            operation,
-            Source::Sidebar(source.downgrade(), source.opacity()),
-        );
+            operation: Some(operation),
+            source: Source::Sidebar(source.downgrade(), source.opacity()),
+            pending: None,
+        });
     }
 
-    fn start_drag(&self, pointer: Rc<dyn IPointer>, operation: TouchDrag, source: Source) {
+    fn start_drag(&self, drag: DragSession) {
         self.cancel();
-        let message = operation.label();
-        source.dim(true);
-        *self.drag.borrow_mut() = Some(DragSession {
-            pointer: pointer.clone(),
-            operation: Some(operation),
-            source,
-        });
+        let message = if drag.pending.is_none() {
+            drag.source.dim(true);
+            drag.operation.as_ref().map(TouchDrag::label)
+        } else {
+            None
+        };
+        let pointer = drag.pointer.clone();
+        *self.drag.borrow_mut() = Some(drag);
         self.capture(&pointer);
-        self.feedback(Some(message));
+        self.feedback(message);
     }
 }

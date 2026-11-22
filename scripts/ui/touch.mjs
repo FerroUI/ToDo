@@ -1,12 +1,8 @@
 import assert from "node:assert/strict";
 import { button, named, touchInput } from "./touch-input.mjs";
-import { verifyTouchActions } from "./touch-actions.mjs";
-import { verifyTouchDrag } from "./touch-drag.mjs";
-import { verifyCompactNavigation, verifyScrollAndRefresh } from "./touch-navigation.mjs";
-import { verifyTouchEdgeCases } from "./touch-edge-cases.mjs";
-import { verifyTouchSidebar } from "./touch-sidebar.mjs";
+import { reviewTouch } from "./touch-review.mjs";
 
-export async function verifyTouch(ui) {
+export async function verifyTouch(ui, output) {
   const { page, saved, snapshot, control, clickControl, edit, until, resize } = ui;
   await resize(1280, 800);
   async function createList(name) {
@@ -40,12 +36,7 @@ export async function verifyTouch(ui) {
   assert(!enabled.error, enabled.error?.message);
   try {
     await ctx.dismissStatus();
-    await verifyCompactNavigation(ctx);
-    await verifyTouchActions(ctx);
-    await verifyTouchDrag(ctx);
-    await verifyScrollAndRefresh(ctx);
-    await verifyTouchEdgeCases(ctx);
-    await verifyTouchSidebar(ctx);
+    await reviewTouch(ctx, output);
     await resize(1280, 800);
     // Remove only this scenario's lists so the following sidebar layout fixture stays unchanged.
     for (const list of [source, destination]) {

@@ -37,8 +37,15 @@ impl TouchDrag {
         Origin::capture(vm, DragItem::Sidebar(item)).is_some()
     }
 
-    pub fn new(control: &Control, vm: &Rc<AppViewModel>, id: Id, point: Point) -> Option<Self> {
-        Self::start(control, vm, DragItem::Task(id), point)
+    /// Capture the source while it is attached, before selection can recycle its row.
+    /// A held contact does not show a marker or scroll until movement activates it.
+    pub fn pending_task(
+        control: &Control,
+        vm: &Rc<AppViewModel>,
+        id: Id,
+        point: Point,
+    ) -> Option<Self> {
+        Self::prepare(control, vm, DragItem::Task(id), point)
     }
 
     pub fn sidebar(
@@ -47,10 +54,12 @@ impl TouchDrag {
         item: SidebarItem,
         point: Point,
     ) -> Option<Self> {
-        Self::start(control, vm, DragItem::Sidebar(item), point)
+        let mut operation = Self::prepare(control, vm, DragItem::Sidebar(item), point)?;
+        operation.activate(point);
+        Some(operation)
     }
 
-    fn start(
+    fn prepare(
         control: &Control,
         vm: &Rc<AppViewModel>,
         item: DragItem,
@@ -67,7 +76,15 @@ impl TouchDrag {
             point: Cell::new(point),
             last: RefCell::new(None),
         });
-        let weak = Rc::downgrade(&state);
+        Some(Self { state, timer: None })
+    }
+
+    pub fn activate(&mut self, point: Point) {
+        if self.timer.is_some() {
+            return;
+        }
+        self.state.point.set(point);
+        let weak = Rc::downgrade(&self.state);
         let timer = DispatcherTimer::run(
             move || {
                 let Some(state) = weak.upgrade() else {
@@ -79,16 +96,15 @@ impl TouchDrag {
             Duration::from_millis(45),
             DispatcherPriority::BACKGROUND,
         );
-        state.hover(false);
-        Some(Self {
-            state,
-            timer: Some(timer),
-        })
+        self.timer = Some(timer);
+        self.state.hover(false);
     }
 
     pub fn update(&self, point: Point) {
-        self.state.point.set(point);
-        self.state.hover(false);
+        if self.timer.is_some() {
+            self.state.point.set(point);
+            self.state.hover(false);
+        }
     }
 
     pub fn label(&self) -> &'static str {
@@ -96,7 +112,10 @@ impl TouchDrag {
     }
 
     pub fn finish(mut self, point: Point) {
-        self.timer.take();
+        // A stationary hold selects only; even a different release target cannot drop it.
+        if self.timer.take().is_none() {
+            return;
+        }
         self.state.point.set(point);
         let plan = self.state.plan();
         self.state.clear();

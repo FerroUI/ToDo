@@ -16,7 +16,7 @@ async function failureArtifacts(ui, output, name, error) {
 
 // A failed review keeps its original evidence and document. Only ordinary navigation
 // resets transient controls; later scenarios must still satisfy every assertion.
-export async function runReviewGroups(ui, output, groups) {
+export async function runReviewGroups(ui, output, groups, { recover, reportName = "reviews.json" } = {}) {
   const failures = [], results = [];
   let needsReload = false;
   for (const { name, run } of groups) {
@@ -25,8 +25,12 @@ export async function runReviewGroups(ui, output, groups) {
     try {
       if (needsReload) {
         phase = "recovery";
-        await ui.navigate("Page.reload", { ignoreCache: true }); // navigate includes ready().
-        await ui.resize(1280, 800);
+        if (recover) {
+          await recover();
+        } else {
+          await ui.navigate("Page.reload", { ignoreCache: true }); // navigate includes ready().
+          await ui.resize(1280, 800);
+        }
       }
       phase = "review";
       console.log(`review: ${name}${precedingFailures.length
@@ -46,7 +50,7 @@ export async function runReviewGroups(ui, output, groups) {
     }
   }
   try {
-    await writeFile(path.join(output, "reviews.json"), JSON.stringify(results, null, 2));
+    await writeFile(path.join(output, reportName), JSON.stringify(results, null, 2));
   } catch (error) {
     console.error(`not ok: writing review results\n${stackOf(error)}`);
     failures.push({ name: "review-report", phase: "report", error });
