@@ -7,9 +7,13 @@ use todo_state::{AppViewModel, Panel, RenameTarget};
 
 /// Explicit identity: right-clicking another list must not act on the active one.
 pub(super) fn items(vm: Rc<AppViewModel>, id: Id) -> Vec<Element> {
-    if vm.state().list(id).is_none() {
+    let Some(list) = vm.state().list(id).cloned() else {
         return Vec::new();
-    }
+    };
+    let editable = list
+        .cloud
+        .as_ref()
+        .is_none_or(|cloud| cloud.is_owner && cloud.well_known_name == "none");
     let duplicate = vm.clone();
     let mut items = vec![command("Duplicate list", Icon::Copy, move || {
         duplicate.dispatch(Action::DuplicateList(id));
@@ -18,12 +22,14 @@ pub(super) fn items(vm: Rc<AppViewModel>, id: Id) -> Vec<Element> {
         return items;
     }
     let rename = vm.clone();
-    items.insert(
-        0,
-        command("Rename list", Icon::Note, move || {
-            rename.begin_rename(RenameTarget::List(id));
-        }),
-    );
+    if editable {
+        items.insert(
+            0,
+            command("Rename list", Icon::Note, move || {
+                rename.begin_rename(RenameTarget::List(id));
+            }),
+        );
+    }
     items.push(submenu(
         "Move to group",
         Icon::Folder,
@@ -47,13 +53,15 @@ pub(super) fn items(vm: Rc<AppViewModel>, id: Id) -> Vec<Element> {
     items.push(command("Move down", Icon::ArrowDown, move || {
         down.move_list_by(id, 1)
     }));
-    items.push(separator().into());
-    items.push(destructive(
-        "Delete list",
-        Icon::Trash,
-        vm.is_dark(),
-        move || vm.show_panel(Panel::DeleteList(id)),
-    ));
+    if editable {
+        items.push(separator().into());
+        items.push(destructive(
+            "Delete list",
+            Icon::Trash,
+            vm.is_dark(),
+            move || vm.show_panel(Panel::DeleteList(id)),
+        ));
+    }
     items
 }
 

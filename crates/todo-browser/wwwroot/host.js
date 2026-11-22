@@ -1,7 +1,11 @@
-import { deleteAttachment, openAttachment, downloadBlob, chooseFile } from "./attachments.js";
+import { deleteAttachment, openAttachment, downloadBlob, chooseFile, storeAttachment } from "./attachments.js";
 import { attachFiles } from "./attachment-upload.js";
 import { requestNotifications, notify, completionSound } from "./notifications.js";
-import { microsoftRequest } from "./graph.js";
+import { microsoftRequest, microsoftDocumentChanged, microsoftExclusive, microsoftAccountId } from "./graph.js";
+import { openCloudAttachment, materializeCloudAttachment } from "./cloud/attachment-content.js";
+import { downloadPortable, readBackupFile } from "./backup/host.js";
+import { restorePortable } from "./backup/archive.js";
+import { exportMicrosoftArchive, restoreMicrosoftArchive } from "./cloud/archive.js";
 import { createDocumentStorage } from "./document-storage.js";
 import { synchronizeNavigation } from "./navigation.js";
 
@@ -20,7 +24,7 @@ export function attachRuntime(value) {
 }
 export function load() { return documentStorage.load(); }
 export function save(contents) {
-  try { documentStorage.save(contents); }
+  try { documentStorage.save(contents); microsoftDocumentChanged(contents); }
   // The existing wasm boundary reads JsValue::as_string; preserve the actionable message.
   catch (error) { throw error?.message || String(error); }
 }
@@ -57,17 +61,46 @@ async function handle(action) {
       break;
     }
     case "connectMicrosoft":
+    case "reconnectMicrosoft":
+    case "signOutMicrosoft":
     case "disconnectMicrosoft":
     case "syncMicrosoft":
       await microsoftRequest(action, today()); break;
     case "export":
       downloadBlob(new Blob([action.contents], { type: "application/json" }), action.filename);
       break;
+    case "exportArchive":
+      await microsoftExclusive(() => downloadPortable(runtime, {
+        filename: `todo-backup-with-files-${today()}.json`,
+        resolveFile: file => materializeCloudAttachment(file.storage_key, microsoftAccountId()),
+      }));
+      break;
+    case "exportMicrosoft":
+      await microsoftExclusive(async () => {
+        const account = microsoftAccountId();
+        if (!account) throw new Error("Connect your Microsoft account first.");
+        const archive = await exportMicrosoftArchive(account);
+        downloadBlob(archive, `microsoft-todo-archive-${today()}.json`);
+        runtime.hostStatus("Microsoft To Do archive downloaded, including files.");
+      });
+      break;
+    case "importMicrosoft": {
+      const [file] = await chooseFile("application/json,.json");
+      if (file) {
+        const text = await readBackupFile(file);
+        await microsoftExclusive(() => restoreMicrosoftArchive(runtime, text, {
+          storeFile: storeAttachment, deleteFile: deleteAttachment,
+        }), { restore: true });
+      }
+      break;
+    }
     case "import": {
       const [file] = await chooseFile("application/json,.json");
       if (file) {
-        if (file.size > 25 * 1024 * 1024) throw new Error("The backup must be 25 MB or smaller.");
-        runtime.importData(await file.text());
+        const text = await readBackupFile(file);
+        await microsoftExclusive(() => restorePortable(runtime, text, {
+          storeFile: storeAttachment, deleteFile: deleteAttachment,
+        }), { restore: true });
       }
       break;
     }
@@ -76,7 +109,10 @@ async function handle(action) {
       await attachFiles(runtime, action.task_id, files);
       break;
     }
-    case "openAttachment": await openAttachment(action.key); break;
+    case "openAttachment":
+      if (action.key.startsWith("graph:")) await openCloudAttachment(action.key, microsoftAccountId());
+      else await openAttachment(action.key);
+      break;
     case "deleteAttachment": await deleteAttachment(action.key); break;
     case "requestNotifications": await requestNotifications(); break;
     case "notify": await notify(action.title, action.body); break;

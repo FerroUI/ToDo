@@ -14,14 +14,14 @@ function fixture(existing = []) {
 }
 const file = size => ({ name: "file.bin", type: "application/octet-stream", size });
 
-test("a multi-file selection exceeding the task total is rejected before any blob or metadata write", async () => {
+test("an oversized individual file rejects the entire selection before any storage write", async () => {
   const api = fixture([file(20 * 1024 * 1024)]);
-  await assert.rejects(attachFiles(api.runtime, 2, [file(3 * 1024 * 1024), file(3 * 1024 * 1024)], api.storage), /total 25 MB/);
+  await assert.rejects(attachFiles(api.runtime, 2, [file(3 * 1024 * 1024), file(LIMIT + 1)], api.storage), /Each attachment/);
   assert.equal(api.writes.length, 0);
   assert.equal(api.task.attachments.length, 1);
 });
 
-test("the exact aggregate limit is accepted and an empty selection changes nothing", async () => {
+test("the exact individual limit is accepted and an empty selection changes nothing", async () => {
   const api = fixture([file(LIMIT - 3)]);
   await attachFiles(api.runtime, 2, [file(1), file(2)], api.storage);
   await attachFiles(api.runtime, 2, [], api.storage);
@@ -29,14 +29,14 @@ test("the exact aggregate limit is accepted and an empty selection changes nothi
   assert.equal(api.writes.length, 2);
 });
 
-test("overlapping selections account for the earlier commit without partially accepting the second", async () => {
+test("overlapping selections retain every valid file even above 25 MB combined", async () => {
   const api = fixture([file(LIMIT - 3)]);
   const first = attachFiles(api.runtime, 2, [file(2)], api.storage);
   const second = attachFiles(api.runtime, 2, [file(1), file(1)], api.storage);
   await first;
-  await assert.rejects(second, /total 25 MB/);
-  assert.equal(api.writes.length, 1);
-  assert.equal(api.task.attachments.length, 2);
+  await second;
+  assert.equal(api.writes.length, 3);
+  assert.equal(api.task.attachments.length, 4);
 });
 
 test("a rejected metadata commit discards its new blob and the queue can recover", async () => {
@@ -51,9 +51,10 @@ test("a rejected metadata commit discards its new blob and the queue can recover
   assert.equal(api.task.attachments.length, 1);
 });
 
-test("invalid file sizes and legacy documents already over budget cannot accept another attachment", () => {
+test("invalid individual sizes are rejected while multiple valid files are accepted", () => {
   for (const size of [-1, NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
     assert.throws(() => checkAttachmentBudget([], [file(size)]), /invalid size/);
   }
-  assert.throws(() => checkAttachmentBudget([file(LIMIT), file(1)], [file(0)]), /total 25 MB/);
+  assert.doesNotThrow(() => checkAttachmentBudget([file(LIMIT), file(1)], [file(0)]));
+  assert.throws(() => checkAttachmentBudget([], [file(LIMIT + 1)]), /Each attachment/);
 });

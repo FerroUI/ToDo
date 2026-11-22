@@ -99,7 +99,7 @@ impl AppState {
             Action::SetTags { id, tags } => {
                 let mut tags: Vec<String> = tags
                     .into_iter()
-                    .map(|tag| tag.trim().trim_start_matches('#').to_owned())
+                    .map(|tag| tag.trim().to_owned())
                     .filter(|tag| !tag.is_empty())
                     .collect();
                 tags.sort_by_key(|tag| tag.to_lowercase());
@@ -158,11 +158,16 @@ impl AppState {
                 let ids: Vec<Id> = self
                     .tasks
                     .iter()
-                    .filter(|task| task.completed && list_id.is_none_or(|id| task.list_id == id))
+                    .filter(|task| {
+                        !task.is_planner()
+                            && task.completed
+                            && list_id.is_none_or(|id| task.list_id == id)
+                    })
                     .map(|task| task.id)
                     .collect();
                 self.tasks.retain(|task| {
-                    !(task.completed && list_id.is_none_or(|id| task.list_id == id))
+                    task.is_planner()
+                        || !(task.completed && list_id.is_none_or(|id| task.list_id == id))
                 });
                 Ok(Changes {
                     changed: !ids.is_empty(),

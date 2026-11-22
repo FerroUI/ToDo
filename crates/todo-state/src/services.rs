@@ -7,6 +7,9 @@ use todo_domain::{Id, Theme};
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum HostRequest {
     Export { filename: String, contents: String },
+    ExportArchive,
+    ExportMicrosoft,
+    ImportMicrosoft,
     Import,
     Attach { task_id: Id },
     OpenAttachment { key: String },
@@ -17,6 +20,8 @@ pub enum HostRequest {
     CompletionSound,
     SetTheme { theme: Theme },
     ConnectMicrosoft { client_id: String },
+    ReconnectMicrosoft,
+    SignOutMicrosoft,
     DisconnectMicrosoft,
     SyncMicrosoft,
     Refresh { sync: bool },

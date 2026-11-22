@@ -1,61 +1,107 @@
 import { accessToken } from "./auth.js";
+import { createCloudReader } from "./delta.js";
 
 const ROOT = "https://graph.microsoft.com/v1.0/";
+let mutationRevision = 0;
+export const cloudRevision = () => mutationRevision;
 export const segment = value => encodeURIComponent(value);
 export const listPath = id => `me/todo/lists/${segment(id)}`;
 export const taskPath = (listId, id) => `${listPath(listId)}/tasks/${segment(id)}`;
 
-export async function graph(path, method = "GET", body, etag, attempt = 0) {
+export function graphUrl(path) {
   const url = new URL(path, ROOT);
-  if (url.origin !== "https://graph.microsoft.com" || !url.pathname.startsWith("/v1.0/")) {
+  if (url.origin !== "https://graph.microsoft.com" || !url.pathname.startsWith("/v1.0/") || url.username || url.password || url.hash) {
     throw new Error("Microsoft returned an unexpected continuation URL.");
   }
-  const headers = { Authorization: `Bearer ${await accessToken(attempt > 0)}`, Accept: "application/json" };
+  return url;
+}
+
+async function request(path, method, body, etag, attempt = 0, renew = false, rawHeaders) {
+  const url = graphUrl(path);
+  const headers = { Authorization: `Bearer ${await accessToken(renew)}`, Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (rawHeaders) Object.assign(headers, rawHeaders);
   if (etag) headers["If-Match"] = etag;
   const response = await fetch(url, {
-    method, headers, body: body === undefined ? undefined : JSON.stringify(body),
+    method, headers, body: rawHeaders ? body : body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(30_000), cache: "no-store", credentials: "omit", redirect: "error",
   });
-  if ((response.status === 429 || response.status === 503 || response.status === 401) && attempt < 2) {
-    const seconds = Math.min(20, Math.max(1, Number(response.headers.get("Retry-After")) || 2 ** attempt));
-    await new Promise(resolve => setTimeout(resolve, seconds * 1000));
-    return graph(path, method, body, etag, attempt + 1);
+  // A failed POST may already have been committed. Creation recovery owns that
+  // uncertainty; only an explicit authorization/throttling rejection is replayed.
+  const retry = response.status === 401 || response.status === 429
+    || (response.status === 503 && method !== "POST" && (!rawHeaders || method === "GET"));
+  if (retry && attempt < 2) {
+    const header = response.headers.get("Retry-After");
+    const delay = Number(header) || Math.max(0, (Date.parse(header) - Date.now()) / 1000) || 2 ** attempt;
+    await new Promise(resolve => setTimeout(resolve, Math.min(20, Math.max(1, delay)) * 1000));
+    return request(path, method, body, etag, attempt + 1, response.status === 401, rawHeaders);
   }
   if (response.status === 204 || (response.status === 404 && method === "DELETE")) return null;
-  const data = await response.json().catch(() => null);
   if (!response.ok) {
+    const data = await response.json().catch(() => null);
     const message = response.status === 412 ? "This item changed in Microsoft To Do during synchronization. Sync again to review the conflict."
       : data?.error?.message || `Microsoft Graph returned ${response.status}.`;
     const error = new Error(message);
     error.status = response.status;
+    error.code = data?.error?.code;
     throw error;
   }
-  return data;
+  return response;
+}
+
+export async function graph(path, method = "GET", body, etag) {
+  let result;
+  try {
+    const response = await request(path, method, body, etag);
+    result = response ? await response.json() : null;
+    return result;
+  } finally {
+    if (method !== "GET") { mutationRevision++; reader.invalidate(path, result); }
+  }
+}
+
+export async function graphBytes(path) {
+  const response = await request(path, "GET", undefined, undefined, 0, false, { Accept: "*/*" });
+  if (!response) throw new Error("Microsoft returned an empty attachment.");
+  const length = Number(response.headers.get("Content-Length"));
+  if (Number.isFinite(length) && length > 25 * 1024 * 1024) throw new Error("Microsoft attachment exceeds the 25 MB limit.");
+  const blob = await response.blob();
+  if (blob.size > 25 * 1024 * 1024) throw new Error("Microsoft attachment exceeds the 25 MB limit.");
+  return blob;
+}
+
+export async function graphUpload(sessionUrl, chunk, start, total) {
+  const url = graphUrl(sessionUrl);
+  if (!/\/todo\/lists\/[^/]+\/tasks\/[^/]+\/attachmentSessions\/[^/]+$/i.test(url.pathname) || url.search) {
+    throw new Error("Microsoft returned an unexpected attachment upload URL.");
+  }
+  url.pathname += "/content";
+  // Fetch supplies Content-Length for the Blob; browsers forbid setting it directly.
+  try {
+    const response = await request(url.href, "PUT", chunk, undefined, 0, false, {
+      "Content-Type": "application/octet-stream", "Content-Range": `bytes ${start}-${start + chunk.size - 1}/${total}`,
+    });
+    return { status: response.status, location: response.headers.get("Location"), data: await response.json().catch(() => null) };
+  } finally { mutationRevision++; reader.invalidate(sessionUrl); }
 }
 
 export async function collection(path) {
   const items = [];
   const visited = new Set();
   while (path) {
-    if (visited.has(path)) throw new Error("Microsoft returned a repeated continuation URL.");
-    visited.add(path);
+    const canonical = graphUrl(path).href;
+    if (visited.has(canonical) || visited.size >= 10_000) throw new Error("Microsoft returned a repeated or excessive continuation sequence.");
+    visited.add(canonical);
     const page = await graph(path);
-    items.push(...(page.value || []));
+    if (!Array.isArray(page?.value)) throw new Error("Microsoft returned an invalid collection.");
+    items.push(...page.value);
     path = page["@odata.nextLink"];
   }
   return items;
 }
 
-export async function readCloud() {
-  const lists = await collection("me/todo/lists");
-  for (const list of lists) {
-    list.tasks = await collection(`${listPath(list.id)}/tasks?$expand=checklistItems,linkedResources`);
-    for (const task of list.tasks) {
-      const path = taskPath(list.id, task.id);
-      if (!Array.isArray(task.checklistItems) || task["checklistItems@odata.nextLink"]) task.checklistItems = await collection(`${path}/checklistItems`);
-      if (!Array.isArray(task.linkedResources) || task["linkedResources@odata.nextLink"]) task.linkedResources = await collection(`${path}/linkedResources`);
-    }
-  }
-  return lists;
-}
+const reader = createCloudReader({ graph, collection, graphUrl, listPath, taskPath });
+export const readCloud = (accountId = "", options) => reader.read(accountId, options);
+export const hydrateTask = (listId, taskId) => reader.task(listId, taskId);
+export const readList = listId => reader.list(listId);
+export const clearCloudCache = () => reader.clear();

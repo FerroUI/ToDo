@@ -35,6 +35,10 @@ jobs:
           node --test scripts/*.test.mjs
       - name: Build browser app
         id: browser_build
+        env:
+          TODO_MICROSOFT_CLIENT_ID: ${{ vars.MICROSOFT_CLIENT_ID }}
+          TODO_MICROSOFT_TENANT: ${{ vars.MICROSOFT_TENANT }}
+          TODO_MICROSOFT_REDIRECT_URI: ${{ vars.MICROSOFT_REDIRECT_URI }}
         run: bash scripts/build-browser.sh
       - name: Cache browser compilation
         if: ${{ github.ref == 'refs/heads/main' && steps.toolchain.outputs.build-cache-hit != 'true' }}

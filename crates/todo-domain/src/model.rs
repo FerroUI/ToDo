@@ -34,6 +34,13 @@ pub struct Task {
     pub assigned_to: Option<String>,
     #[serde(default)]
     pub flagged_email: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub linked_resources: Vec<crate::LinkedResource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub external: Option<crate::ExternalTask>,
+    /// Original Graph fields retained by archive imports until their first upload.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub microsoft_data: Option<serde_json::Value>,
     pub created_on: Date,
     pub updated_on: Date,
     #[serde(default)]
@@ -62,6 +69,9 @@ impl Task {
             tags: Vec::new(),
             assigned_to: None,
             flagged_email: false,
+            linked_resources: Vec::new(),
+            external: None,
+            microsoft_data: None,
             created_on: today,
             updated_on: today,
             completed_on: None,
@@ -71,6 +81,12 @@ impl Task {
 
     pub fn completed_steps(&self) -> usize {
         self.steps.iter().filter(|step| step.completed).count()
+    }
+
+    pub fn is_planner(&self) -> bool {
+        self.external
+            .as_ref()
+            .is_some_and(|source| source.provider == "Planner")
     }
 
     pub fn is_overdue(&self, today: Date) -> bool {
@@ -130,6 +146,8 @@ pub struct TaskList {
     pub sort_reversed: bool,
     #[serde(default = "default_true")]
     pub show_completed: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cloud: Option<crate::CloudList>,
 }
 
 impl TaskList {
@@ -144,6 +162,7 @@ impl TaskList {
             sort: crate::SortOrder::Manual,
             sort_reversed: false,
             show_completed: true,
+            cloud: None,
         }
     }
 }
@@ -182,6 +201,8 @@ pub struct Settings {
     pub remove_recognized_dates: bool,
     pub account_name: String,
     pub microsoft_client_id: String,
+    pub auto_sync: bool,
+    pub planner_enabled: bool,
     pub smart_colors: std::collections::BTreeMap<String, String>,
 }
 
@@ -201,6 +222,8 @@ impl Default for Settings {
             remove_recognized_dates: false,
             account_name: "My account".into(),
             microsoft_client_id: String::new(),
+            auto_sync: true,
+            planner_enabled: false,
             smart_colors: std::collections::BTreeMap::new(),
         }
     }

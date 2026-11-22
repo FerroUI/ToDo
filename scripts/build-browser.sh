@@ -12,4 +12,5 @@ for ((TODO_INDEX=0; TODO_INDEX<${#TODO_ARGUMENTS[@]}; TODO_INDEX++)); do
   if [ "${TODO_ARGUMENTS[$TODO_INDEX]}" = "--out" ]; then TODO_SITE="${TODO_ARGUMENTS[$((TODO_INDEX+1))]}"; fi
 done
 FerroUI/scripts/build-browser.sh todo-browser "$@"
+node scripts/configure-microsoft.mjs "$TODO_SITE"
 node scripts/prepare-site.mjs "$TODO_SITE"

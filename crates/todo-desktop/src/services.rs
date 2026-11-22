@@ -120,8 +120,13 @@ async fn handle(
             return Err("File attachments are available in the browser app.".into());
         }
         HostRequest::ConnectMicrosoft { .. }
+        | HostRequest::ReconnectMicrosoft
+        | HostRequest::SignOutMicrosoft
         | HostRequest::DisconnectMicrosoft
-        | HostRequest::SyncMicrosoft => {
+        | HostRequest::SyncMicrosoft
+        | HostRequest::ExportMicrosoft
+        | HostRequest::ImportMicrosoft
+        | HostRequest::ExportArchive => {
             return Err(
                 "Microsoft account synchronization is available in the browser app.".into(),
             );

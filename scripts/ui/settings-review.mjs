@@ -31,8 +31,18 @@ export async function verifySettingsPresentation(ui) {
     await page.wheel(width - 80, 600, 0, 520);
     await until(async () => (await snapshot()).elements.some(element => element.hit && element.type === "ToggleSwitch"), "settings preferences remain visible after scrolling");
     await capture(`settings-${label}-preferences`);
+    const account = (await snapshot()).elements.find(element => element.type.endsWith("TextBlock") && element.text === "Microsoft account");
+    assert(account, "Settings includes the Microsoft account section");
+    await page.wheel(width - 80, 600, 0, account.y - 100);
+    bounded(await control(button("Connect Microsoft account"), "Microsoft sign-in action"), width, "Microsoft sign-in");
+    const clientId = (await snapshot()).elements.find(element => element.name === "MicrosoftClientId");
+    if (clientId) bounded(clientId, width, "Application client ID");
+    await capture(`settings-${label}-microsoft`);
     await page.wheel(width - 80, 600, 0, 2400);
     await control(button("Keyboard shortcuts"), "settings footer actions");
+    for (const name of ["Export backup with files", "Restore Microsoft archive…", "Export backup", "Restore backup…"]) {
+      bounded(await control(button(name), name), width, name);
+    }
     await capture(`settings-${label}-data`);
     if (width === 320) {
       await clickControl(button("Keyboard shortcuts"), "compact keyboard shortcut help");

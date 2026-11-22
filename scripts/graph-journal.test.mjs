@@ -1,9 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { commit, recoverCommit } from "../crates/todo-browser/wwwroot/cloud/metadata.js";
+import { commit, recoverCommit, forgetDocumentMappings } from "../crates/todo-browser/wwwroot/cloud/metadata.js";
 import { Storage } from "./tests/graph-fixture.mjs";
 
 const DOCUMENT = "ferroui.todo.v1", JOURNAL = "ferroui.todo.graph.v1.commit", META = "ferroui.todo.graph.v1.account";
+
+test("restoring independent copies forgets mappings and correlation identity without deleting task data", () => {
+  const storage = new Storage(); globalThis.localStorage = storage;
+  for (const key of [META, JOURNAL, "ferroui.todo.graph.v1.document-account", "ferroui.todo.graph.v1.device"]) storage.setItem(key, "old");
+  storage.setItem(DOCUMENT, "restored tasks"); storage.setItem("unrelated", "keep");
+  forgetDocumentMappings();
+  assert.equal(storage.getItem(DOCUMENT), "restored tasks"); assert.equal(storage.getItem("unrelated"), "keep");
+  assert.equal(storage.length, 2);
+});
 
 test("an interrupted metadata write recovers against Rust's canonical prospective document", () => {
   const storage = new Storage(); globalThis.localStorage = storage;

@@ -3,6 +3,7 @@ use crate::{Action, AppState, Changes, Date, DomainError, Id, Task};
 impl AppState {
     /// Execute one command. Validation runs before mutation; a batch rolls back on any error.
     pub fn apply(&mut self, action: Action, today: Date) -> Result<Changes, DomainError> {
+        self.validate_integration_action(&action)?;
         let mut changes = match action {
             Action::Batch(actions) => {
                 let mut transaction = self.clone();
@@ -69,6 +70,9 @@ impl AppState {
     }
 
     pub(crate) fn duplicate(&mut self, mut task: Task, today: Date) -> Task {
+        task.external = None;
+        task.flagged_email = false;
+        task.assigned_to = None;
         task.id = self.allocate_id();
         task.created_on = today;
         task.updated_on = today;

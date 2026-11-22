@@ -57,6 +57,7 @@ impl AppState {
             Action::DuplicateList(id) => {
                 let index = self.list_index(id)?;
                 let mut list = self.lists[index].clone();
+                list.cloud = None;
                 let position = self.next_list_position(list.group_id)?;
                 let list_id = self.allocate_id();
                 list.id = list_id;
@@ -72,7 +73,7 @@ impl AppState {
                 let tasks: Vec<_> = self
                     .tasks
                     .iter()
-                    .filter(|task| task.list_id == id)
+                    .filter(|task| task.list_id == id && !task.is_planner() && !task.flagged_email)
                     .cloned()
                     .collect();
                 let mut changes = Changes {

@@ -4,6 +4,7 @@
 mod action;
 mod apply;
 mod calendar;
+mod integration;
 mod lists;
 mod model;
 mod persistence;
@@ -19,6 +20,7 @@ mod task_entry;
 pub use action::*;
 pub use calendar::*;
 pub use chrono::NaiveDate as Date;
+pub use integration::{CloudList, ExternalTask, LinkedResource};
 pub use model::*;
 pub use query::*;
 pub use sidebar::SidebarItem;

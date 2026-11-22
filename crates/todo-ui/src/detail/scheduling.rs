@@ -67,6 +67,9 @@ pub(super) fn view(vm: Rc<AppViewModel>, task: &Task) -> Element {
             "TaskRepeat",
         ),
     ] {
+        if task.is_planner() && !matches!(kind, Kind::Due) {
+            continue;
+        }
         let menu = vm.clone();
         let clear = vm.clone();
         let overdue = matches!(kind, Kind::Due)
@@ -93,7 +96,7 @@ pub(super) fn view(vm: Rc<AppViewModel>, task: &Task) -> Element {
                 })
             }),
         ));
-        if !matches!(kind, Kind::Repeat) {
+        if !task.is_planner() && !matches!(kind, Kind::Repeat) {
             content = content.child(
                 border()
                     .height(1.0)

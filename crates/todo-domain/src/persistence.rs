@@ -85,6 +85,18 @@ impl AppState {
         }
         self.validate_sidebar_order()?;
         for task in &self.tasks {
+            if task.external.as_ref().is_some_and(|source| {
+                source.provider != "Planner"
+                    || source.id.is_empty()
+                    || !crate::integration::valid_source_url(&source.url)
+            }) {
+                return Err(invalid("A task service reference is invalid"));
+            }
+            if task.linked_resources.iter().any(|source| {
+                !source.web_url.is_empty() && !crate::integration::valid_source_url(&source.web_url)
+            }) {
+                return Err(invalid("A task source link is invalid"));
+            }
             if task.title.trim().is_empty() {
                 return Err(invalid("A task title is empty"));
             }

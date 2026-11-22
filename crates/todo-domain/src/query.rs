@@ -54,7 +54,7 @@ impl View {
             Self::Completed => task.completed,
             Self::AssignedToMe => task.assigned_to.as_deref() == Some("me"),
             Self::FlaggedEmail => task.flagged_email,
-            Self::List(id) => task.list_id == *id,
+            Self::List(id) => task.list_id == *id && !task.is_planner() && !task.flagged_email,
             Self::Search(query) => matches_search(task, query),
         }
     }
@@ -138,7 +138,8 @@ impl AppState {
             .tasks
             .iter()
             .filter(|task| {
-                view.matches(task, today)
+                (!task.is_planner() || self.settings.planner_enabled)
+                    && view.matches(task, today)
                     && (show_completed || !task.completed || *view == View::Completed)
             })
             .collect();
@@ -185,7 +186,9 @@ impl AppState {
     pub fn count(&self, view: &View, today: Date) -> TaskCount {
         self.tasks
             .iter()
-            .filter(|task| view.matches(task, today))
+            .filter(|task| {
+                (!task.is_planner() || self.settings.planner_enabled) && view.matches(task, today)
+            })
             .fold(TaskCount::default(), |mut count, task| {
                 if task.completed {
                     count.completed += 1;
@@ -200,7 +203,11 @@ impl AppState {
         let mut tasks: Vec<_> = self
             .tasks
             .iter()
-            .filter(|task| !task.completed && !task.is_my_day(today))
+            .filter(|task| {
+                (!task.is_planner() || self.settings.planner_enabled)
+                    && !task.completed
+                    && !task.is_my_day(today)
+            })
             .collect();
         tasks.sort_by_key(|task| {
             (

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { editorFits } from "./layout-geometry.mjs";
+import { verifyCategories } from "./categories-review.mjs";
 
 const button = label => element => element.type.endsWith("Button") && element.automationName === label;
 const menu = label => element => element.type.endsWith("MenuItem") && element.automationName === label;
@@ -81,7 +82,8 @@ export async function verifyDetailPresentation(ui, taskId) {
   await until(async () => (await current()).title === original.title && (await current()).notes === original.notes, "original detail text is restored");
   const restored = await current();
   for (const field of ["steps", "due_date", "reminder", "recurrence"]) assert.deepEqual(restored[field], original[field], `${field} is unchanged by dismissed forms`);
+  await verifyCategories(ui, taskId);
   await page.press("Escape");
   await control(named("NewTask"), "list after detail review");
-  console.log("ok: wrapped detail editors, compact native menus, confirmation, recurrence and reminder forms; presentation captures");
+  console.log("ok: wrapped detail editors, native menus, recurrence/reminder forms, and category editing at wide/narrow widths");
 }

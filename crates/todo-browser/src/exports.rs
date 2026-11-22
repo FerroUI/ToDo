@@ -105,6 +105,27 @@ pub fn cloud_state(connected: bool, label: &str) {
     }
 }
 
+#[wasm_bindgen(js_name = cloudCapabilities)]
+pub fn cloud_capabilities(supported: bool, configured: bool, work_account: bool) {
+    if let Some(vm) = crate::app::view_model() {
+        vm.set_cloud_capabilities(supported, configured, work_account);
+    }
+}
+
+#[wasm_bindgen(js_name = hostStatus)]
+pub fn host_status(message: &str) {
+    if let Some(vm) = crate::app::view_model() {
+        vm.set_status(message.to_owned());
+    }
+}
+
+#[wasm_bindgen(js_name = validateImportData)]
+pub fn validate_import_data(json: &str) -> Result<String, JsValue> {
+    todo_domain::AppState::from_json(json)
+        .and_then(|state| state.to_json())
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+}
+
 #[wasm_bindgen(js_name = hostError)]
 pub fn host_error(message: &str) {
     if let Some(vm) = crate::app::view_model() {
@@ -128,20 +149,8 @@ pub fn attach_file(
     if !size.is_finite() || size < 0.0 || size.fract() != 0.0 || size > limit as f64 {
         return Err(JsValue::from_str("This attachment has an invalid size"));
     }
-    let total = vm
-        .state()
-        .task(task_id)
-        .ok_or_else(|| JsValue::from_str("This task no longer exists"))?
-        .attachments
-        .iter()
-        .try_fold(0_u64, |total, file| total.checked_add(file.size));
-    if total
-        .and_then(|total| total.checked_add(size as u64))
-        .is_none_or(|total| total > limit)
-    {
-        return Err(JsValue::from_str(
-            "Attachments for a task must total 25 MB or less",
-        ));
+    if vm.state().task(task_id).is_none() {
+        return Err(JsValue::from_str("This task no longer exists"));
     }
     vm.dispatch(Action::AddAttachment {
         task_id,

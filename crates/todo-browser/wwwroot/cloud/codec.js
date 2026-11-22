@@ -123,5 +123,8 @@ export function mergeFields(local, remote, baseLocal, baseRemote, label) {
 }
 
 export function remoteSnapshot(task) {
-  return { ...remoteFields(task), steps: (task.checklistItems || []).map(step => ({ id: step.id, title: step.displayName, completed: step.isChecked })).sort((a, b) => a.id.localeCompare(b.id)) };
+  return { ...remoteFields(task), steps: (task.checklistItems || []).map(step => ({ id: step.id, title: step.displayName, completed: step.isChecked })).sort((a, b) => a.id.localeCompare(b.id)),
+    modified: task.lastModifiedDateTime || "", bodyModified: task.bodyLastModifiedDateTime || "",
+    files: (task.attachments || []).map(file => ({ id: file.id, name: file.name, type: file.contentType || "", size: file.size, modified: file.lastModifiedDateTime || "", etag: file["@odata.etag"] || "" })).sort((a, b) => a.id.localeCompare(b.id)),
+    resources: (task.linkedResources || []).map(link => ({ id: link.id, applicationName: link.applicationName, displayName: link.displayName, externalId: link.externalId, webUrl: link.webUrl })).sort((a, b) => String(a.id).localeCompare(String(b.id))) };
 }

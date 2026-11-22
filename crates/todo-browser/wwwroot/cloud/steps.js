@@ -16,6 +16,7 @@ export function checkSteps(task, remote, mapping) {
 }
 
 export async function syncSteps(task, remote, mapping, context) {
+  let changed = false;
   mapping.steps ||= {};
   mapping.pendingSteps ||= {};
   const path = `${taskPath(mapping.listId, mapping.remoteId)}/checklistItems`;
@@ -33,7 +34,7 @@ export async function syncSteps(task, remote, mapping, context) {
     const local = task.steps.find(item => item.id === Number(id));
     const other = remoteItems.get(record.remoteId);
     if (!local) {
-      if (other) { context.guard(); await graph(`${path}/${segment(record.remoteId)}`, "DELETE", undefined, other["@odata.etag"]); }
+      if (other) { context.guard(); await graph(`${path}/${segment(record.remoteId)}`, "DELETE", undefined, other["@odata.etag"]); changed = true; }
       delete mapping.steps[id];
     } else if (!other) {
       task.steps = task.steps.filter(item => item.id !== local.id);
@@ -41,14 +42,17 @@ export async function syncSteps(task, remote, mapping, context) {
     } else {
       const localBefore = localFields(local);
       const merged = mergeFields(localBefore, remoteFields(other), record.baseLocal, record.baseRemote, local.title);
-      if (!equal(merged, remoteFields(other))) {
+      const needsPatch = !equal(merged, remoteFields(other));
+      if (needsPatch) {
         context.guard();
         await graph(`${path}/${segment(other.id)}`, "PATCH", { displayName: merged.title, isChecked: merged.completed }, other["@odata.etag"]);
+        changed = true;
       }
       Object.assign(local, merged);
+      const updated = !equal(record.baseLocal, localBefore) || !equal(record.baseRemote, merged);
       record.baseLocal = localBefore;
       record.baseRemote = merged;
-      context.save();
+      if (updated || needsPatch) context.save();
     }
     if (other) remoteItems.delete(other.id);
   }
@@ -64,11 +68,13 @@ export async function syncSteps(task, remote, mapping, context) {
     mapping.pendingSteps[local.id] = { fields: localFields(local), before: (remote.checklistItems || []).map(item => item.id) };
     context.save();
     const other = await graph(path, "POST", { displayName: local.title, isChecked: local.completed });
+    changed = true;
     mapping.steps[local.id] = { remoteId: other.id, baseLocal: localFields(local), baseRemote: remoteFields(other) };
     delete mapping.pendingSteps[local.id];
     context.save();
   }
-  remote.checklistItems = await collection(path);
+  if (changed) remote.checklistItems = await collection(path);
+  return changed;
 }
 
 export function adoptSteps(task, remote, mapping, allocate) {

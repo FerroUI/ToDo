@@ -36,6 +36,13 @@ export async function saveAttachment(file) {
   return key;
 }
 
+export async function storeAttachment(key, file) {
+  if (typeof key !== "string" || !key || !(file instanceof Blob) || file.size > 25 * 1024 * 1024) {
+    throw new Error("This attachment has invalid storage metadata.");
+  }
+  await transact("readwrite", store => store.put(file, key));
+}
+
 export async function deleteAttachment(key) {
   const db = await database();
   return new Promise((resolve, reject) => {
@@ -50,7 +57,7 @@ export async function deleteAttachment(key) {
   });
 }
 
-export async function openAttachment(key) {
+export async function readAttachment(key) {
   let file = await transact("readonly", store => store.get(key));
   if (!file) {
     const db = await database();
@@ -66,6 +73,11 @@ export async function openAttachment(key) {
       tx.onerror = () => reject(tx.error);
     });
   }
+  return file || null;
+}
+
+export async function openAttachment(key) {
+  const file = await readAttachment(key);
   if (!file) throw new Error("This file is not stored on this device. Attach it again from the original file.");
   downloadBlob(file, file.name || "attachment");
 }

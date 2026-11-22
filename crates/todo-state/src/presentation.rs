@@ -102,7 +102,11 @@ impl AppViewModel {
 
     pub fn task_metadata(&self, task: &Task) -> String {
         let mut parts = Vec::new();
-        if !matches!(self.view(), View::List(_)) {
+        if task.is_planner() {
+            parts.push("Planner".into());
+        } else if task.flagged_email {
+            parts.push("Outlook".into());
+        } else if !matches!(self.view(), View::List(_)) {
             if let Some(list) = self.state().list(task.list_id) {
                 parts.push(list.name.clone());
             }

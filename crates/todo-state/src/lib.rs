@@ -3,6 +3,7 @@ mod commands;
 pub mod gestures;
 mod history;
 mod history_commands;
+mod integration;
 mod layout;
 mod list_commands;
 mod naming;
@@ -52,6 +53,9 @@ pub struct AppViewModel {
     viewport: Cell<f64>,
     system_dark: Cell<bool>,
     cloud_connected: Cell<bool>,
+    cloud_supported: Cell<bool>,
+    cloud_configured: Cell<bool>,
+    cloud_work_account: Cell<bool>,
     cloud_label: RefCell<String>,
     completed_expanded: Cell<bool>,
     sort: Cell<SortOrder>,
@@ -100,6 +104,9 @@ impl AppViewModel {
                 viewport: Cell::new(1440.0),
                 system_dark: Cell::new(false),
                 cloud_connected: Cell::new(false),
+                cloud_supported: Cell::new(false),
+                cloud_configured: Cell::new(false),
+                cloud_work_account: Cell::new(false),
                 cloud_label: RefCell::new(String::new()),
                 completed_expanded: Cell::new(true),
                 sort: Cell::new(SortOrder::Manual),

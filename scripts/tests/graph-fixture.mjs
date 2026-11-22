@@ -1,5 +1,7 @@
 export class Storage {
   data = new Map();
+  get length() { return this.data.size; }
+  key(index) { return [...this.data.keys()][index] ?? null; }
   getItem(key) { return this.data.get(key) ?? null; }
   setItem(key, value) { this.data.set(key, String(value)); }
   removeItem(key) { this.data.delete(key); }
@@ -15,14 +17,14 @@ export function task(id = 2, title = "A task", listId = 1) {
 export function remoteTask(id = "remote-task", title = "Cloud task") {
   return { id, title, body: { contentType: "text", content: "" }, importance: "normal", status: "notStarted",
     dueDateTime: null, isReminderOn: false, reminderDateTime: null, recurrence: null, categories: [],
-    checklistItems: [], linkedResources: [], "@odata.etag": 'W/"1"', createdDateTime: "2026-11-21T10:00:00Z" };
+    checklistItems: [], linkedResources: [], attachments: [], "@odata.etag": 'W/"1"', createdDateTime: "2026-11-21T10:00:00Z" };
 }
 
 export function fixture(tasks = []) {
   globalThis.localStorage = new Storage();
   globalThis.location = { origin: "https://example.test", pathname: "/ToDo/" };
   globalThis.DOMParser = class { parseFromString(html) { return { body: { textContent: html.replaceAll("<br>", "\n") }, querySelectorAll: () => [] }; } };
-  let state = { schema_version: 1, tasks, lists: [{ id: 1, name: "Tasks", color: "#3E69E4", background: null, group_id: null, position: 1, sort: "Manual", show_completed: true }], groups: [], settings: {}, next_id: Math.max(2, ...tasks.map(task => task.id + 1), ...tasks.flatMap(task => task.steps.map(step => step.id + 1))) };
+  let state = { schema_version: 1, tasks, lists: [{ id: 1, name: "Tasks", color: "#3E69E4", background: null, group_id: null, position: 1, sort: "Manual", show_completed: true }], groups: [], settings: {}, next_id: Math.max(2, ...tasks.map(task => task.id + 1), ...tasks.flatMap(task => [...task.steps, ...task.attachments].map(item => item.id + 1))) };
   const persist = () => localStorage.setItem("ferroui.todo.v1", JSON.stringify(state));
   const runtime = {
     exportData: () => JSON.stringify(state),
@@ -40,19 +42,25 @@ export function fixture(tasks = []) {
   const writes = [];
   let afterWrite;
   const api = {
-    cloud, writes, runtime,
+    cloud, writes, runtime, files: new Map(),
     set afterWrite(value) { afterWrite = value; },
     readCloud: async () => structuredClone(cloud),
     collection: async path => structuredClone(await api.graph(path)).value,
+    async graphBytes(path) {
+      const file = await api.graph(path.replace(/\/\$value$/, ""));
+      return new Blob([Buffer.from(file.contentBytes || "", "base64")], { type: file.contentType });
+    },
     async graph(path, method = "GET", body, etag) {
       const pieces = path.split("?")[0].split("/").map(decodeURIComponent);
       const list = cloud.find(item => item.id === pieces[3]);
       const item = list?.tasks.find(task => task.id === pieces[5]);
-      const steps = item?.checklistItems;
+      const relation = pieces[6];
+      const children = item?.[relation];
       let result;
       if (method !== "GET") writes.push({ path, method, body: structuredClone(body) });
       if (method === "GET" && pieces.length === 6) result = item;
-      else if (method === "GET" && pieces.length === 7) result = { value: steps };
+      else if (method === "GET" && pieces.length === 7) result = { value: children || [] };
+      else if (method === "GET" && pieces.length === 8) result = children?.find(child => child.id === pieces[7]);
       else if (method === "POST" && pieces.length === 3) {
         result = { id: `list-${next++}`, displayName: body.displayName, wellknownListName: "none", isOwner: true, tasks: [] }; cloud.push(result);
       } else if (method === "PATCH" && pieces.length === 4) Object.assign(list, body), result = list;
@@ -61,10 +69,11 @@ export function fixture(tasks = []) {
         result = { ...remoteTask(`task-${next++}`, body.title), ...body }; list.tasks.push(result);
       } else if (method === "PATCH" && pieces.length === 6) Object.assign(item, body), result = item;
       else if (method === "DELETE" && pieces.length === 6) list.tasks = list.tasks.filter(task => task.id !== pieces[5]), result = null;
-      else if (method === "POST" && pieces.length === 7) { result = { id: `step-${next++}`, ...body }; steps.push(result); }
-      else if (method === "PATCH" && pieces.length === 8) { result = steps.find(step => step.id === pieces[7]); Object.assign(result, body); }
-      else if (method === "DELETE" && pieces.length === 8) item.checklistItems = steps.filter(step => step.id !== pieces[7]), result = null;
+      else if (method === "POST" && pieces.length === 7) { result = { id: `${relation}-${next++}`, ...body }; (item[relation] ||= []).push(result); if (relation === "attachments") item.hasAttachments = true; }
+      else if (method === "PATCH" && pieces.length === 8) { result = children.find(child => child.id === pieces[7]); Object.assign(result, body); }
+      else if (method === "DELETE" && pieces.length === 8) item[relation] = children.filter(child => child.id !== pieces[7]), result = null;
       else throw new Error(`Unexpected fixture Graph call: ${method} ${path}`);
+      if (method === "GET" && result === undefined) throw Object.assign(new Error("Not found"), { status: 404 });
       if (method !== "GET" && afterWrite) await afterWrite({ path, method, body });
       return structuredClone(result);
     },

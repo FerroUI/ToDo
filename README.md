@@ -19,11 +19,12 @@ The application includes the main personal task workflows and optional Microsoft
 - Mixed list/group navigation ordering, list-to-group dragging, keyboard tree navigation, and leading-emoji list icons.
 - Visible sort direction with reverse/reset controls, search cancellation, native Calendar selection, and WinUI Settings switches.
 - Calendar-aware daily, weekday, weekly, monthly, yearly, and custom interval recurrence.
-- Undo/redo, JSON backup and restore, print view, and browser file attachments.
+- Undo/redo, JSON backup and restore, portable backups with attachment bytes and checksums, Microsoft Graph data archives, and print view.
 - Light, dark, and system themes; per-list colors; original vector icons and My Day landscape.
 - Adaptive one-, two-, and three-pane layouts, retained drafts and keyboard focus, virtualized task rows, and FerroUI accessibility support.
 - Browser storage, installable app metadata, and offline resources cached after a successful load.
-- Optional Microsoft account connection and explicit **Sync now** for supported list/task fields and checklist items.
+- Optional Microsoft sign-in with MSAL and PKCE, automatic foreground synchronization, explicit **Sync now**, cloud file attachments, categories, and linked source actions.
+- Optional **Assigned to me** integration for work-account Planner tasks, including title, completion, due date, notes, and checklist edits.
 
 A normal launch starts with an empty Tasks list. Add `?demo=1` to the browser URL, or pass `--demo` to the desktop executable, to inspect sample tasks without modifying the normal task document.
 
@@ -66,9 +67,11 @@ The desktop host shares the UI and model with the browser. It saves `tasks.json`
 
 The local application works without an account. Optional synchronization requires **your own Microsoft Entra application registration configured as a single-page application**, its Application (client) ID, an exact redirect URI for the deployment, and consent for `Tasks.ReadWrite` and `User.Read`.
 
-Follow the [Microsoft account setup guide](docs/MICROSOFT.md), enter the client ID in Settings, connect the Microsoft account, and choose **Sync now**. Authentication uses the bundled Microsoft Authentication Library; tokens stay in session storage and are excluded from task documents and backups. There is no client secret or application-owned backend.
+Follow the [Microsoft account setup guide](docs/MICROSOFT.md). Configure the public client ID at deployment time, or enter it in Settings for a local setup. Connect the account to enable automatic synchronization; **Sync now** and pull-to-refresh also synchronize on demand. Work accounts can enable **Settings → Connected apps → Planner**. Authentication uses the bundled Microsoft Authentication Library with redirect sign-in, PKCE, reconnect, local disconnect, and Microsoft sign-out. Tokens stay in session storage and are excluded from task documents and backups. There is no client secret or application-owned backend.
 
-The integration has automated synchronization tests with a simulated Graph service. A live account sign-in and round-trip sync have not been verified as part of this implementation. Sharing invitations, Planner integration, Microsoft attachment synchronization, and complete Microsoft service parity remain outside the implemented surface. [Features and limits](docs/features.md#microsoft-graph-synchronization) describes the boundary.
+The existing Pages build accepts repository variables `MICROSOFT_CLIENT_ID`, `MICROSOFT_TENANT`, and `MICROSOFT_REDIRECT_URI`; the corresponding local build variables have a `TODO_` prefix. The canonical production redirect is `https://ferroui.com/ToDo/`. These are public SPA settings, not secrets. An operator must create or supply the Entra application registration before deployment-configured sign-in can work.
+
+The integration has automated tests for OAuth, Graph transport, delta synchronization, attachments, interrupted writes, Planner, backups, and host orchestration using simulated services. A live account sign-in and round-trip sync have not been verified as part of this implementation. Invitation administration, shared-list assignee editing, Microsoft’s private My Day/group metadata, PST import/export, and closed-app push synchronization remain outside the implemented surface. See the [integration review](docs/integration-review.md) for the comparison with Microsoft To Do and the [feature matrix](docs/features.md#microsoft-graph-synchronization) for the boundary.
 
 ## Check changes
 
@@ -79,7 +82,7 @@ node --test scripts/*.test.mjs
 node scripts/ui-smoke.mjs target/browser/todo-browser
 ```
 
-The Rust suites cover domain behavior, conservative date/time recognition, atomic scheduled-task creation, state transitions, bulk-selection transactions, inline naming, sidebar ordering, adaptive pane budgets, and callback reentrancy. The JavaScript suites exercise storage conflicts and retries, plus Graph creation, updates, imports, deletion, conflicts, interrupted requests, and account isolation with a simulated service. One browser gate uses the built app and Chromium to check real editing, menus, selection, focus restoration, drag/drop, draft retention, and persistence on reload. Real touch contacts exercise swipe actions, long press, scrolling, cancellation, navigation, and refresh; browser Back also verifies focused-editor persistence. It verifies widths of 320, 390, 760, 800, 980, and 1024 pixels and captures desktop, intermediate, narrow, menu, and dark-theme views. Other browser/device combinations need separate validation.
+The Rust suites cover domain behavior, conservative date/time recognition, atomic scheduled-task creation, state transitions, bulk-selection transactions, inline naming, sidebar ordering, adaptive pane budgets, and callback reentrancy. The JavaScript suites exercise storage conflicts, OAuth redirects and token refresh, incremental Graph reads, files and resumable uploads, guarded moves and deletion, interrupted requests, account isolation, Planner edits, complete-file archive restoration, and the shared account/restore/sync queue with simulated services. One browser gate uses the built app and Chromium to check real editing, menus, selection, focus restoration, drag/drop, draft retention, and persistence on reload. Real touch contacts exercise swipe actions, long press, scrolling, cancellation, navigation, and refresh; browser Back also verifies focused-editor persistence. It verifies widths of 320, 390, 760, 800, 980, and 1024 pixels and captures desktop, intermediate, narrow, menu, and dark-theme views. Other browser/device combinations need separate validation.
 
 ## Architecture
 

@@ -29,6 +29,8 @@ pub(super) fn items(vm: Rc<AppViewModel>, id: Id) -> Vec<Element> {
     let included = tasks.iter().all(|task| task.is_my_day(vm.today()));
     let important = tasks.iter().all(|task| task.important);
     let completed = tasks.iter().all(|task| task.completed);
+    let has_planner = tasks.iter().any(|task| task.is_planner());
+    let can_move = !has_planner && tasks.iter().all(|task| !task.flagged_email);
     let mut lists = state.lists.clone();
     lists.sort_by_key(|list| (list.position, list.id));
     let destinations: Vec<_> = lists
@@ -88,15 +90,17 @@ pub(super) fn items(vm: Rc<AppViewModel>, id: Id) -> Vec<Element> {
             super::task_action::move_to(vm.clone(), ids.clone(), list.id, list.name, selected)
         })
         .collect();
-    items.push(submenu(
-        if count > 1 {
-            "Move tasks to"
-        } else {
-            "Move task to"
-        },
-        Icon::MoveToList,
-        move_items,
-    ));
+    if can_move {
+        items.push(submenu(
+            if count > 1 {
+                "Move tasks to"
+            } else {
+                "Move task to"
+            },
+            Icon::MoveToList,
+            move_items,
+        ));
+    }
     items.push(batch(
         vm.clone(),
         ids.clone(),
@@ -108,7 +112,11 @@ pub(super) fn items(vm: Rc<AppViewModel>, id: Id) -> Vec<Element> {
         Icon::Copy,
         |id, _| Action::DuplicateTask(id),
     ));
-    if count == 1 && vm.sort() == SortOrder::Manual && matches!(vm.view(), View::List(_)) {
+    if can_move
+        && count == 1
+        && vm.sort() == SortOrder::Manual
+        && matches!(vm.view(), View::List(_))
+    {
         let up = vm.clone();
         let down = vm.clone();
         items.push(command("Move up", Icon::ArrowUp, move || {
@@ -124,7 +132,9 @@ pub(super) fn items(vm: Rc<AppViewModel>, id: Id) -> Vec<Element> {
             select.toggle_task_selection(id)
         }));
     }
-    items.push(separator().into());
-    items.push(super::task_action::delete(vm, ids, selected));
+    if !has_planner {
+        items.push(separator().into());
+        items.push(super::task_action::delete(vm, ids, selected));
+    }
     items
 }

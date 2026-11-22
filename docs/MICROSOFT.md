@@ -1,58 +1,153 @@
-# Microsoft account synchronization
+# Microsoft accounts, synchronization, and backups
 
-The browser application has an optional Microsoft Graph connection. Local tasks work immediately without an account. The Microsoft client ID is deliberately empty in a new installation: this repository does not own a Microsoft application registration or ship credentials.
+The browser application connects to Microsoft To Do through Microsoft Graph and, for work or school accounts, can show assigned Planner tasks. Tasks also work locally without an account. The repository ships an empty public client ID: the deployment owner must supply a real Microsoft application registration before configured sign-in is available. No signed-in Microsoft account was used for an authenticated end-to-end check during this implementation.
 
-## Register the browser application
+See [the integration review](integration-review.md) for the comparison with Microsoft's products and the remaining service gaps.
 
-1. In Microsoft Entra **App registrations**, register an application. To support both work/school and personal Microsoft accounts, choose the corresponding multitenant plus personal-account option.
-2. Add a **Single-page application** platform and register the exact deployed URL, including its case and trailing slash. For this repository the expected URL is `https://ferroui.github.io/ToDo/`. A custom domain or local development origin needs its own redirect URI.
-3. Add delegated Microsoft Graph permissions **Tasks.ReadWrite** and **User.Read**. Tenant consent policies may require an administrator's consent.
-4. Copy the public **Application (client) ID** into the app's Settings, then select **Connect Microsoft account**. Do not create or paste a client secret into this static application.
-5. After Microsoft redirects back, the app verifies the account through Graph. Select **Sync** to synchronize. A backup import never sets the account connection status.
+## Register and configure the browser application
 
-The authentication implementation is Microsoft's vendored MSAL Browser 5.30.0. It uses authorization-code flow with PKCE, Microsoft-managed state and nonce validation, and `sessionStorage` token caching. Tokens are neither included in task exports nor stored in task documents. Sign-in is a full-page redirect, and the registered redirect URL serves the application itself. Refresh-token renewal runs through MSAL; a session that needs interaction asks the user to reconnect instead of opening an invisible sign-in iframe. Disconnect clears this application's session; it does not sign the user out of other Microsoft applications.
+1. In Microsoft Entra **App registrations**, register the application. To support both personal and work/school accounts, select the account type that permits organizational directories and personal Microsoft accounts.
+2. Add a **Single-page application** platform. Register the exact canonical redirect URI **`https://ferroui.com/ToDo/`**, including case and trailing slash. If the separate GitHub Pages origin is used, register **`https://ferroui.github.io/ToDo/`** separately. Local development origins also need their own redirects.
+3. Configure delegated Microsoft Graph permissions **`Tasks.ReadWrite`** and **`User.Read`**. Consent is subject to the organization's policies. The implemented Planner endpoints use the same task permission; the app does not request group administration or mailbox-reading permissions.
+4. Supply the public configuration below, deploy, and select **Connect Microsoft account** in Settings. Never put a client secret, certificate private key, access token, or refresh token in this static application.
 
-## Data synchronization
+The registration must use the SPA redirect type for the browser authorization-code flow. Microsoft documents [authorization-code flow with PKCE and SPA redirects](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow).
 
-Synchronization is explicit and two-way. The implementation uses the supported Graph v1.0 task-list, task, checklist-item, and linked-resource endpoints. It reads all result pages and sends only changed fields.
+### Public deployment configuration
 
-| Data | Behavior |
+The app reads `microsoft-config.json` beside its entry page. Its checked-in defaults are:
+
+```json
+{
+  "clientId": "",
+  "tenant": "common",
+  "redirectUri": ""
+}
+```
+
+Set `clientId` to the registration's public Application (client) ID. `tenant` accepts `common`, `organizations`, `consumers`, or a directory GUID and must agree with the registration's supported account types. An empty `redirectUri` derives the canonical current app address without query or fragment. An explicit redirect must match this app's origin and path. HTTPS is required except for local loopback development. A deployment configured for `ferroui.com` must be opened there; another origin needs its own configuration and registered redirect.
+
+The Pages workflow accepts these **GitHub repository variables**:
+
+| Repository variable | Build environment variable | JSON field |
+| --- | --- | --- |
+| `MICROSOFT_CLIENT_ID` | `TODO_MICROSOFT_CLIENT_ID` | `clientId` |
+| `MICROSOFT_TENANT` | `TODO_MICROSOFT_TENANT` | `tenant` |
+| `MICROSOFT_REDIRECT_URI` | `TODO_MICROSOFT_REDIRECT_URI` | `redirectUri` |
+
+For this deployment, set `MICROSOFT_REDIRECT_URI` to `https://ferroui.com/ToDo/`. `scripts/build-browser.sh` runs `scripts/configure-microsoft.mjs` before preparing the offline site and asset hashes. With `TODO_MICROSOFT_CLIENT_ID` already set to the real public GUID, a local build can use:
+
+```bash
+TODO_MICROSOFT_TENANT=common \
+TODO_MICROSOFT_REDIRECT_URI=https://ferroui.com/ToDo/ \
+./scripts/build-browser.sh
+```
+
+An unconfigured deployment also accepts a public client ID in Settings for a separately registered installation. With deployment configuration present, users can connect directly without entering a client ID.
+
+### Sign-in and sessions
+
+Authentication uses vendored **MSAL Browser 5.30.0**, authorization-code flow with PKCE, MSAL's state and nonce validation, and `sessionStorage` token caching. Sign-in and interactive renewal use a full-page Microsoft redirect. The app restores the selected account, strips OAuth response parameters, and preserves safe application query parameters. Tokens are excluded from task documents and exports.
+
+MSAL renews tokens silently when possible. A Graph 401 triggers token renewal; sessions needing interaction show a reconnect state and stop automatic requests that require sign-in. See Microsoft's [token lifetime and cache-policy guidance](https://learn.microsoft.com/en-us/entra/msal/javascript/browser/token-lifetimes).
+
+| Account action | Result |
 | --- | --- |
-| User lists | Create, rename, import, and delete owned lists. Preserve Microsoft's built-in Tasks and Flagged Email lists. |
-| Tasks | Create, edit, complete/reopen, move, import, and delete. A move creates the destination task before deleting the source. |
-| Task details | Synchronize title, plain-text notes, importance, due date, reminder, categories, and supported repeating schedules. Notes are safely encoded as Graph HTML bodies. |
-| Steps | Synchronize checklist creation, rename, completion, and deletion, preserving local identifiers. |
-| Flagged email | Import the Graph flagged-email list into the Flagged Email smart view. This does not implement Outlook message flagging. |
-| Local presentation | Keep My Day selections, hidden suggestions, list themes, groups, local ordering, appearance settings, and local assignment labels on this device. |
-| File attachments | Keep blobs in this browser's IndexedDB. They are not uploaded to Graph. JSON backups include attachment metadata, not blob contents. |
+| **Reconnect Microsoft account** | Return to Microsoft to renew the selected account's authorization or consent. |
+| **Disconnect this app** | Clear this app's selected MSAL session and stop cloud work; retain local tasks. Other Microsoft applications remain signed in. |
+| **Sign out of Microsoft** | Use Microsoft's logout redirect for the selected account as well as clearing this app's session. |
 
-Daily, weekly, every-weekday, monthly, and yearly schedules can be written. Graph recurrence patterns outside the local model, including relative-monthly rules, bounded recurrence ranges, and schedules whose pattern day differs from their range-start anchor, remain on the server when unrelated fields change. Custom intervals between business days cannot be written to Graph. Editing an unsupported server recurrence from this client is not a complete recurrence editor. Moving a task preserves cloud-only task properties and linked resources; tasks with Microsoft file attachments must be moved in Microsoft To Do so their files cannot be lost.
+Ordinary disconnect preserves the document's account binding so a different account cannot silently receive another account's tasks. Successful backup restoration creates an independent document and clears that binding. See [MSAL logout behavior](https://learn.microsoft.com/en-us/entra/msal/javascript/browser/logout).
 
-There is no background server or push service. Local reminders are checked while the application is running and when it regains focus. Browser notifications require permission and platform support; they cannot wake a closed application. Files removed from tasks remain in this browser's IndexedDB so undo can restore their references. Unreferenced files are not automatically removed by the task-editing flow.
+## Synchronization behavior
 
-## Conflict and interruption handling
+**Sync automatically** is on by default for a connected account. The browser checks To Do changes on a five-second foreground interval after the preceding operation finishes; local saves request sync after a 900 ms debounce. Microsoft describes a [five-second To Do update cadence](https://support.microsoft.com/en-us/todo/syncing-your-microsoft-to-do-account). This implementation uses that foreground cadence without promising delivery while the browser is closed, suspended, offline, or throttled.
 
-The synchronization sidecar records separate local and remote baselines. Changes to different fields merge; simultaneous, incompatible edits to the same field stop with a visible conflict message. Conditional requests use Graph entity tags when supplied. Deleting a list checks for remote additions or changes again before deletion. The Graph API does not provide an atomic transaction across an entire synchronization, so successfully applied independent operations can precede a later conflict.
+Hidden and offline tabs pause work. Visibility and connectivity changes resume it. **Sync now** and pull-to-refresh use the same serialized operation path. List/task delta queries avoid downloading unchanged collections; changed tasks hydrate checklist items, links, and attachment metadata. Expired delta cursors trigger a full read. Account-scoped delta snapshots are published only after every required page succeeds.
 
-Before each remote mutation and before replacing the local document, the client checks that neither this tab nor another tab has changed the captured document. A Web Lock prevents simultaneous synchronization attempts from this origin. A browser without Web Locks reports that safe synchronization is unavailable.
+Transient errors back off to at most a 60-second scheduler interval. Authentication, permission, and merge conflicts stop automatic retries until an appropriate local change, explicit retry, or reconnect. Graph throttling honors `Retry-After`. Uncertain creation responses are recovered from recorded intent instead of blindly repeated.
 
-Progress is checkpointed. Linked-resource correlation recovers task creation after an uncertain network response; checklist and list creation use conservative recovery. Ambiguous results stop rather than create another copy. A commit journal recovers a completed document write if saving its mapping was interrupted. An existing local document remains bound to its original Microsoft account so switching accounts cannot silently upload another person's tasks.
+### To Do data support
 
-For a conflict, export a local backup, inspect the corresponding task in Microsoft To Do, and make the conflicting fields agree before synchronizing again. Do not clear site storage as a routine recovery step: it also contains local task data and files.
+| Data | Implemented behavior |
+| --- | --- |
+| Lists | Import lists returned for the account; create, rename, and delete owned user lists. Preserve built-in Tasks and Flagged Email lists and retain ownership/sharing flags. |
+| Tasks | Create, update, complete/reopen, delete, and move between eligible lists. Send changed fields and preserve independent remote edits. |
+| Details | Synchronize title, plain-text note editing, importance, due date, reminder, supported recurrence, and category names. Preserve unsupported server properties during unrelated edits. |
+| Steps | Create, rename, complete, and delete checklist items with stable local-to-remote mappings. |
+| Files | Upload, download, and delete Graph attachments with an application limit of 25 MiB per file. Cache cloud bytes in IndexedDB on demand. Larger uploads use resumable sessions. |
+| Source links | Show safe HTTP(S) linked resources supplied by Microsoft, including originating-service links. Preserve them during moves. |
+| Flagged email | Project the Graph Flagged Email task list into its smart view. No mail-body access or arbitrary Outlook message flagging/unflagging. |
+| Categories | Synchronize category names. Outlook's master category catalogue, palette, and colors are not fetched. |
+| Local presentation | Keep My Day, hidden suggestions, themes, groups, ordering, appearance preferences, and ordinary local assignment labels on this device. |
 
-## Verification and scope
+The connection uses public [Graph v1.0 tasks](https://learn.microsoft.com/en-us/graph/api/resources/todotask?view=graph-rest-1.0), [task lists](https://learn.microsoft.com/en-us/graph/api/resources/todotasklist?view=graph-rest-1.0), and supported child collections. Sharing flags do not provide invitation or membership management in this connection.
 
-`node --test scripts/graph-sync.test.mjs` exercises the real synchronization engine against an in-memory Graph fixture. It covers CRUD, three-way merges, deletions, checklist edits, interrupted creates, task moves, local edits during synchronization, account isolation, and late remote changes. Rust tests separately validate imported documents and persisted state replacement. These tests do not replace an authenticated end-to-end check with the deployment's own Microsoft registration and account.
+Daily, weekly, weekdays, monthly, and yearly schedules can be written. Richer server recurrences, range bounds, HTML bodies, start times, intermediate status, and other properties outside the editor's model survive unrelated edits. Editing those particular values uses the local editor's representable form; this is not a full rich-text or arbitrary Graph recurrence editor.
 
-Shared-list invitations, cross-user assignment services, Planner integration, Outlook message APIs, Graph file uploads, and delta-based/background synchronization are not implemented by this connection.
+### Planner
 
-## Primary references
+For a connected **work or school account**, enable **Settings → Connected apps → Planner**. This also enables **Assigned to me**. Assigned tasks support title, due date, notes, checklist, and completion edits. My Day is a local selection. Unsupported operations use **Open in Planner**, which opens the official Planner entry point rather than an invented per-task URL.
 
-- [Microsoft identity platform authorization-code flow and SPA redirect URIs](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow)
-- [MSAL Browser](https://github.com/AzureAD/microsoft-authentication-library-for-js/tree/dev/lib/msal-browser)
-- [Microsoft Graph To Do task resource](https://learn.microsoft.com/en-us/graph/api/resources/todotask?view=graph-rest-1.0)
-- [Microsoft Graph task-list resource](https://learn.microsoft.com/en-us/graph/api/resources/todotasklist?view=graph-rest-1.0)
-- [Update a task](https://learn.microsoft.com/en-us/graph/api/todotask-update?view=graph-rest-1.0)
-- [Checklist-item resource](https://learn.microsoft.com/en-us/graph/api/resources/checklistitem?view=graph-rest-1.0)
+Unchanged Planner assignments are polled at most once per 60 seconds during automatic sync. Local edits, pending checklist recovery, and manual sync bypass that wait. Task and detail updates use their separate entity tags. A Planner permission or merge-conflict failure pauses that connector's automatic updates while ordinary To Do synchronization can continue; manual sync retries it. Temporary network and service failures use the scheduler's bounded backoff and recover automatically.
 
-Microsoft authentication code and Unicode time-zone mapping retain their licenses under `crates/todo-browser/wwwroot/vendor/`.
+This follows the documented [Planner connection in Microsoft To Do](https://support.microsoft.com/en-us/planner/see-planner-tasks-in-microsoft-to-do). The [assigned Planner tasks endpoint](https://learn.microsoft.com/en-us/graph/api/planneruser-list-tasks?view=graph-rest-1.0) supports organizational accounts; access also depends on licensing and organization policy. Personal Microsoft accounts do not support this connection.
+
+## Export and restore
+
+| Settings action | Contents and use |
+| --- | --- |
+| **Export backup** | Existing task-document JSON: local lists, tasks, settings, and attachment references. File bytes are not included. |
+| **Export backup with files** | Portable JSON containing the canonical local document, actual file bytes as base64, and SHA-256 per unique file. Cloud files are materialized through the connected account. Missing bytes cause an error instead of an incomplete portable backup. |
+| **Export Microsoft To Do data** | Fresh, read-only Graph account export: accessible lists/tasks, original returned properties, hydrated child collections, files, and checksums. Independent of the current local projection; excludes Planner plans and mailboxes. |
+| **Restore backup…** | Replace the local document from legacy task JSON or a portable backup. |
+| **Restore Microsoft archive…** | Replace the local document with independent copies converted from this application's Graph archive. |
+
+These are **application-owned JSON formats**. They do not read/write Outlook or Purview PST. Microsoft's [To Do overview](https://learn.microsoft.com/en-us/graph/todo-concept-overview) documents separate PST field mapping. Its [announced future To Do export](https://support.microsoft.com/en-us/planner/to-do-to-planner) had no published format or complete instructions at the review date; compatibility with that future format is not claimed.
+
+```text
+Portable envelope:
+  kind: "ferroui.todo.backup"
+  version: 1
+  document: canonical application document
+  files: [{ key, name, type, size, base64, sha256 }]
+
+Microsoft Graph envelope:
+  kind: "ferroui.microsoft-todo"
+  version: 1
+  exportedAt: ISO UTC timestamp
+  lists: raw hydrated Graph list records containing tasks
+  files: [{ key, source: { listId, taskId, attachmentId }, name, type, size, base64, sha256 }]
+```
+
+Opaque archive file keys replace account-bound cache keys. Tokens, MSAL state, account-profile wrappers, and synchronization sidecars are excluded. Raw Graph records retain their intrinsic IDs and source properties as data. Account-archive restoration retains original task fields in `microsoft_data`, preserving unsupported recurrence, HTML, start time, importance, and status details. Future upload seeds are limited to supported writable fields. Original list properties remain in the archive even when they have no local UI equivalent.
+
+Limits are **25 MiB per file**, **128 MiB of decoded file contents**, **32 MiB for metadata/document JSON**, and **256 MiB for the archive file**. Base64 increases encoded size. Legacy reference-only backups cannot restore uncopied file bytes on another device. The file picker checks size before reading; restore validates version, relationships, duplicate/orphan references, metadata, canonical base64, and checksums before writing blobs.
+
+### Restoration creates an independent local copy
+
+Restoration replaces the current local document; export first if both documents are needed. Attachments receive fresh storage keys to avoid overwriting existing blobs. Rust validates the resulting document before mutation; guards detect local edits during asynchronous work. The document is imported once after all files are ready. Failure removes newly staged files and preserves the existing document.
+
+Success sets automatic sync and Planner **off**, removes active cloud/list/provider bindings and assignment/flagged-email projection markers, disconnects this app's Microsoft session, and clears synchronization mappings. Source URLs remain as links. Restored flagged-email and Planner items become ordinary local tasks. The status reads **“Restored as a local copy. Microsoft sync is paused.”**
+
+Importing never uploads to Microsoft. To publish the independent copies, connect the intended account and explicitly sync; this creates new tasks instead of updating original remote identities. Document replacement participates in local undo; undo does not reconnect a Microsoft session. Exported archives retain original source fields for inspection or other tools.
+
+## Conflicts, moves, and recovery
+
+The sidecar keeps separate local/remote baselines. Disjoint field edits merge; incompatible edits to the same field stop visibly. Conditional entity tags protect updates where available. Planner requires independent task/detail tags, as documented for [task updates](https://learn.microsoft.com/en-us/graph/api/plannertask-update?view=graph-rest-1.0) and [detail updates](https://learn.microsoft.com/en-us/graph/api/plannertaskdetails-update?view=graph-rest-1.0).
+
+Before remote mutations and local replacement, the client checks that the captured document is current. Web Locks prevent overlapping cloud sync from tabs at the same origin. Account changes and restore/export also use the serialized queue. Browsers without Web Locks report that safe cloud sync is unavailable.
+
+Moves preserve writable source properties, steps, links, and file bytes. The destination is populated before source deletion. The source is read again, attachment content is checked, and conditional deletion rejects a changed source. A late conflict retains both copies for review. Graph supplies no atomic transaction for an entire multi-request sync or account export: earlier operations can succeed before a later failure, and exports are not server-wide transactional snapshots.
+
+Durable creation intents, correlations, upload progress, and a commit journal recover interrupted operations. Ambiguous outcomes stop for review. Deleted local files remain recoverable through attachment trash for undo; unreferenced trash is cleaned after its retention period. For conflicts, preserve a local backup, reconcile the reported Microsoft task fields, and retry. Clearing browser storage also removes local tasks and files and is not a normal recovery step.
+
+## Platform and verification scope
+
+Microsoft service integration, binary portable backups, and Graph archives are implemented in the **browser host**. The native desktop host currently provides local tasks and existing document export/import, without native Microsoft OAuth, Graph, or Planner synchronization. Its Settings link opens the browser app.
+
+Reminders are checked while running and on resume. Browser notifications require permission and platform support. No background server, webhook receiver, or push service wakes a closed app. The implementation targets global `login.microsoftonline.com` and `graph.microsoft.com`; sovereign-cloud hosts are not configurable.
+
+Run `node --test scripts/*.test.mjs` for the host/auth/Graph/Planner/archive fixtures. Tests exercise production modules with mocked MSAL and Graph, including delta recovery, files, moves, redirects, account isolation, serialization, and validation before restore. Rust tests cover document validation and domain capabilities. These checks do not establish that a particular registration, tenant consent policy, license, live account, or deployment has been verified; current CI and authenticated acceptance results must be checked separately.
+
+Microsoft authentication code and Unicode time-zone data retain their licenses under `crates/todo-browser/wwwroot/vendor/`.

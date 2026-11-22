@@ -1,10 +1,12 @@
 mod action_row;
 mod attachments;
+mod categories;
 mod fields;
 mod new_step;
 mod notes_key;
 mod schedule_menu;
 mod scheduling;
+mod sources;
 mod step_menu;
 mod steps;
 
@@ -29,7 +31,6 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
     let p = palette(&vm);
     let close = vm.clone();
     let menu = vm.clone();
-    let delete = vm.clone();
     let completed = vm.clone();
     let starred = vm.clone();
     let rename = vm.clone();
@@ -133,7 +134,10 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
                 .foreground(p.text),
         ));
     }
-    content = content.child(attachments(vm.clone(), &task));
+    content = content.child(sources::view(vm.clone(), &task));
+    if !task.is_planner() {
+        content = content.child(attachments(vm.clone(), &task));
+    }
     let note = vm.clone();
     content = content.child(section(
         vm.clone(),
@@ -148,23 +152,34 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
                 move |notes| note.dispatch(Action::SetNotes { id, notes }),
             )),
     ));
+    if !task.is_planner() {
+        content = content.child(categories::view(vm.clone(), &task));
+    }
     let move_task = vm.clone();
     let list_name = vm
         .state()
         .list(task.list_id)
         .map(|list| list.name.clone())
         .unwrap_or_default();
-    content = content.child(
-        action_row::action(
-            Icon::MoveToList,
-            &format!("Move from {list_name}"),
-            p.secondary,
-        )
-        .on_click(move |event| {
-            move_task.show_panel(Panel::MoveTask(id));
-            event.set_handled(true);
-        }),
-    );
+    if !task.is_planner() && !task.flagged_email {
+        content = content.child(
+            action_row::action(
+                Icon::MoveToList,
+                &format!("Move from {list_name}"),
+                p.secondary,
+            )
+            .on_click(move |event| {
+                move_task.show_panel(Panel::MoveTask(id));
+                event.set_handled(true);
+            }),
+        );
+    }
+    let footer_action = if task.is_planner() {
+        Element::Empty
+    } else {
+        let delete = vm.clone();
+        icon_button(Icon::Trash, "Delete task", move || delete.delete_task(id))
+    };
     border()
         .key(format!("task-detail-{id}"))
         .background(p.background)
@@ -219,11 +234,7 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
                                 .vertical_alignment(V::Center)
                                 .horizontal_alignment(H::Center),
                         )
-                        .child(border().grid_column(2).child(icon_button(
-                            Icon::Trash,
-                            "Delete task",
-                            move || delete.delete_task(id),
-                        ))),
+                        .child(border().grid_column(2).child(footer_action)),
                 ),
         )
         .into()

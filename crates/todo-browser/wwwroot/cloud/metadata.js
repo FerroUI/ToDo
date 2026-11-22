@@ -3,6 +3,17 @@ const BINDING = `${PREFIX}document-account`;
 const JOURNAL = `${PREFIX}commit`;
 const DOCUMENT = "ferroui.todo.v1";
 
+// Called only after a successful explicit restore, while the host serializes
+// account operations. It forgets mappings locally; no Microsoft data is removed.
+export function forgetDocumentMappings() {
+  const keys = [];
+  for (let index = 0; index < localStorage.length; index++) {
+    const key = localStorage.key(index);
+    if (key?.startsWith(PREFIX)) keys.push(key);
+  }
+  for (const key of keys) localStorage.removeItem(key);
+}
+
 export function identity() {
   const key = `${PREFIX}device`;
   let value = localStorage.getItem(key);
@@ -21,16 +32,41 @@ export function loadMetadata(account) {
   return { key, meta };
 }
 
-export function checkpoint(key, meta, original) {
-  const lists = new Set(original.lists.map(list => String(list.id)));
-  const tasks = new Map(original.tasks.map(task => [String(task.id), new Set(task.steps.map(step => String(step.id)))]));
+export function checkpoint(key, meta, original, initial = { lists: {}, tasks: {} }) {
+  const lists = new Set([...original.lists.map(list => String(list.id)), ...Object.keys(initial.lists)]);
+  const tasks = new Map(original.tasks.map(task => [String(task.id), task]));
+  const knownTasks = new Set([...tasks.keys(), ...Object.keys(initial.tasks)]);
+  const projections = [...(meta.pendingDeletes || []), ...Object.values(meta.pendingTasks || {}).map(pending => pending.move).filter(Boolean)];
   const durable = structuredClone(meta);
   durable.lists = Object.fromEntries(Object.entries(durable.lists).filter(([id]) => lists.has(id)));
-  durable.tasks = Object.fromEntries(Object.entries(durable.tasks).filter(([id]) => tasks.has(id)).map(([id, task]) => {
-    task.steps = Object.fromEntries(Object.entries(task.steps || {}).filter(([step]) => tasks.get(id).has(step)));
+  durable.tasks = Object.fromEntries(Object.entries(durable.tasks).filter(([id]) => knownTasks.has(id)).map(([id, task]) => {
+    const local = tasks.get(id), previous = initial.tasks[id] || {};
+    const originalSteps = new Map((local?.steps || []).map(step => [String(step.id), step]));
+    const moves = projections.filter(plan => plan.localTaskId === Number(id));
+    const steps = new Set([...originalSteps.keys(), ...Object.keys(previous.steps || {}), ...Object.keys(previous.pendingSteps || {}),
+      ...moves.flatMap(plan => (plan.steps || []).map(step => String(step.id)))]);
+    const files = new Map((local?.attachments || []).map(file => [String(file.id), file]));
+    const knownFiles = new Set([...files.keys(), ...Object.keys(previous.attachments || {}), ...Object.keys(previous.pendingAttachments || {}),
+      ...moves.flatMap(plan => (plan.extraAttachments || []).map(file => String(file.id)))]);
+    task.steps = Object.fromEntries(Object.entries(task.steps || {}).filter(([step]) => steps.has(step)).map(([step, record]) => {
+      const originalStep = originalSteps.get(step);
+      if (originalStep) record.baseLocal = { title: originalStep.title, completed: !!originalStep.completed };
+      return [step, record];
+    }));
+    task.attachments = Object.fromEntries(Object.entries(task.attachments || {}).filter(([file]) => knownFiles.has(file)).map(([file, record]) => {
+      // Remote projections and cache-key migrations exist only in the draft
+      // until its CAS commit. Preserve the actual document's local baseline.
+      const originalFile = files.get(file);
+      if (originalFile) {
+        const { name, mime_type, size, storage_key } = originalFile;
+        record.baseLocal = { name, mime_type, size, storage_key };
+      }
+      return [file, record];
+    }));
     return [id, task];
   }));
-  localStorage.setItem(key, JSON.stringify(durable));
+  const serialized = JSON.stringify(durable);
+  if (localStorage.getItem(key) !== serialized) localStorage.setItem(key, serialized);
 }
 
 function normalize(value) {
@@ -55,11 +91,16 @@ export function commit(runtime, expected, draft, key, metadata) {
   // delivered reminders. Journal its exact prospective bytes, not the JS draft.
   const after = runtime.prepareCloudData(JSON.stringify(draft));
   const serialized = JSON.stringify(metadata);
+  if (sameDocument(expected, after)) {
+    if (localStorage.getItem(key) !== serialized) localStorage.setItem(key, serialized);
+    return false;
+  }
   localStorage.setItem(JOURNAL, JSON.stringify({ key, before: expected, after, metadata: serialized }));
   try {
     runtime.replaceFromCloud(after, expected);
     localStorage.setItem(key, serialized);
     localStorage.removeItem(JOURNAL);
+    return true;
   } catch (error) {
     // Recovery can finish a successful document write if only the sidecar write failed.
     recoverCommit();

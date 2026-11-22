@@ -75,7 +75,7 @@ Each browser tab compares the stored document with its last successfully loaded 
 
 JSON restoration parses into an isolated document and validates schema version, entity identifiers, references, date-related values, and attachment metadata before changing live state. Imports and cloud replacements must save successfully before replacing the current document. An ordinary edit remains in memory if persistence fails, and the UI reports the failure. A subsequent successful save clears that error. Unreadable startup data is preserved as a recovery copy where the host can do so.
 
-Backups contain task data and attachment metadata, **not attachment blob contents**. Files do not automatically transfer to another browser or device through a JSON backup.
+The lightweight document JSON contains file references only. Portable backups embed file bytes with SHA-256 checksums, and Microsoft archives retain the raw Graph task/list records alongside their files. Restore validates the complete archive and document before staging file writes under fresh keys; a failed document commit removes those staged files. Successful restoration disconnects the account, clears both provider mappings, and creates independent local tasks with automatic sync disabled. Archive limits bound memory use. See [formats and limits](MICROSOFT.md).
 
 ## Dates and reminders
 
@@ -87,13 +87,21 @@ The browser and desktop tick reminders while the app is open. Delivery is record
 
 ## Optional Microsoft synchronization
 
-The browser uses bundled MSAL for OAuth authorization-code flow with PKCE and session-scoped token caching. Graph requests use delegated user permissions and the public Graph v1.0 endpoints. The user supplies an Entra SPA application ID; no client secret or service backend is embedded.
+The browser uses bundled MSAL for OAuth authorization-code flow with PKCE and session-scoped token caching. Public SPA configuration comes from the deployment or a client-ID override; no client secret or service backend is embedded. Graph requests use delegated `Tasks.ReadWrite` and `User.Read` against public v1.0 endpoints. The transport validates Graph origins and continuation URLs before adding a token, refreshes a rejected token once, and avoids blind replay of ambiguous creation requests.
 
-The sync adapter maps local and remote entity identities, tracks field baselines, follows paginated collections, and checkpoints remote mutations. It merges non-conflicting field edits and stops on conflicting changes rather than silently replacing one side. Conditional writes use ETags where available. Linked-resource identifiers help recover uncertain task creation without duplicating the task.
+The host owns one serialized queue for account changes, synchronization, archive exports, and restoration. Account and file operations suspend the automatic scheduler before entering the queue synchronously. A manual request can promote a queued automatic pass or follow an active pass to force provider refresh and receive errors. Web Locks coordinate these operations across same-origin tabs. Restore releases old account mappings only after document/file restoration succeeds, even if token-cache cleanup subsequently fails.
 
-Web Locks prevent two tabs from running the sync operation simultaneously. The Rust bridge compares the current exported document with the snapshot used by the sync before accepting a replacement. If local edits happened during network requests, the replacement is rejected and those edits remain. Remote changes may already have been applied; checkpoints support a subsequent retry. This is explicit synchronization, not a transactional operation spanning Microsoft and local storage.
+The automatic scheduler has one foreground timer: 5-second To Do polling, 900 ms edit debounce, no overlapping runs, visibility/offline suspension, and exponential retry backoff capped at 60 seconds. Permissions and conflicts require review; temporary network failures retry. Planner uses the same queue with a 60-second unchanged-data interval, bypassed by local edits and manual sync. A Planner permission failure pauses that provider while personal To Do synchronization remains available.
 
-See [feature coverage](features.md#microsoft-graph-synchronization) for supported fields and unsupported Microsoft service behavior. Automated Graph tests use a simulated service; live account validation remains separate.
+The To Do adapter maps local and remote identities, tracks field baselines, follows list/task delta collections, and checkpoints remote mutations. It hydrates checklist, source, and file relationships when needed and avoids replacing an unchanged document. Delta caches live in memory and fall back to a full read after an expired cursor. The adapter merges non-conflicting fields and stops on competing edits. Conditional writes use ETags where available, and linked creation markers reconcile uncertain task creation.
+
+Attachments use metadata projection plus on-demand binary caching in IndexedDB. Small files upload directly; larger files use sequential Graph upload sessions. Durable upload intents include a content digest, so an uncertain result can be reconciled with actual remote bytes. A cross-list move copies fields, steps, source links, and files to a checkpointed destination before verifying the original and deleting it. A changed original or an incomplete copy remains intact for review.
+
+Planner remains a separate provider. Its external task identity prevents an assigned task from accidentally becoming a personal To Do task. Task and detail resources have independent ETags; checklist keys and partially completed writes are checkpointed. The Rust domain enforces supported actions beneath UI, shortcuts, gestures, and atomic batches. The UI reads transient host capabilities to expose work-account Planner settings and hide unsupported commands. Categories and linked-source actions use the existing native Rust detail controls.
+
+Both providers compare the current exported document with the snapshot used for network work before accepting a replacement. If local edits happened, the replacement is rejected and those edits remain. Remote changes may already have been applied; checkpoints and the document/mapping commit journal support recovery. There is no atomic transaction spanning Microsoft and local storage.
+
+See the [integration review](integration-review.md) for public API limits and the [feature matrix](features.md#microsoft-graph-synchronization) for coverage. Automated tests use simulated Graph and authentication services; live account validation remains separate.
 
 ## Build and verification
 
