@@ -1,14 +1,15 @@
+use ferroui_base::layout::HorizontalAlignment;
 use ferroui_base::threading::{Dispatcher, DispatcherPriority};
 use ferroui_base::utilities::DateTime;
 use ferroui_base::{Ref, WeakRef};
 use ferroui_controls::automation::AutomationProperties;
 use ferroui_controls::primitives::{CalendarButton, CalendarDayButton};
-use ferroui_controls::{Button, Calendar, CalendarMode, Control};
+use ferroui_controls::{Button, Calendar, CalendarMode, Control, Grid};
 use ferroui_view::on_cleanup;
 use std::{cell::Cell, rc::Rc};
 use todo_domain::Date;
 
-/// Keep native keyboard/selection behavior while naming its recycled date cells.
+/// Complete native template accessibility and compact geometry without replacing it.
 pub(super) fn attach(calendar: &Ref<Calendar>) {
     let refresh = Rc::new(Refresh {
         calendar: calendar.downgrade(),
@@ -70,6 +71,15 @@ fn update(calendar: &Calendar) {
         CalendarMode::Decade => "decade",
     };
     for visual in calendar.get_visual_descendants() {
+        if let Some(month) = visual.cast::<Grid>().filter(|grid| {
+            grid.has_name("PART_MonthView")
+                && grid.horizontal_alignment() != HorizontalAlignment::Stretch
+        }) {
+            // The native template centers this grid at its desired width. After
+            // allowing compact cells, stretch it so its seven star columns share
+            // all available space instead of shrinking to the weekday text.
+            month.set_horizontal_alignment(HorizontalAlignment::Stretch);
+        }
         let Some(button) = visual.cast::<Button>() else {
             continue;
         };
@@ -90,10 +100,12 @@ fn update(calendar: &Calendar) {
                 if button.is::<CalendarDayButton>() {
                     // StyledElement.Name is immutable after styling; automation IDs
                     // remain mutable as Calendar reuses each cell for another date.
-                    AutomationProperties::set_automation_id(
-                        &button,
-                        Some(&format!("ScheduleDate{date}")),
-                    );
+                    let id = format!("ScheduleDate{date}");
+                    if AutomationProperties::get_automation_id(&button).as_deref()
+                        != Some(id.as_str())
+                    {
+                        AutomationProperties::set_automation_id(&button, Some(&id));
+                    }
                     Some(date.format("%A, %-d %B %Y").to_string())
                 } else if button.is::<CalendarButton>() {
                     Some(
@@ -110,7 +122,9 @@ fn update(calendar: &Calendar) {
             }),
         };
         if let Some(label) = label {
-            AutomationProperties::set_name(&button, Some(&label));
+            if AutomationProperties::get_name(&button).as_deref() != Some(label.as_str()) {
+                AutomationProperties::set_name(&button, Some(&label));
+            }
         }
     }
 }
