@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { named } from "./touch-input.mjs";
 import { centerY, one, textPresenter } from "./layout-geometry.mjs";
+import { browserBack } from "./touch-combination-helpers.mjs";
 
 function nativeEditMenu(view) {
   const items = view.elements.filter(element => element.type.endsWith("MenuItem") && element.hit);
@@ -54,6 +55,17 @@ export async function verifyDrawerEditor(ctx) {
   const restored = await control(named("SearchTasks"), "drawer retained after native edit-menu dismissal");
   assert(restored.focused, "Escape retains the focused search editor");
   assert.equal(restored.text, query, "Escape dismisses only the edit menu without changing the search draft");
+  const again = textPresenter(await snapshot(), "SearchTasks");
+  const secondWord = { x: again.x + 80, y: centerY(again) };
+  await touch.tap(secondWord);
+  await touch.tap(secondWord);
+  await until(async () => nativeEditMenu(await snapshot()), "native edit menu before browser Back");
+  await browserBack(page);
+  await until(async () => !(await snapshot()).elements.some(element => element.type.endsWith("MenuItem")),
+    "browser Back dismisses only the native edit flyout");
+  const afterBack = await control(named("SearchTasks"), "drawer retained after edit-menu Back");
+  assert(afterBack.focused, "browser Back retains the editor focus beneath its transient flyout");
+  assert.equal(afterBack.text, query, "browser Back preserves the selected search draft");
   const view = await snapshot();
   one(view.elements, element => element.type.endsWith("Button") && element.hit
     && element.automationName === "Clear search", "external search clear action");
@@ -64,5 +76,5 @@ export async function verifyDrawerEditor(ctx) {
   assert.deepEqual(await saved(), before, "editing and selecting a search draft cannot change document data");
   await capture("touch-drawer-editor");
   await edit("SearchTasks", "");
-  console.log("ok: native editor drag and word-selection flyout dismissal preserve navigation, focus, draft and document data");
+  console.log("ok: native editor drag and word-selection flyout Escape/Back preserve navigation, focus, draft and document data");
 }

@@ -5,6 +5,7 @@ import { prepareMicrosoft, attachMicrosoft } from "./graph.js";
 import { registerOffline } from "./offline.js";
 import { loadEmojiFont } from "./fonts.js";
 import { attachNavigation } from "./navigation.js";
+import { attachLifecycle } from "./lifecycle.js";
 
 try {
   await prepareMicrosoft();
@@ -26,16 +27,7 @@ try {
       const now = new Date();
       runtime.tick(today(), now.getHours() * 60 + now.getMinutes());
     };
-    const flush = () => {
-      try { runtime.flushEdits(); }
-      catch (error) { reportError(error); }
-    };
-    tick();
-    setInterval(tick, 30_000);
-    document.addEventListener("visibilitychange", () => { if (document.hidden) flush(); else tick(); });
-    window.addEventListener("focus", tick);
-    window.addEventListener("pagehide", flush);
-    window.addEventListener("beforeunload", flush);
+    attachLifecycle(runtime, tick, reportError);
     registerOffline(navigator.serviceWorker, location.href).catch(error => {
       // Local storage still works when the browser disallows offline app installation.
       console.info("Offline installation is unavailable:", error.message);

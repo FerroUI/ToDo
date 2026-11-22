@@ -29,6 +29,36 @@ pub fn navigate_back() -> bool {
     top_level().is_some_and(|root| todo_ui::navigate_back(&root))
 }
 
+#[wasm_bindgen(js_name = cancelGestures)]
+pub fn cancel_gestures() -> bool {
+    top_level().is_some_and(|root| todo_ui::cancel_gestures(&root))
+}
+
+/// Called before a trusted primary DOM touch Down reaches FerroUI. Missing End
+/// events after deactivation must retire native pointers as well as app contacts.
+#[wasm_bindgen(js_name = recoverTouchSequence)]
+pub fn recover_touch_sequence() {
+    let Some(root) = top_level() else { return };
+    let contacts = todo_ui::interrupted_touch_contacts(&root);
+    if contacts.is_empty() {
+        return;
+    }
+    let Some(platform) = root.platform_impl() else {
+        return;
+    };
+    let Some(browser) = platform
+        .as_any()
+        .downcast_ref::<ferroui_browser::BrowserTopLevelImpl>()
+    else {
+        return;
+    };
+    for id in contacts {
+        browser
+            .input_handler()
+            .on_pointer_cancel("touch", id, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0);
+    }
+}
+
 #[wasm_bindgen(js_name = finishRefresh)]
 pub fn finish_refresh() {
     if let Some(vm) = crate::app::view_model() {

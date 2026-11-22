@@ -33,12 +33,7 @@ pub(super) struct ShellRecognizer {
 ferro_class!(ShellRecognizer: GestureRecognizer);
 ferro_impl_classes!(ShellRecognizer: FerroObjectImpl, StyledElementImpl);
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum Kind {
-    Back,
-    Drawer,
-    Refresh,
-}
+pub(super) use todo_state::gestures::shell::ShellGesture as Kind;
 
 pub(super) struct Session {
     pub pointer: Rc<dyn IPointer>,
@@ -132,6 +127,7 @@ impl ShellRecognizer {
                 pointer.capture(None);
             }
         }
+        self.sync_back();
     }
 
     pub fn feedback(&self, message: Option<&str>) {

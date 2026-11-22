@@ -1,20 +1,23 @@
-use super::cancellation::Cancellation;
-use super::{feedback, format, sidebar_feedback, sidebar_identity, DragItem, Identity, ItemDrag};
+use super::native::NativeDrag;
+use super::{format, sidebar_identity, DragItem, Identity, ItemDrag};
 use ferroui_base::input::{
-    DataTransfer, DataTransferItem, DragDrop, DragDropEffects, FocusManager, InputElement, Key,
-    KeyModifiers, PointerPressedEventArgs, PointerType,
+    DataTransfer, DataTransferItem, DragDrop, DragDropEffects, InputElement, Key, KeyModifiers,
+    PointerPressedEventArgs, PointerType,
 };
 use ferroui_base::interactivity::{RoutedEventArgs, RoutingStrategies};
-use ferroui_base::threading::{Dispatcher, DispatcherPriority};
 use ferroui_base::{Point, Ref};
-use ferroui_controls::{Button, TopLevel};
+use ferroui_controls::Button;
 use ferroui_view::on_cleanup;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use todo_state::{AppViewModel, Panel};
 
-const DRAGGED: &str = "todo-suppress-drag-click";
-type Press = (DragItem, Point, PointerPressedEventArgs);
+pub(super) const DRAGGED: &str = "todo-suppress-drag-click";
+struct Press {
+    session: Rc<NativeDrag>,
+    start: Point,
+    trigger: PointerPressedEventArgs,
+}
 
 #[derive(Clone, Copy)]
 enum Source {
@@ -50,7 +53,10 @@ fn attach(button: &Ref<Button>, vm: Rc<AppViewModel>, source: Source) {
     let pressed = button.add_handler_with(
         InputElement::pointer_pressed_event(),
         move |_, event| {
-            arm.borrow_mut().take();
+            let previous = arm.borrow_mut().take();
+            if let Some(previous) = previous {
+                previous.session.cancel();
+            }
             let Some(button) = weak.upgrade() else { return };
             button.classes().set(DRAGGED, false);
             if event.pointer().type_() != PointerType::Mouse
@@ -68,7 +74,15 @@ fn attach(button: &Ref<Button>, vm: Rc<AppViewModel>, source: Source) {
                 return;
             }
             if let Some(item) = source.identity(&button).filter(|item| item.exists(&arm_vm)) {
-                *arm.borrow_mut() = Some((item, event.get_position(None), event.clone()));
+                if let Some(session) =
+                    NativeDrag::arm(&button, &arm_vm, item, event.pointer().clone())
+                {
+                    *arm.borrow_mut() = Some(Press {
+                        session,
+                        start: event.get_position(None),
+                        trigger: event.clone(),
+                    });
+                }
             }
         },
         RoutingStrategies::TUNNEL,
@@ -81,81 +95,56 @@ fn attach(button: &Ref<Button>, vm: Rc<AppViewModel>, source: Source) {
         move |_, event| {
             let Some(button) = weak.upgrade() else { return };
             let mut press = moving.borrow_mut();
-            let Some((item, start, _)) = press.as_ref() else {
+            let Some(pending) = press.as_ref() else {
                 return;
             };
-            if !event.properties().is_left_button_pressed || source.identity(&button) != Some(*item)
+            if event.pointer().type_() != PointerType::Mouse
+                || event.pointer().id() != pending.session.pointer.id()
+                || !event.properties().is_left_button_pressed
+                || source.identity(&button) != Some(pending.session.origin.item)
+                || !pending.session.active()
             {
-                press.take();
+                let canceled = press.take();
+                drop(press);
+                if let Some(canceled) = canceled {
+                    canceled.session.cancel();
+                }
                 return;
             }
             let position = event.get_position(None);
-            if (position.x - start.x).hypot(position.y - start.y) < 6.0 {
+            if (position.x - pending.start.x).hypot(position.y - pending.start.y) < 6.0 {
                 return;
             }
-            let (item, _, trigger) = press.take().expect("the pending press was checked");
+            let Press {
+                session, trigger, ..
+            } = press.take().expect("the pending press was checked");
             drop(press); // Starting DragDrop releases capture and can re-enter the cleanup handler.
-            if vm.selection_mode()
-                || vm.panel() != Panel::None
-                || vm.rename_session().is_some()
-                || !item.exists(&vm)
-            {
+            if !session.start(&vm) {
                 return;
             }
+            let item = session.origin.item;
             event.set_handled(true);
             button.classes().set(DRAGGED, true);
             let current_epoch = epoch.get().wrapping_add(1);
             epoch.set(current_epoch);
-            let active = Rc::new(Cell::new(true));
             let data = DataTransfer::new();
             data.add(DataTransferItem::create(
                 &format(),
                 Some(ItemDrag {
                     item,
-                    owner: Rc::downgrade(&vm),
-                    active: active.clone(),
+                    session: session.clone(),
                 }),
             ));
-            let root = TopLevel::get_top_level(Some(&button)).map(|root| root.downgrade());
             // Clear Button.IsPressed even when no platform drag source is available.
             trigger.pointer().capture(None);
-            let cancellation = Cancellation::watch(active.clone());
             let operation = DragDrop::do_drag_drop_async(&trigger, data, DragDropEffects::MOVE);
-            let finished_button = button.downgrade();
-            let finished_epoch = epoch.clone();
-            Dispatcher::ui_thread().spawn_local(async move {
-                let _ = operation.await;
-                drop(cancellation);
-                let root = root.and_then(|root| root.upgrade());
-                if let Some(root) = &root {
-                    feedback::clear_root(&root);
-                    sidebar_feedback::clear_root(&root);
-                }
-                let root = root.map(|root| root.downgrade());
-                // Protect the current release, then let accessibility Invoke work without a new press.
-                Dispatcher::ui_thread().post_local(
-                    move || {
-                        if finished_epoch.get() == current_epoch {
-                            if let Some(button) = finished_button.upgrade() {
-                                button.classes().set(DRAGGED, false);
-                            }
-                            if let (DragItem::Sidebar(item), Some(root)) =
-                                (item, root.and_then(|root| root.upgrade()))
-                            {
-                                if let Some(button) =
-                                    root.find_descendant_of_type_where::<Button>(false, |button| {
-                                        sidebar_identity(button) == Some(item)
-                                            && FocusManager::can_focus(button)
-                                    })
-                                {
-                                    button.focus();
-                                }
-                            }
-                        }
-                    },
-                    DispatcherPriority::BACKGROUND,
-                );
-            });
+            super::completion::observe(
+                operation,
+                session,
+                button.downgrade(),
+                epoch.clone(),
+                current_epoch,
+            );
         },
         RoutingStrategies::TUNNEL,
         false,
@@ -163,15 +152,27 @@ fn attach(button: &Ref<Button>, vm: Rc<AppViewModel>, source: Source) {
     let released_state = pending.clone();
     let released = button.add_handler_with(
         InputElement::pointer_released_event(),
-        move |_, _| {
-            released_state.borrow_mut().take();
+        move |_, event| {
+            let matches = released_state
+                .borrow()
+                .as_ref()
+                .is_some_and(|press| press.session.pointer.id() == event.pointer().id());
+            if matches {
+                let released = released_state.borrow_mut().take();
+                if let Some(released) = released {
+                    released.session.finish();
+                }
+            }
         },
         RoutingStrategies::TUNNEL,
         true,
     );
     let lost_state = pending.clone();
     let lost = button.add_handler(InputElement::pointer_capture_lost_event(), move |_, _| {
-        lost_state.borrow_mut().take();
+        let lost = lost_state.borrow_mut().take();
+        if let Some(lost) = lost {
+            lost.session.cancel();
+        }
     });
     let weak = button.downgrade();
     let keyboard_state = pending.clone();
@@ -179,7 +180,10 @@ fn attach(button: &Ref<Button>, vm: Rc<AppViewModel>, source: Source) {
         InputElement::key_down_event(),
         move |_, event| {
             if event.key == Key::Escape {
-                keyboard_state.borrow_mut().take();
+                let canceled = keyboard_state.borrow_mut().take();
+                if let Some(canceled) = canceled {
+                    canceled.session.cancel();
+                }
             }
             if let Some(button) = weak.upgrade() {
                 button.classes().set(DRAGGED, false);
@@ -188,9 +192,20 @@ fn attach(button: &Ref<Button>, vm: Rc<AppViewModel>, source: Source) {
         RoutingStrategies::TUNNEL,
         true,
     );
+    let detached_state = pending.clone();
+    let detached = button.detached_from_visual_tree(move |_| {
+        let pending = detached_state.borrow_mut().take();
+        if let Some(pending) = pending {
+            pending.session.cancel();
+        }
+    });
     let weak = button.downgrade();
     on_cleanup(move || {
-        pending.borrow_mut().take();
+        detached.dispose();
+        let pending = pending.borrow_mut().take();
+        if let Some(pending) = pending {
+            pending.session.cancel();
+        }
         if let Some(button) = weak.upgrade() {
             button.remove_handler(InputElement::pointer_pressed_event(), pressed);
             button.remove_handler(InputElement::pointer_moved_event(), moved);

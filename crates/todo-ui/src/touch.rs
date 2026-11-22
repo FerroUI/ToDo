@@ -1,8 +1,11 @@
 //! Touch behavior shares the desktop controls, commands, and native input arbitration.
 mod actions;
 mod contacts;
+mod context;
 mod drag_session;
+mod environment;
 mod hub;
+mod interruption;
 mod refresh_feedback;
 mod shell;
 mod shell_input;
@@ -14,6 +17,7 @@ mod task;
 mod task_input;
 mod tooltips;
 
+pub(crate) use interruption::{cancel_active, has_active, interrupted_contacts};
 pub(crate) use shell::{attach_shell, shell_feedback};
 pub(crate) use sidebar::attach_sidebar_source;
 pub(crate) use surface::task_surface;

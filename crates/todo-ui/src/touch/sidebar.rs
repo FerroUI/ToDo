@@ -2,6 +2,7 @@ use super::hub;
 use crate::drag::{sidebar_identity, TouchDrag};
 use ferroui_base::input::gesture_recognizers::GestureRecognizer;
 use ferroui_base::input::{HoldingState, IPointer, InputElement, Pointer, PointerType};
+use ferroui_base::interactivity::RoutingStrategies;
 use ferroui_base::{
     ferro_class, ferro_impl_classes, instantiate, FerroObjectImpl, Point, Ref, StyledElementImpl,
     WeakRef,
@@ -60,6 +61,32 @@ pub(crate) fn attach_sidebar_source(root: &Ref<Button>, vm: Rc<AppViewModel>) {
         }
     });
     let weak = recognizer.downgrade();
+    let release = root.add_handler_with(
+        InputElement::pointer_released_event(),
+        move |_, event| {
+            let Some(recognizer) = weak.upgrade() else {
+                return;
+            };
+            let mut state = recognizer.session.borrow_mut();
+            let Some(session) = state
+                .as_mut()
+                .filter(|session| session.pointer.id() == event.pointer().id())
+            else {
+                return;
+            };
+            let point = event.get_position(None);
+            if session
+                .track
+                .update(point.x - session.start.x, point.y - session.start.y)
+                != Axis::Pending
+            {
+                event.set_handled(true);
+            }
+        },
+        RoutingStrategies::TUNNEL,
+        true,
+    );
+    let weak = recognizer.downgrade();
     let detached = root.detached_from_visual_tree(move |_| {
         if let Some(recognizer) = weak.upgrade() {
             recognizer.cancel();
@@ -71,6 +98,7 @@ pub(crate) fn attach_sidebar_source(root: &Ref<Button>, vm: Rc<AppViewModel>) {
         recognizer.cancel();
         if let Some(root) = weak.upgrade() {
             root.remove_handler(InputElement::holding_event(), holding);
+            root.remove_handler(InputElement::pointer_released_event(), release);
             root.gesture_recognizers().remove(&recognizer);
         }
     });
@@ -95,6 +123,7 @@ impl SidebarRecognizer {
         if captured {
             session.pointer.capture(None);
         }
+        hub::synchronize(&self.base);
     }
 
     fn hold(&self, pointer: &Rc<dyn IPointer>) -> bool {

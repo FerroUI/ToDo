@@ -2,7 +2,7 @@ mod common;
 use common::*;
 use std::{cell::RefCell, rc::Rc};
 use todo_domain::{Action, View};
-use todo_state::{HostRequest, HostServices};
+use todo_state::{HostRequest, HostServices, Panel};
 
 #[test]
 fn back_skips_deleted_lists_and_search_typing_is_one_visit() {
@@ -58,6 +58,41 @@ fn refresh_is_single_flight_and_never_replaces_local_document_or_navigation() {
     ));
     vm.finish_refresh();
     assert!(!vm.refreshing());
+}
+
+#[test]
+fn completing_refresh_preserves_new_navigation_panels_and_edits() {
+    let vm = vm();
+    vm.add_task("Before refresh".into());
+    let id = vm.state().tasks[0].id;
+    let requests = Rc::new(RefCell::new(Vec::new()));
+    let record = requests.clone();
+    vm.set_services(HostServices {
+        request: Rc::new(move |request| record.borrow_mut().push(request)),
+    });
+    vm.set_cloud_state(true, "Connected");
+    vm.refresh();
+    vm.navigate(View::All);
+    vm.select(Some(id));
+    vm.show_panel(Panel::Settings);
+    vm.dispatch(Action::RenameTask {
+        id,
+        title: "Edited while refresh was running".into(),
+    });
+    vm.refresh();
+    assert_eq!(requests.borrow().len(), 1);
+    let before = vm.export_json().unwrap();
+    vm.finish_refresh();
+    assert!(!vm.refreshing());
+    assert_eq!(vm.view(), View::All);
+    assert_eq!(vm.selected(), Some(id));
+    assert_eq!(vm.panel(), Panel::Settings);
+    assert_eq!(vm.export_json().unwrap(), before);
+    let revision = vm.revision();
+    vm.finish_refresh();
+    assert_eq!(vm.revision(), revision, "completion is idempotent");
+    assert!(vm.go_back_view());
+    assert_eq!(vm.view(), View::MyDay);
 }
 
 #[test]

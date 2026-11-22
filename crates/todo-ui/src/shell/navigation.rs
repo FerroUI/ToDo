@@ -1,7 +1,8 @@
+mod popups;
+
 use super::Drafts;
 use ferroui_base::{Ref, WeakRef};
-use ferroui_controls::primitives::FlyoutBase;
-use ferroui_controls::{ContextMenu, Control, Grid, TextBox};
+use ferroui_controls::{Control, Grid};
 use std::rc::Rc;
 use todo_domain::View;
 use todo_state::{AppViewModel, HostRequest, Panel};
@@ -28,17 +29,16 @@ pub(super) fn attach(root: &Ref<Grid>, vm: Rc<AppViewModel>, drafts: Rc<Drafts>)
         },
     )))));
     let back_root = root.downgrade();
-    let available_vm = Rc::downgrade(&vm);
     let available_root = root.downgrade();
+    popups::attach(root, &vm);
     crate::touch::attach_shell(
         root,
         vm,
         Rc::new(move || back_root.upgrade().is_some_and(|root| navigate_back(&root))),
         Rc::new(move || {
-            available_vm.upgrade().is_some_and(|vm| available(&vm))
-                || available_root
-                    .upgrade()
-                    .is_some_and(|root| popup_open(&root))
+            available_root
+                .upgrade()
+                .is_some_and(|root| can_navigate_back(&root))
         }),
     );
 }
@@ -53,10 +53,14 @@ pub(crate) fn available(vm: &AppViewModel) -> bool {
         || vm.can_go_back_view()
 }
 
-pub(crate) fn sync_host(vm: &AppViewModel) {
+pub(crate) fn sync_host(vm: &AppViewModel, root: Option<&Control>) {
     vm.request(HostRequest::NavigationBack {
-        available: available(vm),
+        available: available(vm) || root.is_some_and(transient_open),
     });
+}
+
+fn transient_open(root: &Control) -> bool {
+    crate::touch::has_active(root) || crate::drag::has_active(root) || popups::is_open(root)
 }
 
 /// Escape dismisses the current surface. Browser/edge Back may additionally return to a prior list.
@@ -81,41 +85,8 @@ pub(super) fn back(vm: &AppViewModel, drafts: &Drafts, include_history: bool) ->
     true
 }
 
-fn open_menu(root: &Control) -> Option<Ref<ContextMenu>> {
-    root.get_visual_descendants()
-        .filter_map(|visual| visual.cast::<Control>())
-        .find_map(|control| control.context_menu().filter(|menu| menu.is_open()))
-}
-
-fn open_editor_flyout(root: &Control) -> Option<Ref<FlyoutBase>> {
-    root.get_visual_descendants()
-        .filter_map(|visual| visual.cast::<TextBox>())
-        .find_map(|editor| {
-            let owner: &Control = &editor;
-            editor.context_flyout().filter(|flyout| {
-                flyout.is_open()
-                    && flyout
-                        .target()
-                        .is_some_and(|target| std::ptr::eq(&*target, owner))
-            })
-        })
-}
-
-fn popup_open(root: &Control) -> bool {
-    open_editor_flyout(root).is_some() || open_menu(root).is_some()
-}
-
 pub(super) fn dismiss_popup(root: &Control) -> bool {
-    // Native touch selection uses a transient flyout: focus stays in the editor,
-    // so Escape does not route through the menu. Dismiss it before its containing pane.
-    if let Some(flyout) = open_editor_flyout(root) {
-        flyout.hide();
-        return true;
-    }
-    open_menu(root).is_some_and(|menu| {
-        menu.close();
-        true
-    })
+    popups::dismiss(root)
 }
 
 pub fn navigate_back(root: &Control) -> bool {
@@ -126,6 +97,11 @@ pub fn navigate_back(root: &Control) -> bool {
         return false;
     };
     if let Some(root) = actions.root.upgrade() {
+        // Interrupt both pipelines before committing editors or dismissing a pane.
+        // A quarantined contact's eventual release cannot become a click or drop.
+        if crate::touch::cancel_active(&root) | crate::drag::cancel_active(&root) {
+            return true;
+        }
         if dismiss_popup(&root) {
             return true;
         }
@@ -141,7 +117,11 @@ pub fn navigate_back(root: &Control) -> bool {
 
 pub fn can_navigate_back(root: &Control) -> bool {
     actions(root).is_some_and(|actions| {
-        actions.vm.upgrade().is_some_and(|vm| available(&vm)) || popup_open(root)
+        actions.vm.upgrade().is_some_and(|vm| available(&vm))
+            || actions
+                .root
+                .upgrade()
+                .is_some_and(|root| transient_open(&root))
     })
 }
 

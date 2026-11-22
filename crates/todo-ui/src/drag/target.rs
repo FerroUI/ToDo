@@ -99,7 +99,7 @@ fn attach(control: &Ref<Control>, vm: Rc<AppViewModel>, target: Target) {
         let Some((action, _)) = plan(&control, &vm, target, id, event) else {
             return;
         };
-        if drag.active.replace(false) {
+        if drag.session.finish() {
             vm.dispatch(action);
             event.set_drag_effects(DragDropEffects::MOVE);
         }

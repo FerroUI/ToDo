@@ -6,6 +6,12 @@ import { verifyTouchDrag } from "./touch-drag.mjs";
 import { verifyCompactNavigation, verifyScrollAndRefresh } from "./touch-navigation.mjs";
 import { verifyTouchEdgeCases } from "./touch-edge-cases.mjs";
 import { verifyTouchSidebar } from "./touch-sidebar.mjs";
+import { verifyRailTransitions, verifyDirectionalRecovery } from "./touch-transitions.mjs";
+import { verifyContactRecovery } from "./touch-contacts.mjs";
+import { verifyGestureCancellation, verifyRefreshInterruption } from "./touch-interruptions.mjs";
+import { verifyNavigationReversal, verifyNoopRelease } from "./touch-navigation-cases.mjs";
+import { verifyMixedPointerCancellation } from "./touch-mixed-input.mjs";
+import { verifyWindowInterruption } from "./touch-window-lifecycle.mjs";
 
 export async function reviewTouch(ctx, output) {
   const recover = async () => {
@@ -33,6 +39,15 @@ export async function reviewTouch(ctx, output) {
     { name: "touch-drag", run: () => verifyTouchDrag(ctx) },
     { name: "touch-refresh", run: () => verifyScrollAndRefresh(ctx) },
     { name: "touch-cancel-recycle", run: () => verifyTouchEdgeCases(ctx) },
+    { name: "touch-rail-transitions", run: () => verifyRailTransitions(ctx) },
+    { name: "touch-directions", run: () => verifyDirectionalRecovery(ctx) },
+    { name: "touch-contact-recovery", run: () => verifyContactRecovery(ctx) },
+    { name: "touch-cancel-boundaries", run: () => verifyGestureCancellation(ctx) },
+    { name: "touch-refresh-boundaries", run: () => verifyRefreshInterruption(ctx) },
+    { name: "touch-navigation-reversal", run: () => verifyNavigationReversal(ctx) },
+    { name: "touch-release-guards", run: () => verifyNoopRelease(ctx) },
+    { name: "touch-mixed-pointer", run: () => verifyMixedPointerCancellation(ctx) },
+    { name: "touch-window-lifecycle", run: () => verifyWindowInterruption(ctx) },
     { name: "touch-sidebar", run: () => verifyTouchSidebar(ctx) },
   ], { recover, reportName: "touch-reviews.json" });
   if (failures.length) {

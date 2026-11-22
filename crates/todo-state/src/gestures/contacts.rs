@@ -21,6 +21,33 @@ pub struct Contacts {
 }
 
 impl Contacts {
+    pub fn has_contacts(&self) -> bool {
+        !self.active.is_empty()
+    }
+
+    /// A host may drain these with native cancellation only after a trusted new
+    /// primary Down proves that the interrupted physical sequence has ended.
+    pub fn interrupted_ids(&self) -> Vec<i64> {
+        if self.quarantined {
+            self.active.clone()
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// A cancelled operation stays cancelled until its physical contacts end.
+    /// Their End events still reach native devices to dispose delivered pointers.
+    pub fn quarantine(&mut self) {
+        self.quarantined |= self.has_contacts();
+    }
+
+    /// A touch beginning during an operation owned by another input device must
+    /// neither become a button press nor resurrect that operation on release.
+    pub fn block_begin(&mut self, id: i64) -> ContactDecision {
+        self.quarantined = true;
+        self.update(id, ContactEvent::Begin, false)
+    }
+
     pub fn update(
         &mut self,
         id: i64,
@@ -30,7 +57,10 @@ impl Contacts {
         match event {
             ContactEvent::Begin => {
                 if self.active.contains(&id) {
-                    return ContactDecision::default();
+                    return ContactDecision {
+                        cancel: false,
+                        suppress: self.quarantined,
+                    };
                 }
                 self.active.push(id);
                 let cancel = !self.quarantined && gesture_active && self.active.len() > 1;
@@ -45,7 +75,9 @@ impl Contacts {
             }
             ContactEvent::Move => ContactDecision {
                 cancel: false,
-                suppress: self.quarantined,
+                // Native TouchDevice can allocate a pointer on an unknown Move.
+                // Only a real accepted Begin may start a new contact sequence.
+                suppress: self.quarantined || !self.active.contains(&id),
             },
             ContactEvent::End => {
                 // A suppressed Begin never reached the native device. Only those pointers'
@@ -115,5 +147,44 @@ mod tests {
         for id in 1..=2 {
             assert!(!contacts.update(id, ContactEvent::End, false).suppress);
         }
+    }
+
+    #[test]
+    fn explicit_interruption_blocks_movement_until_every_contact_is_released() {
+        let mut contacts = Contacts::default();
+        contacts.update(1, ContactEvent::Begin, false);
+        assert!(contacts.interrupted_ids().is_empty());
+        contacts.quarantine();
+        assert!(contacts.update(1, ContactEvent::Move, false).suppress);
+        assert!(contacts.update(1, ContactEvent::Begin, false).suppress);
+        assert!(contacts.update(2, ContactEvent::Begin, false).suppress);
+        assert_eq!(contacts.interrupted_ids(), vec![1, 2]);
+        assert!(!contacts.update(1, ContactEvent::End, false).suppress);
+        assert!(contacts.update(2, ContactEvent::Move, false).suppress);
+        assert!(contacts.update(2, ContactEvent::End, false).suppress);
+        assert!(contacts.interrupted_ids().is_empty());
+        assert!(!contacts.has_contacts());
+        assert!(!contacts.update(3, ContactEvent::Begin, false).suppress);
+    }
+
+    #[test]
+    fn a_contact_blocked_by_another_input_device_never_enters_the_native_device() {
+        let mut contacts = Contacts::default();
+        assert!(contacts.block_begin(1).suppress);
+        assert!(contacts.update(1, ContactEvent::Move, false).suppress);
+        assert!(contacts.update(1, ContactEvent::End, false).suppress);
+        contacts.quarantine();
+        assert!(!contacts.update(2, ContactEvent::Begin, false).suppress);
+    }
+
+    #[test]
+    fn late_or_unknown_movement_cannot_allocate_an_unpressed_native_pointer() {
+        let mut contacts = Contacts::default();
+        assert!(contacts.update(1, ContactEvent::Move, false).suppress);
+        assert!(!contacts.update(1, ContactEvent::Begin, false).suppress);
+        assert!(!contacts.update(1, ContactEvent::Move, false).suppress);
+        assert!(!contacts.update(1, ContactEvent::End, false).suppress);
+        assert!(contacts.update(1, ContactEvent::Move, false).suppress);
+        assert!(!contacts.update(2, ContactEvent::Begin, false).suppress);
     }
 }

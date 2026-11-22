@@ -24,6 +24,17 @@ use todo_state::AppViewModel;
 pub use editing::commit_pending_edits;
 pub use shell::{can_navigate_back, navigate_back};
 
+/// Interrupt the current input transaction before the host loses its interaction surface.
+pub fn cancel_gestures(root: &Control) -> bool {
+    touch::cancel_active(root) | drag::cancel_active(root)
+}
+
+/// Raw touch identities awaiting native disposal after an interrupted gesture.
+/// A browser host uses this only when a trusted primary Down starts a new sequence.
+pub fn interrupted_touch_contacts(root: &Control) -> Vec<i64> {
+    touch::interrupted_contacts(root)
+}
+
 /// Retains component owners, subscriptions and recyclable item templates for the view lifetime.
 pub fn create_view(vm: Rc<AppViewModel>) -> Ref<Control> {
     ComponentHost::with_view(move || {

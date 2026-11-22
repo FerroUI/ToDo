@@ -137,7 +137,7 @@ pub(crate) fn attach_sidebar_target(
         else {
             return;
         };
-        if drag.active.replace(false) {
+        if drag.session.finish() {
             vm.dispatch(action);
             event.set_drag_effects(DragDropEffects::MOVE);
         }

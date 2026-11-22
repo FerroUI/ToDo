@@ -9,7 +9,7 @@ mod title_bar;
 
 use crate::{detail, dialogs, list, palette, rows::Rows, settings, sidebar, suggestions};
 use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
-use ferroui_controls::Grid;
+use ferroui_controls::{Control, Grid};
 use ferroui_view::prelude::*;
 pub(crate) use input::Drafts;
 pub use navigation::{can_navigate_back, navigate_back};
@@ -42,7 +42,8 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
     let key_drafts = drafts.clone();
     let navigation_vm = vm.clone();
     let navigation_drafts = drafts.clone();
-    navigation::sync_host(&vm);
+    let mounted_root = root_node.get_untracked();
+    navigation::sync_host(&vm, mounted_root.as_ref().map(|root| -> &Control { root }));
     let mut root = grid()
         .name("TodoApp")
         .node_ref(root_node)

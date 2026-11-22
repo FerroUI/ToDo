@@ -1,16 +1,28 @@
 use super::shell::ShellRecognizer;
 use ferroui_base::input::raw::{RawPointerEventArgs, RawPointerEventType};
-use todo_state::gestures::contacts::{ContactEvent, Contacts};
+use todo_state::gestures::contacts::ContactEvent;
 
 pub(super) fn process(recognizer: &ShellRecognizer, event: &RawPointerEventArgs) {
+    if event.type_() == RawPointerEventType::TouchBegin
+        && recognizer
+            .root
+            .upgrade()
+            .is_some_and(|root| crate::drag::has_active(&root))
+    {
+        if let Some(root) = recognizer.root.upgrade() {
+            crate::drag::cancel_active(&root);
+        }
+        recognizer
+            .contacts
+            .borrow_mut()
+            .block_begin(event.raw_pointer_id());
+        event.set_handled(true);
+        return;
+    }
     let kind = match event.type_() {
         RawPointerEventType::TouchBegin => ContactEvent::Begin,
         RawPointerEventType::TouchUpdate => ContactEvent::Move,
         RawPointerEventType::TouchEnd | RawPointerEventType::TouchCancel => ContactEvent::End,
-        RawPointerEventType::CancelCapture => {
-            *recognizer.contacts.borrow_mut() = Contacts::default();
-            return;
-        }
         _ => return,
     };
     let active = recognizer.hub.contact()
@@ -21,30 +33,7 @@ pub(super) fn process(recognizer: &ShellRecognizer, event: &RawPointerEventArgs)
         .borrow_mut()
         .update(event.raw_pointer_id(), kind, active);
     if decision.cancel {
-        let pointer = recognizer
-            .hub
-            .pointer()
-            .or_else(|| {
-                recognizer
-                    .session
-                    .borrow()
-                    .as_ref()
-                    .map(|session| session.pointer.clone())
-            })
-            .or_else(|| {
-                recognizer
-                    .drag
-                    .borrow()
-                    .as_ref()
-                    .map(|drag| drag.pointer.clone())
-            });
-        recognizer.hub.cancel();
-        recognizer.cancel();
-        // A pending contact can still belong to a native Button. Clear its implicit capture
-        // too, so its later End disposes the pointer without clicking the old target.
-        if let Some(pointer) = pointer {
-            pointer.capture(None);
-        }
+        recognizer.interrupt();
     }
     if decision.suppress {
         event.set_handled(true);

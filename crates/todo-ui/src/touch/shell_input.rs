@@ -7,7 +7,7 @@ use ferroui_controls::primitives::ScrollBar;
 use ferroui_controls::{Control, Grid, ListBox, ScrollViewer, TextBox};
 use std::rc::Rc;
 use todo_state::{
-    gestures::{Axis, TouchTrack, BACK_DISTANCE, REFRESH_DISTANCE},
+    gestures::{Axis, TouchTrack},
     Panel, NAVIGATION_WIDTH,
 };
 
@@ -45,6 +45,7 @@ impl GestureRecognizerImpl for ShellRecognizer {
                 refresh,
                 kind: None,
             });
+            this.sync_back();
         }
     }
 
@@ -63,7 +64,7 @@ impl GestureRecognizerImpl for ShellRecognizer {
             event.set_handled(true);
             return;
         }
-        let (kind, distance, abandon) = {
+        let (kind, ready, abandon, rejected_horizontal) = {
             let mut state = this.session.borrow_mut();
             let Some(session) = state
                 .as_mut()
@@ -88,27 +89,26 @@ impl GestureRecognizerImpl for ShellRecognizer {
             }
             (
                 session.kind,
-                if session.kind == Some(Kind::Refresh) {
-                    session.track.y
-                } else {
-                    session.track.x.abs()
-                },
+                session.kind.is_some_and(|kind| kind.ready(&session.track)),
                 axis != Axis::Pending && session.kind.is_none(),
+                matches!(axis, Axis::Horizontal | Axis::Canceled),
             )
         };
         if abandon {
-            this.cancel();
+            if rejected_horizontal {
+                // Child gestures have already had their turn on this routed move.
+                // A rejected horizontal drawer swipe must not retain Button capture
+                // and turn into a navigation click when released on the same row.
+                this.interrupt();
+                event.set_handled(true);
+            } else {
+                this.cancel(); // Native vertical scrolling keeps its tracking/capture.
+            }
             return;
         }
         let Some(kind) = kind else { return };
         this.capture(event.pointer());
         event.set_handled(true);
-        let ready = distance
-            >= if kind == Kind::Refresh {
-                REFRESH_DISTANCE
-            } else {
-                BACK_DISTANCE
-            };
         this.feedback(Some(match (kind, ready) {
             (Kind::Refresh, false) => "↓ Pull to refresh",
             (Kind::Refresh, true) => "↻ Release to refresh",
@@ -126,6 +126,7 @@ impl GestureRecognizerImpl for ShellRecognizer {
         {
             let drag = this.drag.borrow_mut().take().unwrap();
             this.feedback(None);
+            this.sync_back();
             event.set_handled(true);
             drag.finish(event.get_position(None));
             return;
@@ -140,22 +141,26 @@ impl GestureRecognizerImpl for ShellRecognizer {
         }
         let mut session = this.session.borrow_mut().take().unwrap();
         this.feedback(None);
+        this.sync_back();
         let Some(kind) = session.kind else { return };
         let point = event.get_position(None);
         session
             .track
             .update(point.x - session.start.x, point.y - session.start.y);
         event.set_handled(true);
+        if !kind.ready(&session.track) {
+            return;
+        }
         match kind {
-            Kind::Refresh if session.track.y >= REFRESH_DISTANCE => {
+            Kind::Refresh => {
                 if let Some(vm) = this.vm.upgrade() {
                     vm.refresh();
                 }
             }
-            Kind::Back if session.track.x >= BACK_DISTANCE && (this.can_back)() => {
+            Kind::Back if (this.can_back)() => {
                 (this.on_back)();
             }
-            Kind::Drawer if session.track.x <= -BACK_DISTANCE => {
+            Kind::Drawer => {
                 if this
                     .vm
                     .upgrade()

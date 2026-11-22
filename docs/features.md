@@ -38,7 +38,8 @@ This document distinguishes implemented behavior from reference-app parity. The 
 | Task-list navigation | Arrow keys, Home/End, and Page Up/Down move the task cursor and scroll it into view; Shift extends selection; controls expose action names |
 | Sidebar navigation | Up/Down/Home/End traverse visible entries, Left/Right operate the group hierarchy, Space expands/collapses, F2 renames, and menus provide keyboard alternatives to dragging |
 | Touch task actions | Swipe left to reveal Delete with confirmation; swipe right for Add/remove My Day and Move; vertical scrolling, native Holding selection, manual hold-drag, cancellation, and autoscroll share FerroUI pointer capture; custom lists/groups support hold-and-drag organization and stationary-hold menus |
-| Back and refresh | Browser history Back, native host Back requests exposed by FerroUI, and Alt+Left use the shared active-surface/prior-list navigation path; left-edge Back and left-swipe drawer dismissal; pull down at the list top to refresh the local clock and explicitly sync a connected account without reloading or discarding drafts |
+| Back and refresh | Browser history Back, native host Back requests exposed by FerroUI, and Alt+Left first cancel a pending/active gesture, then use the shared active-surface/prior-list navigation path; left-edge Back and left-swipe drawer dismissal; signed pull progress at the list top refreshes the local clock and shares an in-flight account sync without reloading or discarding drafts |
+| Gesture combinations | Stable contact quarantine, reversal/axis lock, terminal drag origins, native-scroll release guards, mixed mouse/touch interruption, resize/deactivation cleanup, and trusted fresh-touch recovery after a missed release; mouse dragging retains wheel scrolling |
 | Status and typography | Reserved status footer with relevant Undo, wrapping long actions, bounded metadata and two-line task titles, 14px body editors/actions, 12px supporting labels, and native 48px Settings switch rows |
 | Header and search | Full-width titles, selection in More, visible sort status/direction/reset, clear search, and a compact close-search affordance |
 
@@ -88,7 +89,7 @@ The application implements keyboard commands while the app has focus. Browser-re
 
 Browser data belongs to the current origin/profile. Clearing site data removes local documents and attachments. The app does not provide automatic cross-device attachment transfer. A closed page or installed app is not guaranteed to deliver reminders; background push infrastructure is not included.
 
-Gesture validation uses real CDP touch contacts in Chromium. The Rust recognizers also accept pen input, but stylus and mixed pen/finger behavior have not been verified. At the pinned FerroUI revision, the browser bridge forwards pointer cancellation for touch only, and the app's multiple-contact quarantine tracks touch contacts. Pen cancellation, mixed-input arbitration, physical-device edge gestures, and native-host gestures are therefore outside the demonstrated coverage.
+Gesture validation uses real CDP touch contacts and mouse/touch combinations in Chromium. The Rust recognizers also accept pen input, but stylus and mixed pen/finger behavior have not been verified. At the pinned FerroUI revision, the browser bridge forwards pointer cancellation for touch only, and the app's multiple-contact quarantine tracks touch contacts. Pen cancellation, mixed pen/finger arbitration, physical-device edge gestures, and native-host gestures are therefore outside the demonstrated coverage.
 
 ## Microsoft Graph synchronization
 

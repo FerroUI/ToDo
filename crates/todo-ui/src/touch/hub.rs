@@ -18,6 +18,18 @@ impl Hub {
         self.active.borrow().as_ref().and_then(WeakRef::upgrade)
     }
 
+    pub fn has_active(&self) -> bool {
+        self.active().is_some_and(|active| {
+            if let Some(task) = active.cast::<TaskRecognizer>() {
+                task.active()
+            } else if let Some(sidebar) = active.cast::<SidebarRecognizer>() {
+                sidebar.session.borrow().is_some()
+            } else {
+                false
+            }
+        })
+    }
+
     pub fn cancel(&self) -> bool {
         let active = self
             .active
@@ -113,6 +125,13 @@ pub(super) fn claim(recognizer: &GestureRecognizer) {
             shell.hub.cancel();
         }
         *shell.hub.active.borrow_mut() = Some(recognizer.to_ref().downgrade());
+        shell.sync_back();
+    }
+}
+
+pub(super) fn synchronize(recognizer: &GestureRecognizer) {
+    if let Some(shell) = shell(recognizer) {
+        shell.sync_back();
     }
 }
 

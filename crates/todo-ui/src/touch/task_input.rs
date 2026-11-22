@@ -95,7 +95,13 @@ impl GestureRecognizerImpl for TaskRecognizer {
                 event.set_handled(true);
             }
             Axis::Held => event.set_handled(true), // Holding transfers its session to the shell.
-            Axis::Vertical | Axis::Canceled | Axis::Horizontal => this.cancel(),
+            Axis::Vertical | Axis::Canceled | Axis::Horizontal => {
+                // Keep observing until native scrolling captures or this contact ends.
+                // At an unscrollable edge the tunnel release guard prevents a row click.
+                if this.surface.offset.get() != 0.0 {
+                    this.surface.close();
+                }
+            }
             Axis::Pending => {}
         }
     }
@@ -113,17 +119,22 @@ impl GestureRecognizerImpl for TaskRecognizer {
         let axis = session.track.axis();
         if axis == Axis::Horizontal && session.allow_swipe {
             let point = event.get_position(None);
-            session
+            let final_axis = session
                 .track
                 .update(point.x - session.start.x, point.y - session.start.y);
-            this.surface
-                .render(settle_swipe(swipe_offset(session.initial, session.track.x)));
+            if final_axis == Axis::Horizontal {
+                this.surface
+                    .render(settle_swipe(swipe_offset(session.initial, session.track.x)));
+            } else {
+                this.surface.close();
+            }
         } else if session.initial != 0.0 || axis == Axis::Held {
             this.surface.close();
         }
         if axis != Axis::Pending || session.initial != 0.0 {
             event.set_handled(true);
         }
+        hub::synchronize(&this.base);
     }
 
     fn pointer_capture_lost(this: &Self, pointer: &Rc<dyn IPointer>) {

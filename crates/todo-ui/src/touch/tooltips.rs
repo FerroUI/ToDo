@@ -12,7 +12,7 @@ pub(super) struct HoverTooltips {
 }
 
 impl HoverTooltips {
-    pub fn pointer(&self, root: &Control, event: &RawPointerEventArgs) {
+    pub fn pointer(&self, root: &Control, event: &RawPointerEventArgs, touching: bool) {
         if event.type_() == RawPointerEventType::TouchBegin {
             if self.suspended.borrow().is_some() {
                 return;
@@ -36,18 +36,20 @@ impl HoverTooltips {
             for owner in owners {
                 ToolTip::set_is_open(&owner, false);
             }
-        } else if matches!(
-            event.type_(),
-            RawPointerEventType::Move
-                | RawPointerEventType::LeftButtonDown
-                | RawPointerEventType::RightButtonDown
-                | RawPointerEventType::MiddleButtonDown
-                | RawPointerEventType::Wheel
-        ) && event
-            .device()
-            .as_pointer_device()
-            .and_then(|device| device.try_get_pointer(event))
-            .is_some_and(|pointer| pointer.type_() == PointerType::Mouse)
+        } else if !touching
+            && matches!(
+                event.type_(),
+                RawPointerEventType::Move
+                    | RawPointerEventType::LeftButtonDown
+                    | RawPointerEventType::RightButtonDown
+                    | RawPointerEventType::MiddleButtonDown
+                    | RawPointerEventType::Wheel
+            )
+            && event
+                .device()
+                .as_pointer_device()
+                .and_then(|device| device.try_get_pointer(event))
+                .is_some_and(|pointer| pointer.type_() == PointerType::Mouse)
         {
             self.resume();
         }

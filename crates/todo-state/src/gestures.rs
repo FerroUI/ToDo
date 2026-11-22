@@ -1,5 +1,7 @@
 //! Device-independent gesture arbitration. Pointer ownership stays in FerroUI's input system.
 pub mod contacts;
+pub mod drag;
+pub mod shell;
 
 pub const TOUCH_SLOP: f64 = 8.0;
 pub const EDGE_WIDTH: f64 = 24.0;

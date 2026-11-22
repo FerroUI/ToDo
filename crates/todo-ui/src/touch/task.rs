@@ -12,7 +12,10 @@ use std::{
     rc::{Rc, Weak},
 };
 use todo_domain::{Id, View};
-use todo_state::{gestures::TouchTrack, AppViewModel};
+use todo_state::{
+    gestures::{Axis, TouchTrack},
+    AppViewModel,
+};
 
 #[repr(C)]
 pub(super) struct TaskRecognizer {
@@ -76,6 +79,33 @@ impl TaskRecognizer {
             RoutingStrategies::TUNNEL,
             true,
         );
+        let weak = recognizer.downgrade();
+        let release = root.add_handler_with(
+            InputElement::pointer_released_event(),
+            move |_, event| {
+                let Some(recognizer) = weak.upgrade() else {
+                    return;
+                };
+                let mut state = recognizer.session.borrow_mut();
+                let Some(session) = state
+                    .as_mut()
+                    .filter(|session| session.pointer.id() == event.pointer().id())
+                else {
+                    return;
+                };
+                let point = event.get_position(None);
+                let axis = session
+                    .track
+                    .update(point.x - session.start.x, point.y - session.start.y);
+                // Native scrolling may decline overscroll at an edge. Suppress only the
+                // later Button release; never steal capture during axis arbitration.
+                if axis != Axis::Pending {
+                    event.set_handled(true);
+                }
+            },
+            RoutingStrategies::TUNNEL,
+            true,
+        );
         let identity = Rc::new(std::cell::Cell::new(task_id(root)));
         let weak = recognizer.downgrade();
         let weak_root = root.downgrade();
@@ -106,6 +136,7 @@ impl TaskRecognizer {
             if let Some(root) = weak_root.upgrade() {
                 root.remove_handler(InputElement::holding_event(), holding);
                 root.remove_handler(InputElement::pointer_pressed_event(), press);
+                root.remove_handler(InputElement::pointer_released_event(), release);
                 root.gesture_recognizers().remove(&recognizer);
             }
         });
@@ -125,6 +156,7 @@ impl TaskRecognizer {
                 session.pointer.capture(None);
             }
         }
+        hub::synchronize(&self.base);
     }
 
     pub fn active(&self) -> bool {
@@ -143,7 +175,13 @@ impl TaskRecognizer {
             else {
                 return false;
             };
-            if !session.track.hold() {
+            if vm.view() != session.view
+                || vm.panel() != todo_state::Panel::None
+                || vm.rename_session().is_some()
+                || vm.state().task(session.id).is_none()
+                || self.surface.root.upgrade().and_then(|root| task_id(&root)) != Some(session.id)
+                || !session.track.hold()
+            {
                 return false;
             }
             state.take().unwrap()

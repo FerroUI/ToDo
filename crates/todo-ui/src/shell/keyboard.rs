@@ -9,7 +9,8 @@ pub(super) fn handle(root: &Control, vm: &AppViewModel, drafts: &Drafts, event: 
         return;
     }
     if event.key == Key::Escape {
-        if !super::navigation::dismiss_popup(root) {
+        let cancelled = crate::touch::cancel_active(root) | crate::drag::cancel_active(root);
+        if !cancelled && !super::navigation::dismiss_popup(root) {
             super::navigation::back(vm, drafts, false);
         }
         event.set_handled(true);

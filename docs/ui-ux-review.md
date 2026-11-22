@@ -8,6 +8,29 @@ The target remains the Windows To Do composition: navigation at the left, a them
 
 A second pass starts from `cf00e258d95b30f0f41ce9b90a6dd68e6b95a72e` and addresses the supplied composer screenshot. Microsoft's [Windows task-list reference](https://support.microsoft.com/en-us/todo/media/microsoft-to-do-001.png) establishes the shared completion/add and task-title/editor columns. Its [Windows settings reference](https://support.microsoft.com/en-us/todo/media/get-support-windows-c3-201722718418.png) supports retaining the existing label-above-switch composition. These public references, the deployed app, and the captured light, dark, narrow, detail, calendar, menu, settings, and touch states were reviewed together.
 
+## Combined gesture pass
+
+This pass starts from `19b1e0d4618b11950b49c0d04d42006ff8492ef5` and reviews the boundaries between task actions, scrolling, hold-drag, refresh, and navigation. It keeps the existing Microsoft-reference interaction choices and adaptive pane layout. The fixes concern ownership, cancellation, and recovery rather than adding new gesture commands.
+
+| Combination | Defect or missing guarantee | Correction |
+| --- | --- | --- |
+| Pending touch then Back/Escape | Cancelling a recognizer before it captured the pointer could leave the native Button pressed, allowing a later release to open a task | Explicit interruption snapshots the live pointers, cancels all app recognition, clears implicit/native capture, and quarantines the contact sequence |
+| Wrong-way drawer swipe or edge overscroll | An unsupported movement could become a native Button click when released inside the original row | Rejected shell horizontal movement cancels explicitly; task/sidebar tracks can yield to native scrolling while a tunnel release guard prevents a moved contact from activating the Button |
+| Navigation or refresh reversal | Absolute horizontal distance could leave feedback armed after reversing; an invalid release could use previously valid distance | Shared signed progress and axis validation disarm the action when retreating, reversing, or receiving invalid coordinates |
+| Drag then route/source change and return | Rechecking only whether the source still existed allowed a stale drag to regain a different meaning | A shared terminal DragOrigin records route, source parent/completion, sorting, width, and appropriate pane state; model notifications invalidate it permanently, including undo/return |
+| Hold selection versus layout changes | Entering selection intentionally recycles the source and may close details; unrelated later pane changes must still cancel | Keep capture in the mounted shell and exempt only the hold's initial selection transition; cancel subsequent context/geometry changes |
+| Second finger, partial release, third finger | Surviving fingers must not become a fresh action, regardless of release order | Track stable contact IDs and suppress cancelled movement/new contacts until every contact ends, while still delivering native disposal for accepted contacts |
+| Touch versus mouse | A second input device could act on the target while interrupting the first | A touch beginning during a native mouse drag cancels the drag and blocks that touch sequence; a mouse press during a live app touch cancels without simultaneously pressing the underlying Button |
+| Wheel and dragging | Touch and mouse dragging need different interruption behavior | Wheel cancels app touch gestures; ordinary mouse drag retains wheel scrolling and its validated origin |
+| Browser Back with a gesture or native editor menu | A transient interaction can exist without a view-model navigation change | Synchronize one same-document Back guard from pending/active gestures, rails, and native flyout opening/closing; first Back cancels the gesture, later Back dismisses the remaining surface |
+| Resize, scaling, deactivation, and hidden tabs | Coordinates, timers, markers, and pressed state could survive the interaction surface | Scoped native subscriptions and browser lifecycle callbacks cancel gestures; browser hiding saves drafts after cancellation; blur preserves native editor focus |
+| Missed release while inactive | Quarantined raw contacts and native pointer records can survive a lost End event | Only a trusted new primary touch Down may drain interrupted IDs through native cancellation before the new contact is delivered; focus and surviving fingers never reset the sequence |
+| Refresh overlapping sync/account changes | Concurrent refresh could fail early while another sync continued; a finishing sync/restore could overwrite Disconnect status | Coalesce concurrent sync promises and serialize account transitions as barriers; failed work releases the queue and refresh completion preserves later navigation/edits |
+
+The browser gate extends the existing touch reviews with combined sequences and stable multi-contact IDs. Its captures and reports distinguish browser-observed behavior from the state/host tests. Physical pen cancellation, OS edge gestures, mobile keyboard behavior, and every native platform remain outside the demonstrated Chromium coverage.
+
+## Alignment corrections
+
 | Surface | Concrete defect | Correction |
 | --- | --- | --- |
 | Task composer | A 54px bar contained a 35px automatic row plus symmetric 4px padding, leaving 11px of spare height below the row; its contents were approximately 5.5px above center | Give the primary row a 46px minimum height and center the native editor, plus, and submit button within it; allow the row to grow with its content |

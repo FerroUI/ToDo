@@ -1,6 +1,9 @@
 //! Task and navigation drags share one gesture engine and private typed in-process payload.
 mod cancellation;
+mod completion;
 mod feedback;
+mod native;
+mod registry;
 mod sidebar;
 mod sidebar_feedback;
 mod source;
@@ -9,6 +12,7 @@ mod touch;
 mod touch_plan;
 
 pub(crate) use feedback::marker;
+pub(crate) use registry::{cancel_active, has_active};
 pub(crate) use sidebar::{attach_sidebar_target, sidebar_marker, SidebarTarget};
 pub(crate) use source::attach_sidebar_source;
 pub(crate) use source::{attach_source, ignore_click};
@@ -18,35 +22,17 @@ pub(crate) use touch::TouchDrag;
 use ferroui_base::input::{DataFormat, DataFormatOf, DataTransferExtensions, DragEventArgs};
 use ferroui_base::BoxedValue;
 use ferroui_controls::Control;
-use std::cell::Cell;
-use std::rc::{Rc, Weak};
-use todo_domain::{Action, Id, SidebarItem, SortOrder, View, TASKS_LIST};
-use todo_state::{AppViewModel, Panel};
+use std::rc::Rc;
+use todo_domain::{Action, Id, SidebarItem, SortOrder, View};
+use todo_state::gestures::drag::DragItem;
+use todo_state::AppViewModel;
 
 type Identity = fn(&Control) -> Option<Id>;
 
 #[derive(Clone)]
 struct ItemDrag {
     item: DragItem,
-    owner: Weak<AppViewModel>,
-    active: Rc<Cell<bool>>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum DragItem {
-    Task(Id),
-    Sidebar(SidebarItem),
-}
-
-impl DragItem {
-    fn exists(self, vm: &AppViewModel) -> bool {
-        let state = vm.state();
-        match self {
-            Self::Task(id) => state.task(id).is_some(),
-            Self::Sidebar(SidebarItem::List(id)) => id != TASKS_LIST && state.list(id).is_some(),
-            Self::Sidebar(SidebarItem::Group(id)) => state.group(id).is_some(),
-        }
-    }
+    session: Rc<native::NativeDrag>,
 }
 
 fn format() -> DataFormatOf<ItemDrag> {
@@ -55,13 +41,7 @@ fn format() -> DataFormatOf<ItemDrag> {
 
 fn payload(event: &DragEventArgs, vm: &Rc<AppViewModel>) -> Option<ItemDrag> {
     let drag = event.data_transfer().try_get_value(&format())?;
-    (drag.active.get()
-        && drag.owner.ptr_eq(&Rc::downgrade(vm))
-        && !vm.selection_mode()
-        && vm.panel() == Panel::None
-        && vm.rename_session().is_none()
-        && drag.item.exists(vm))
-    .then_some(drag)
+    drag.session.valid(vm).then_some(drag)
 }
 
 pub(crate) fn list_tag(view: &View) -> Option<BoxedValue> {

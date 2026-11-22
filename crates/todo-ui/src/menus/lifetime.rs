@@ -54,8 +54,15 @@ pub(super) fn attach(
         });
         *owned_items.borrow_mut() = Some(owner);
     });
+    let closing_anchor = anchor.downgrade();
     let closed = menu.add_handler(MenuBase::closed_event(), move |_, _| {
-        crate::shell::navigation::sync_host(&vm);
+        let root = closing_anchor.upgrade().and_then(|anchor| {
+            anchor
+                .get_visual_ancestors()
+                .filter_map(|visual| visual.cast::<Control>())
+                .find(|control| control.has_name("TodoApp"))
+        });
+        crate::shell::navigation::sync_host(&vm, root.as_deref());
         if let Some(restore) = restore.borrow_mut().take() {
             restore.schedule(vm.clone());
         }

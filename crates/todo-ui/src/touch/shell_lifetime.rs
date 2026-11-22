@@ -11,9 +11,10 @@ use ferroui_reactive::ObservableExt;
 use ferroui_reactiveui::IReactiveNotifyPropertyChanged;
 use ferroui_view::on_cleanup;
 use std::{cell::RefCell, rc::Rc};
-use todo_state::{AppViewModel, Panel};
+use todo_state::AppViewModel;
 
 pub(super) fn attach(root: &Ref<Grid>, recognizer: Ref<ShellRecognizer>, vm: Rc<AppViewModel>) {
+    super::environment::attach(root);
     let weak = recognizer.downgrade();
     let outside = root.add_handler_with(
         InputElement::pointer_pressed_event(),
@@ -48,64 +49,68 @@ pub(super) fn attach(root: &Ref<Grid>, recognizer: Ref<ShellRecognizer>, vm: Rc<
                     if !pointer.root().root_element().is_visual_ancestor_of(&root) {
                         return;
                     }
-                    tooltips.pointer(&root, pointer);
-                    super::contacts::process(&recognizer, pointer);
+                    let touching = recognizer.contacts.borrow().has_contacts();
+                    tooltips.pointer(&root, pointer, touching);
                     if matches!(
                         pointer.type_(),
-                        RawPointerEventType::TouchCancel
-                            | RawPointerEventType::CancelCapture
-                            | RawPointerEventType::Wheel
+                        RawPointerEventType::LeftButtonDown
+                            | RawPointerEventType::RightButtonDown
+                            | RawPointerEventType::MiddleButtonDown
+                    ) && touching
+                        && recognizer.interrupt()
+                    {
+                        // The first mouse press interrupts an outstanding touch; it
+                        // must not simultaneously press a button beneath that finger.
+                        pointer.set_handled(true);
+                    }
+                    super::contacts::process(&recognizer, pointer);
+                    if pointer.type_() == RawPointerEventType::CancelCapture {
+                        crate::cancel_gestures(&root);
+                    } else if matches!(
+                        pointer.type_(),
+                        RawPointerEventType::Wheel | RawPointerEventType::TouchCancel
                     ) {
-                        recognizer.hub.cancel();
-                        recognizer.cancel();
+                        // Touch cancellation is scoped to its device. A wheel can
+                        // still scroll the destination of a conventional mouse drag.
+                        recognizer.interrupt();
                     }
                 } else if let Some(key) = event.downcast_ref::<RawKeyEventArgs>() {
                     if !key.root().root_element().is_visual_ancestor_of(&root) {
                         return;
                     }
-                    if key.type_() == RawKeyEventType::KeyDown {
+                    if key.type_() == RawKeyEventType::KeyDown
+                        && !recognizer.contacts.borrow().has_contacts()
+                    {
                         tooltips.resume();
                     }
                     if key.type_() != RawKeyEventType::KeyDown || key.key() != Key::Escape {
                         return;
                     }
-                    let task = recognizer.hub.cancel();
-                    let shell = recognizer.drag.borrow().is_some()
-                        || recognizer
-                            .session
-                            .borrow()
-                            .as_ref()
-                            .is_some_and(|session| session.kind.is_some());
-                    recognizer.cancel();
-                    if task || shell {
+                    if crate::cancel_gestures(&root) {
                         key.set_handled(true);
                     }
                 }
             })
         });
-    let previous = RefCell::new((vm.view(), vm.selected()));
+    let previous = RefCell::new(super::context::Context::capture(&vm));
     let weak_vm = Rc::downgrade(&vm);
     let weak = recognizer.downgrade();
     let changed = vm.changed().subscribe_next(move |_| {
         let (Some(recognizer), Some(vm)) = (weak.upgrade(), weak_vm.upgrade()) else {
             return;
         };
-        let old = previous.replace((vm.view(), vm.selected()));
+        let next = super::context::Context::capture(&vm);
         let held = recognizer.hub.held() || recognizer.drag.borrow().is_some();
-        if old.0 != vm.view()
-            || vm.panel() != Panel::None
-            || vm.rename_session().is_some()
-            || (!held && (old.1 != vm.selected() || vm.selection_mode()))
-        {
-            recognizer.hub.cancel();
-            recognizer.cancel();
+        let cancel = previous.borrow().invalidates(&next, held);
+        previous.replace(next);
+        if cancel {
+            recognizer.interrupt();
         }
     });
     let weak = recognizer.downgrade();
     let detached = root.detached_from_visual_tree(move |_| {
         if let Some(recognizer) = weak.upgrade() {
-            recognizer.hub.cancel();
-            recognizer.cancel();
+            recognizer.interrupt();
             *recognizer.contacts.borrow_mut() = Default::default();
         }
     });
@@ -116,8 +121,7 @@ pub(super) fn attach(root: &Ref<Grid>, recognizer: Ref<ShellRecognizer>, vm: Rc<
         if let Some(raw) = raw {
             raw.dispose();
         }
-        recognizer.hub.cancel();
-        recognizer.cancel();
+        recognizer.interrupt();
         if let Some(root) = weak.upgrade() {
             root.remove_handler(InputElement::pointer_pressed_event(), outside);
             root.gesture_recognizers().remove(&recognizer);

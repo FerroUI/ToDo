@@ -80,7 +80,7 @@ impl GestureRecognizerImpl for SidebarRecognizer {
                 event.set_handled(true);
             }
             Axis::Pending => {}
-            _ => this.cancel(), // Scroll or drawer dismissal won before Holding.
+            _ => {} // Keep the release guard armed while native scrolling arbitrates capture.
         }
     }
 
@@ -93,18 +93,30 @@ impl GestureRecognizerImpl for SidebarRecognizer {
         {
             return;
         }
-        let session = this.session.borrow_mut().take().unwrap();
+        let mut session = this.session.borrow_mut().take().unwrap();
+        let point = event.get_position(None);
+        session
+            .track
+            .update(point.x - session.start.x, point.y - session.start.y);
         if session.track.axis() == Axis::Held {
             if let Some(shell) = hub::shell(&this.base) {
                 shell.feedback(None);
             }
             event.set_handled(true);
             if !session.track.moved_after_hold() {
-                if let Some(root) = this.root.upgrade() {
+                if let (Some(root), Some(vm)) = (this.root.upgrade(), this.vm.upgrade()) {
+                    if vm.view() != session.view
+                        || sidebar_identity(&root) != Some(session.item)
+                        || !TouchDrag::sidebar_available(&vm, session.item)
+                    {
+                        hub::synchronize(&this.base);
+                        return;
+                    }
                     crate::menus::open(&root);
                 }
             }
         }
+        hub::synchronize(&this.base);
     }
 
     fn pointer_capture_lost(this: &Self, pointer: &Rc<dyn IPointer>) {

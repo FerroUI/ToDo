@@ -2,11 +2,12 @@ import * as auth from "./cloud/auth.js";
 import { graph } from "./cloud/client.js";
 import { recoverCommit } from "./cloud/metadata.js";
 import { synchronize } from "./cloud/sync.js";
+import { serializeMicrosoft } from "./cloud/operations.js";
 
 let runtime;
-let active = false;
 let startupError;
 let restored;
+const operations = serializeMicrosoft(performRequest);
 
 export async function prepareMicrosoft() {
   try { recoverCommit(); restored = await auth.restore(); }
@@ -17,23 +18,29 @@ export async function attachMicrosoft(value) {
   runtime = value;
   if (startupError) runtime.hostError(startupError.message);
   if (!restored) return;
-  try {
-    const user = await graph("me?$select=id,displayName,userPrincipalName");
-    runtime.cloudState(true, user.displayName || user.userPrincipalName || restored.username);
-  } catch (error) { runtime.cloudState(false, "Sign-in required"); runtime.hostError(error.message); }
+  await operations({ kind: "restoreMicrosoft" });
 }
 
-export async function microsoftRequest(action, today) {
+export function microsoftRequest(action, today) {
+  return operations(action, today);
+}
+
+async function performRequest(action, today) {
+  if (action.kind === "restoreMicrosoft") {
+    try {
+      const user = await graph("me?$select=id,displayName,userPrincipalName");
+      runtime.cloudState(true, user.displayName || user.userPrincipalName || restored.username);
+    } catch (error) { runtime.cloudState(false, "Sign-in required"); runtime.hostError(error.message); }
+    return;
+  }
   if (new URLSearchParams(location.search).get("demo") === "1") throw new Error("Open the normal app to connect an account; demo tasks are kept separate.");
   if (action.kind === "connectMicrosoft") return auth.connect(action.client_id);
   if (action.kind === "disconnectMicrosoft") {
     await auth.disconnect(); runtime.cloudState(false, "Local account"); return;
   }
   if (action.kind !== "syncMicrosoft") throw new Error("Unknown Microsoft account action.");
-  if (active) throw new Error("A synchronization is already running.");
   const account = auth.account();
   if (!account) throw new Error("Connect your Microsoft account first.");
-  active = true;
   const run = async lock => {
     if (!lock) throw new Error("Another tab is synchronizing. Try again when it finishes.");
     runtime.cloudState(true, "Syncing…");
@@ -45,8 +52,6 @@ export async function microsoftRequest(action, today) {
       throw error;
     }
   };
-  try {
-    if (navigator.locks) await navigator.locks.request("ferroui-todo-microsoft-sync", { ifAvailable: true }, run);
-    else throw new Error("This browser cannot safely coordinate cloud synchronization. Use a current browser with Web Locks support.");
-  } finally { active = false; }
+  if (navigator.locks) await navigator.locks.request("ferroui-todo-microsoft-sync", { ifAvailable: true }, run);
+  else throw new Error("This browser cannot safely coordinate cloud synchronization. Use a current browser with Web Locks support.");
 }

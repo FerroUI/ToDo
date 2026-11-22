@@ -1,9 +1,9 @@
 use super::{shell::ShellRecognizer, surface::Surface, task, task_id};
-use crate::drag::TouchDrag;
+use crate::drag::{sidebar_identity, TouchDrag};
 use ferroui_base::{input::IPointer, Point, Ref, WeakRef};
 use ferroui_controls::Button;
 use std::rc::{Rc, Weak};
-use todo_domain::Id;
+use todo_domain::{Id, SidebarItem};
 use todo_state::gestures::TouchTrack;
 
 /// A virtualized row can leave the tree during edge scrolling. The mounted shell owns
@@ -17,7 +17,7 @@ pub(super) struct DragSession {
 
 enum Source {
     Task(Weak<Surface>, Id),
-    Sidebar(WeakRef<Button>, f64),
+    Sidebar(WeakRef<Button>, SidebarItem, f64),
 }
 
 impl Source {
@@ -32,8 +32,11 @@ impl Source {
                     source.dim(active);
                 }
             }
-            Self::Sidebar(weak, opacity) => {
-                if let Some(source) = weak.upgrade() {
+            Self::Sidebar(weak, item, opacity) => {
+                if let Some(source) = weak
+                    .upgrade()
+                    .filter(|source| sidebar_identity(source) == Some(*item))
+                {
                     source.set_opacity(if active { 0.65 } else { *opacity });
                 }
             }
@@ -99,10 +102,13 @@ impl ShellRecognizer {
         operation: TouchDrag,
         source: &Ref<Button>,
     ) {
+        let Some(item) = sidebar_identity(source) else {
+            return;
+        };
         self.start_drag(DragSession {
             pointer,
             operation: Some(operation),
-            source: Source::Sidebar(source.downgrade(), source.opacity()),
+            source: Source::Sidebar(source.downgrade(), item, source.opacity()),
             pending: None,
         });
     }
@@ -119,5 +125,6 @@ impl ShellRecognizer {
         *self.drag.borrow_mut() = Some(drag);
         self.capture(&pointer);
         self.feedback(message);
+        self.sync_back();
     }
 }

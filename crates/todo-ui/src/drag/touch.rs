@@ -2,7 +2,7 @@
 //! gesture capture and uses the same live reorder/move planners and drop markers instead.
 use super::{
     feedback, sidebar_feedback, sidebar_identity,
-    touch_plan::{self, Cue, Origin, Plan},
+    touch_plan::{self, Cue, Plan},
     DragItem,
 };
 use ferroui_base::input::FocusManager;
@@ -10,23 +10,29 @@ use ferroui_base::reactive::Subscription;
 use ferroui_base::threading::{DispatcherPriority, DispatcherTimer};
 use ferroui_base::{Point, Vector, WeakRef};
 use ferroui_controls::{Button, Control, ScrollViewer, TopLevel};
+use ferroui_reactive::ObservableExt;
+use ferroui_reactiveui::IReactiveNotifyPropertyChanged;
 use std::{
     cell::{Cell, RefCell},
     rc::{Rc, Weak},
     time::Duration,
 };
 use todo_domain::{Id, SidebarItem};
-use todo_state::AppViewModel;
+use todo_state::{
+    gestures::drag::{DragInput, DragOrigin},
+    AppViewModel,
+};
 
 pub(crate) struct TouchDrag {
     state: Rc<State>,
     timer: Option<Subscription>,
+    _model: ferroui_system::Subscription,
 }
 
 struct State {
     root: WeakRef<TopLevel>,
     vm: Weak<AppViewModel>,
-    origin: Origin,
+    origin: DragOrigin,
     viewport: Option<WeakRef<ScrollViewer>>,
     point: Cell<Point>,
     last: RefCell<Option<(WeakRef<Control>, Cue)>>,
@@ -34,7 +40,7 @@ struct State {
 
 impl TouchDrag {
     pub fn sidebar_available(vm: &AppViewModel, item: SidebarItem) -> bool {
-        Origin::capture(vm, DragItem::Sidebar(item)).is_some()
+        DragOrigin::capture(vm, DragItem::Sidebar(item), DragInput::Touch).is_some()
     }
 
     /// Capture the source while it is attached, before selection can recycle its row.
@@ -65,7 +71,7 @@ impl TouchDrag {
         item: DragItem,
         point: Point,
     ) -> Option<Self> {
-        let origin = Origin::capture(vm, item)?;
+        let origin = DragOrigin::capture(vm, item, DragInput::Touch)?;
         let state = Rc::new(State {
             root: TopLevel::get_top_level(Some(control))?.downgrade(),
             vm: Rc::downgrade(vm),
@@ -76,11 +82,24 @@ impl TouchDrag {
             point: Cell::new(point),
             last: RefCell::new(None),
         });
-        Some(Self { state, timer: None })
+        let weak = Rc::downgrade(&state);
+        let owner = Rc::downgrade(vm);
+        let model = vm.changed().subscribe_next_guard(move |_| {
+            if let (Some(state), Some(vm)) = (weak.upgrade(), owner.upgrade()) {
+                if !state.origin.valid(&vm) {
+                    state.clear();
+                }
+            }
+        });
+        Some(Self {
+            state,
+            timer: None,
+            _model: model,
+        })
     }
 
     pub fn activate(&mut self, point: Point) {
-        if self.timer.is_some() {
+        if self.timer.is_some() || !self.state.origin.active() {
             return;
         }
         self.state.point.set(point);
@@ -91,7 +110,7 @@ impl TouchDrag {
                     return false;
                 };
                 state.hover(true);
-                true
+                state.origin.active()
             },
             Duration::from_millis(45),
             DispatcherPriority::BACKGROUND,
@@ -120,6 +139,9 @@ impl TouchDrag {
         let plan = self.state.plan();
         self.state.clear();
         if let (Some(vm), Some(plan)) = (self.state.vm.upgrade(), plan) {
+            if !self.state.origin.finish() {
+                return;
+            }
             vm.dispatch(plan.action);
             if let DragItem::Sidebar(item) = self.state.origin.item {
                 let root = self.state.root.clone();
