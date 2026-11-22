@@ -80,7 +80,7 @@ fn content(vm: Rc<AppViewModel>, id: Id) -> Element {
     content = content.child(
         grid()
             .column_definitions("*,40")
-            .margin((10.0, 2.0, 4.0, 6.0))
+            .margin((10.0, 2.0, 0.0, 6.0))
             .child(
                 text_box()
                     .name("NewCategory")
