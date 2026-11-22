@@ -8,10 +8,11 @@ mod step_menu;
 
 use crate::palette;
 use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
-use ferroui_base::media::FontWeight;
+use ferroui_base::media::{FontWeight, TextWrapping};
+use ferroui_controls::primitives::ScrollBarVisibility;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{icon_button, Icon};
+use todo_controls::{Icon, icon_button};
 use todo_state::{AppViewModel, Panel};
 
 pub fn view(vm: Rc<AppViewModel>) -> Element {
@@ -58,7 +59,7 @@ pub fn view(vm: Rc<AppViewModel>) -> Element {
         Panel::Themes => menus::themes(vm.clone()),
         Panel::TaskMenu(id) => menus::task(vm.clone(), id),
         Panel::StepMenu { task_id, step_id } => step_menu::view(vm.clone(), task_id, step_id),
-        Panel::Help => forms::help(),
+        Panel::Help => forms::help(vm.clone()),
         Panel::Share => forms::share(vm.clone()),
         _ => menus::list(vm.clone()),
     };
@@ -103,6 +104,7 @@ pub fn view(vm: Rc<AppViewModel>) -> Element {
                                         .text(title)
                                         .font_size(18.0)
                                         .font_weight(FontWeight::SemiBold)
+                                        .text_wrapping(TextWrapping::Wrap)
                                         .foreground(p.text)
                                         .vertical_alignment(V::Center),
                                 )
@@ -116,6 +118,7 @@ pub fn view(vm: Rc<AppViewModel>) -> Element {
                             scroll_viewer()
                                 .grid_row(1)
                                 .max_height(600.0)
+                                .horizontal_scroll_bar_visibility(ScrollBarVisibility::Disabled)
                                 .child(border().padding((12.0, 4.0, 12.0, 16.0)).child(content)),
                         ),
                 ),

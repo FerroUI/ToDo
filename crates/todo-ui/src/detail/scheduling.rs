@@ -1,5 +1,5 @@
 use super::{
-    action_row::{action, row},
+    action_row::{action, clear_button, row},
     fields::section,
     schedule_menu::{self, Kind},
 };
@@ -7,7 +7,7 @@ use crate::palette;
 use chrono::Datelike;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{Icon, icon_button};
+use todo_controls::Icon;
 use todo_domain::{Action, Task};
 use todo_state::AppViewModel;
 
@@ -84,7 +84,7 @@ pub(super) fn view(vm: Rc<AppViewModel>, task: &Task) -> Element {
                 .name(name)
                 .with(move |button| schedule_menu::attach(button, menu.clone(), id, kind)),
             active.then(|| {
-                icon_button(Icon::Close, clear_label, move || {
+                clear_button(clear_label, p.secondary, name, move || {
                     clear.dispatch(clear_action.clone())
                 })
             }),

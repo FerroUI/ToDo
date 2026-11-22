@@ -1,4 +1,4 @@
-use super::{history::HistoryEntry, AppViewModel};
+use super::{AppViewModel, history::HistoryEntry};
 use ferroui_dynamic_data::IObservableCache;
 use std::collections::HashSet;
 
@@ -11,6 +11,7 @@ impl AppViewModel {
     }
 
     pub(crate) fn push_undo(&self, entry: HistoryEntry) {
+        self.status_undo.set(false);
         let mut undo = self.undo.borrow_mut();
         undo.push_back(entry);
         let mut bytes: usize = undo.iter().map(HistoryEntry::estimated_bytes).sum();
@@ -24,6 +25,7 @@ impl AppViewModel {
     pub fn undo(&self) {
         let previous = self.undo.borrow_mut().pop_back();
         if let Some(previous) = previous {
+            self.status_undo.set(false);
             self.dirty.set(true);
             let (inverse, changes) = previous.restore(&mut self.document.borrow_mut());
             self.redo.borrow_mut().push(inverse);

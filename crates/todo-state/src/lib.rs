@@ -1,4 +1,6 @@
+mod back_stack;
 mod commands;
+pub mod gestures;
 mod history;
 mod history_commands;
 mod layout;
@@ -7,6 +9,7 @@ mod naming;
 mod navigation;
 mod persistence;
 mod presentation;
+mod refresh;
 mod scheduling;
 mod selection;
 mod services;
@@ -34,6 +37,8 @@ pub struct AppViewModel {
     today: Cell<Date>,
     current_minutes: Cell<u16>,
     view: RefCell<View>,
+    navigation_history: RefCell<Vec<View>>,
+    refreshing: Cell<bool>,
     selected: Cell<Option<Id>>,
     selection: RefCell<BTreeSet<Id>>,
     selection_mode: Cell<bool>,
@@ -52,6 +57,7 @@ pub struct AppViewModel {
     sort: Cell<SortOrder>,
     sort_reversed: Cell<bool>,
     status: RefCell<String>,
+    status_undo: Cell<bool>,
     undo: RefCell<VecDeque<history::HistoryEntry>>,
     redo: RefCell<Vec<history::HistoryEntry>>,
     applying: Cell<bool>,
@@ -79,6 +85,8 @@ impl AppViewModel {
                 today: Cell::new(today),
                 current_minutes: Cell::new(0),
                 view: RefCell::new(View::MyDay),
+                navigation_history: RefCell::new(Vec::new()),
+                refreshing: Cell::new(false),
                 selected: Cell::new(None),
                 selection: RefCell::new(BTreeSet::new()),
                 selection_mode: Cell::new(false),
@@ -97,6 +105,7 @@ impl AppViewModel {
                 sort: Cell::new(SortOrder::Manual),
                 sort_reversed: Cell::new(false),
                 status: RefCell::new(String::new()),
+                status_undo: Cell::new(false),
                 undo: RefCell::new(VecDeque::new()),
                 redo: RefCell::new(Vec::new()),
                 applying: Cell::new(false),
@@ -201,6 +210,11 @@ impl AppViewModel {
     }
 
     pub fn navigate(&self, view: View) {
+        self.remember_navigation(&view);
+        self.navigate_core(view);
+    }
+
+    pub(crate) fn navigate_core(&self, view: View) {
         self.rename.borrow_mut().take();
         if let View::List(id) = &view {
             if let Some(list) = self.document.borrow().list(*id) {
@@ -272,10 +286,19 @@ impl AppViewModel {
         self.set_status(String::new());
     }
     pub fn set_status(&self, status: String) {
-        if *self.status.borrow() == status {
-            return;
-        }
+        self.update_status(status, false);
+    }
+    pub(crate) fn set_undo_status(&self, status: String) {
+        self.update_status(status, self.can_undo());
+    }
+    pub fn status_can_undo(&self) -> bool {
+        self.status_undo.get() && self.can_undo()
+    }
+    fn update_status(&self, status: String, undo: bool) {
         *self.status.borrow_mut() = status;
+        self.status_undo.set(undo);
+        // History/import callers also use this as their completed-operation notification.
+        // Repeated "Change undone" messages must still reconcile the changed document.
         self.notify();
     }
     pub(crate) fn notify(&self) {

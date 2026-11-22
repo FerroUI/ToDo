@@ -1,8 +1,13 @@
-use ferroui_base::media::TextWrapping;
+use crate::palette;
+use ferroui_base::media::{FontWeight, TextWrapping};
 use ferroui_view::prelude::*;
+use std::rc::Rc;
+use todo_state::AppViewModel;
 
-pub fn view() -> Element {
-    let mut content = stack_panel().spacing(12.0).margin(8.0);
+pub fn view(vm: Rc<AppViewModel>) -> Element {
+    let p = palette(&vm);
+    let compact = vm.is_narrow();
+    let mut content = stack_panel().spacing(14.0).margin(8.0);
     for (key, action) in [
         ("Ctrl / ⌘ + N", "Focus Add a task"),
         ("Ctrl / ⌘ + L", "Create a list"),
@@ -14,6 +19,7 @@ pub fn view() -> Element {
         ("Shift + Up / Down", "Extend the selection"),
         ("Home / End", "Focus the first or last task"),
         ("Enter", "Open a task; submit a task or step while typing"),
+        ("Ctrl / ⌘ + Enter", "Save a note"),
         (
             "Space",
             "Complete the focused task, or toggle its selection",
@@ -24,17 +30,30 @@ pub fn view() -> Element {
         ("Ctrl / ⌘ + T", "Add the focused task to My Day"),
         ("Ctrl / ⌘ + Z", "Undo"),
         ("Ctrl / ⌘ + Y", "Redo"),
+        ("Page Up / Page Down", "Move between months in the calendar"),
         ("Escape", "Close a menu, details, or task selection"),
     ] {
         content = content.child(
             grid()
-                .column_definitions("145,*")
-                .child(text_block().text(key).font_size(12.0))
+                .column_definitions(if compact { "*" } else { "132,*" })
+                .row_definitions(if compact { "Auto,Auto" } else { "Auto" })
+                .column_spacing(12.0)
+                .row_spacing(4.0)
                 .child(
                     text_block()
-                        .grid_column(1)
+                        .text(key)
+                        .font_size(13.0)
+                        .font_weight(FontWeight::SemiBold)
+                        .foreground(p.text)
+                        .text_wrapping(TextWrapping::Wrap),
+                )
+                .child(
+                    text_block()
+                        .grid_column(if compact { 0 } else { 1 })
+                        .grid_row(if compact { 1 } else { 0 })
                         .text(action)
-                        .font_size(12.0)
+                        .font_size(14.0)
+                        .foreground(p.secondary)
                         .text_wrapping(TextWrapping::Wrap),
                 ),
         );

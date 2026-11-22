@@ -118,7 +118,13 @@ def prepare(dry_run):
         for path in [*files, *sorted(directories, key=lambda p: len(p.parts), reverse=True)]:
             stat = path.stat(follow_symlinks=False)
             os.utime(path, ns=(stat.st_atime_ns, timestamp), follow_symlinks=False)
-    emit("key", cache_key(commit))
+    key = cache_key(commit)
+    emit("key", key)
+    # Keep canonical toolchain/framework artifacts usable across app manifest and
+    # theme-root changes. Cargo still validates compiler, flags, features, build
+    # scripts and dependency fingerprints before reusing individual artifacts.
+    # The exact key above remains the save key and includes all application inputs.
+    emit("restore-prefix", key.rsplit("-", 1)[0] + "-")
     emit("paths", CACHE_PATHS)
     print(f"Pinned source timestamps: {len(files)} files, {len(directories)} source directories; dry-run={dry_run}")
 

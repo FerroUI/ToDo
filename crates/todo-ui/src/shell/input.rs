@@ -86,7 +86,7 @@ impl Drafts {
             origin
         };
         if matches!(vm.view(), View::Search(_)) {
-            vm.navigate(origin);
+            vm.return_from_search(origin);
         }
         // Updating a two-way input can schedule its debounce again; cancel after reconciliation.
         self.search_timer.borrow_mut().take();

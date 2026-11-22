@@ -3,6 +3,7 @@ import { attachFiles } from "./attachment-upload.js";
 import { requestNotifications, notify, completionSound } from "./notifications.js";
 import { microsoftRequest } from "./graph.js";
 import { createDocumentStorage } from "./document-storage.js";
+import { synchronizeNavigation } from "./navigation.js";
 
 const demo = new URLSearchParams(location.search).get("demo") === "1";
 const storageKey = demo ? "ferroui.todo.demo.v1" : "ferroui.todo.v1";
@@ -45,6 +46,16 @@ export function request(json) {
 
 async function handle(action) {
   switch (action.kind) {
+    case "navigationBack": synchronizeNavigation(action.available); break;
+    case "refresh": {
+      try {
+        runtime.flushEdits();
+        const now = new Date();
+        runtime.tick(today(), now.getHours() * 60 + now.getMinutes());
+        if (action.sync) await microsoftRequest({ kind: "syncMicrosoft" }, today());
+      } finally { runtime.finishRefresh(); }
+      break;
+    }
     case "connectMicrosoft":
     case "disconnectMicrosoft":
     case "syncMicrosoft":

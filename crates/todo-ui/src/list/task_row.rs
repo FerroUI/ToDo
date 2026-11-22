@@ -3,7 +3,7 @@ use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
 use ferroui_base::media::TextWrapping;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{star_button, task_check};
+use todo_controls::{star_action, task_check};
 use todo_domain::Action;
 use todo_state::AppViewModel;
 pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
@@ -45,12 +45,13 @@ pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
                 .font_size(14.0)
                 .foreground(title_color)
                 .text_wrapping(TextWrapping::Wrap)
+                .text_trimming(<dyn ferroui_base::media::TextTrimming>::word_ellipsis())
                 .max_lines(2);
             if completed {
                 title_block = title_block
                     .text_decorations(ferroui_base::media::TextDecorations::strikethrough());
             }
-            todo_controls::task_card(
+            let card = todo_controls::task_card(
                 grid()
                     .tag(super::interactions::task_tag(id))
                     .automation_properties_name(format!("Task: {accessible_title}"))
@@ -76,8 +77,11 @@ pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
                         check_box()
                             .is_checked(Some(multi_selected))
                             .min_width(0.0)
+                            .width(34.0)
+                            .height(40.0)
                             .padding(0.0)
                             .horizontal_alignment(H::Center)
+                            .horizontal_content_alignment(H::Center)
                             .vertical_alignment(V::Center)
                             .automation_properties_name(selection_label)
                             .on_click(move |_| select.toggle_task_selection(id))
@@ -99,7 +103,8 @@ pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
                             .grid_column(2)
                             .tag(super::interactions::task_tag(id))
                             .class("todo-flat")
-                            .automation_properties_name(accessible_title)
+                            .automation_properties_name(accessible_title.clone())
+                            .tool_tip_tip(accessible_title)
                             .padding((4.0, 10.0))
                             .horizontal_content_alignment(H::Stretch)
                             .vertical_content_alignment(V::Center)
@@ -129,7 +134,7 @@ pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
                                 } else {
                                     text_block()
                                         .text(metadata)
-                                        .font_size(11.0)
+                                        .font_size(12.0)
                                         .text_trimming(<dyn ferroui_base::media::TextTrimming>::character_ellipsis())
                                         .max_lines(1)
                                         .foreground(if overdue {
@@ -146,15 +151,18 @@ pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
                             )),
                     )
                     .child(border().grid_column(3).vertical_alignment(V::Center).child(
-                        star_button(is_important, &accent, move || {
+                        star_action(is_important, &accent, move || {
                             important.dispatch(Action::ToggleImportant(id))
-                        }),
+                        })
+                        .width(40.0)
+                        .height(40.0),
                     ))
                     .child(crate::drag::marker(&accent, false))
                     .child(crate::drag::marker(&accent, true)),
                 selected,
                 dark,
-            )
+            );
+            crate::touch::task_surface(vm, id, dark, card)
         }
     }
 }

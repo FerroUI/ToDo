@@ -43,7 +43,7 @@ pub(crate) fn edit_field(
             "Press Enter to save."
         })
         .placeholder_text(placeholder)
-        .font_size(if title { 18.0 } else { 13.0 })
+        .font_size(if title { 18.0 } else { 14.0 })
         .font_weight(if title {
             FontWeight::SemiBold
         } else {

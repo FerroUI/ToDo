@@ -5,12 +5,14 @@ mod sidebar;
 mod sidebar_feedback;
 mod source;
 mod target;
+mod touch;
 
 pub(crate) use feedback::marker;
 pub(crate) use sidebar::{SidebarTarget, attach_sidebar_target, sidebar_marker};
 pub(crate) use source::attach_sidebar_source;
 pub(crate) use source::{attach_source, ignore_click};
 pub(crate) use target::{attach_list_target, attach_task_target};
+pub(crate) use touch::TouchDrag;
 
 use ferroui_base::BoxedValue;
 use ferroui_base::input::{DataFormat, DataFormatOf, DataTransferExtensions, DragEventArgs};

@@ -1,6 +1,6 @@
-use ferroui_base::layout::{Orientation, VerticalAlignment};
+use ferroui_base::layout::VerticalAlignment;
 use ferroui_view::prelude::*;
-use todo_controls::{icon, Icon};
+use todo_controls::{Icon, icon};
 use todo_domain::TaskEntry;
 use todo_state::AppViewModel;
 
@@ -26,17 +26,20 @@ pub(super) fn view(vm: &AppViewModel, draft: &str) -> Element {
         return Element::Empty;
     };
     let color = crate::palette(vm).secondary;
-    stack_panel()
-        .orientation(Orientation::Horizontal)
-        .spacing(5.0)
+    grid()
+        .column_definitions("16,*")
+        .column_spacing(5.0)
         .margin((4.0, 4.0, 8.0, 4.0))
         .vertical_alignment(VerticalAlignment::Center)
         .child(icon(symbol, 15.0, color))
         .child(
             text_block()
                 .name("RecognizedSchedule")
+                .grid_column(1)
                 .text(label)
-                .font_size(11.0)
+                .font_size(12.0)
+                .text_trimming(<dyn ferroui_base::media::TextTrimming>::character_ellipsis())
+                .max_lines(1)
                 .foreground(color)
                 .vertical_alignment(VerticalAlignment::Center),
         )

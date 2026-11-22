@@ -3,7 +3,7 @@ use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
 use ferroui_base::media::FontWeight;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{icon, Icon};
+use todo_controls::{Icon, icon};
 use todo_state::{AppViewModel, Panel};
 pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
     let p = palette(&vm);
@@ -15,11 +15,16 @@ pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
     };
     let account = vm;
     button()
+        .name("AccountSettings")
         .class("todo-flat")
+        .automation_properties_name("Account settings")
+        .automation_properties_help_text(format!("{name}. {account_label}"))
+        .tool_tip_tip(format!("{name}\n{account_label}\nOpen account settings"))
         .margin((8.0, 8.0))
         .padding((12.0, 8.0))
         .height(64.0)
         .horizontal_content_alignment(H::Stretch)
+        .vertical_content_alignment(V::Center)
         .on_click(move |_| account.show_panel(Panel::Settings))
         .child(
             grid()
@@ -28,6 +33,7 @@ pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
                     border()
                         .width(36.0)
                         .height(36.0)
+                        .vertical_alignment(V::Center)
                         .corner_radius(18.0)
                         .background("#E6EBF6")
                         .child(
@@ -49,18 +55,27 @@ pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
                     stack_panel()
                         .grid_column(1)
                         .margin((8.0, 0.0))
-                        .spacing(4.0)
+                        .spacing(3.0)
+                        .vertical_alignment(V::Center)
                         .child(
                             text_block()
                                 .text(name)
                                 .font_weight(FontWeight::SemiBold)
                                 .font_size(14.0)
+                                .text_trimming(
+                                    <dyn ferroui_base::media::TextTrimming>::character_ellipsis(),
+                                )
+                                .max_lines(1)
                                 .foreground(p.text),
                         )
                         .child(
                             text_block()
                                 .text(account_label)
-                                .font_size(11.0)
+                                .font_size(12.0)
+                                .text_trimming(
+                                    <dyn ferroui_base::media::TextTrimming>::character_ellipsis(),
+                                )
+                                .max_lines(1)
                                 .foreground(p.secondary),
                         ),
                 )

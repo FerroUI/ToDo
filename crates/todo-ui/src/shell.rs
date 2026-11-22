@@ -3,17 +3,19 @@ mod focus_target;
 mod input;
 mod key_route;
 mod keyboard;
+pub(crate) mod navigation;
+mod status;
 mod title_bar;
 
 use crate::{detail, dialogs, list, palette, rows::Rows, settings, sidebar, suggestions};
 use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
-use ferroui_base::media::TextWrapping;
 use ferroui_controls::Grid;
 use ferroui_view::prelude::*;
 pub(crate) use input::Drafts;
+pub use navigation::{can_navigate_back, navigate_back};
 use std::rc::Rc;
-use todo_controls::{icon_button, Icon};
-use todo_state::{AppViewModel, Panel, NAVIGATION_WIDTH};
+use todo_controls::{Icon, icon_button};
+use todo_state::{AppViewModel, NAVIGATION_WIDTH, Panel};
 
 pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
     let drafts = use_hook(|| Rc::new(Drafts::new(vm.view())));
@@ -28,24 +30,26 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
     let left_width = if layout.navigation_inline { "280" } else { "0" };
     let center_width = if layout.list_visible { "*" } else { "0" };
     let right_width = if layout.right_visible {
-        if layout.compact {
-            "*"
-        } else {
-            "340"
-        }
+        if layout.compact { "*" } else { "340" }
     } else {
         "0"
     };
     let keys = vm.clone();
     let key_drafts = drafts.clone();
+    let navigation_vm = vm.clone();
+    let navigation_drafts = drafts.clone();
+    navigation::sync_host(&vm);
     let mut root = grid()
         .name("TodoApp")
         .node_ref(root_node)
         .focusable(true)
         .is_tab_stop(false)
         .background(p.background)
-        .row_definitions("36,*")
+        .row_definitions("36,*,Auto")
         .with(move |root| key_route::attach(root, keys.clone(), key_drafts.clone()))
+        .with(move |root| {
+            navigation::attach(root, navigation_vm.clone(), navigation_drafts.clone())
+        })
         .child(title_bar::view(vm.clone()));
     let mut body = grid()
         .grid_row(1)
@@ -81,44 +85,9 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
         );
     }
     root = root.child(body);
+    root = root.child(crate::touch::shell_feedback(vm.is_dark()));
     if !vm.status().is_empty() {
-        let close = vm.clone();
-        let undo = vm.clone();
-        root = root.child(
-            border()
-                .grid_row(1)
-                .vertical_alignment(V::Bottom)
-                .horizontal_alignment(H::Stretch)
-                .margin((16.0, 16.0))
-                .padding((14.0, 8.0))
-                .corner_radius(5.0)
-                .background(p.surface)
-                .border_brush(p.border)
-                .border_thickness(1.0)
-                .max_width(650.0)
-                .child(
-                    grid()
-                        .column_definitions("*,Auto,Auto")
-                        .column_spacing(12.0)
-                        .child(
-                            text_block()
-                                .text(vm.status())
-                                .font_size(13.0)
-                                .foreground(p.text)
-                                .text_wrapping(TextWrapping::Wrap),
-                        )
-                        .child(
-                            border()
-                                .grid_column(1)
-                                .child(todo_controls::text_button("Undo", move || undo.undo())),
-                        )
-                        .child(border().grid_column(2).child(icon_button(
-                            Icon::Close,
-                            "Dismiss message",
-                            move || close.clear_status(),
-                        ))),
-                ),
-        );
+        root = root.child(status::view(vm.clone()));
     }
     if layout.navigation_overlay {
         let dismiss = vm.clone();
@@ -127,6 +96,7 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
             grid()
                 .key("navigation-drawer")
                 .grid_row(1)
+                .grid_row_span(2)
                 .child(
                     button()
                         .class("todo-flat")
@@ -176,6 +146,6 @@ trait Overlay {
 }
 impl Overlay for Element {
     fn grid_overlay(self) -> Element {
-        grid().grid_row(1).child(self).into()
+        grid().grid_row(1).grid_row_span(2).child(self).into()
     }
 }

@@ -1,5 +1,6 @@
 use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
 use ferroui_base::media::{FontWeight, TextWrapping};
+use ferroui_controls::primitives::ScrollBarVisibility;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
 use todo_controls::{Icon, icon};
@@ -59,7 +60,7 @@ pub(super) fn view(vm: Rc<AppViewModel>, color: &str) -> Element {
         ),
     };
     let my_day = matches!(vm.view(), View::MyDay);
-    stack_panel()
+    let content = stack_panel()
         .vertical_alignment(V::Center)
         .horizontal_alignment(H::Center)
         .spacing(16.0)
@@ -91,6 +92,12 @@ pub(super) fn view(vm: Rc<AppViewModel>, color: &str) -> Element {
                 .opacity(0.9)
                 .text_alignment(ferroui_base::media::TextAlignment::Center)
                 .text_wrapping(TextWrapping::Wrap),
-        )
+        );
+    // A software keyboard or short window can leave less space than the illustration needs.
+    // The viewport limits its desired height and keeps every message reachable by scrolling.
+    scroll_viewer()
+        .horizontal_scroll_bar_visibility(ScrollBarVisibility::Disabled)
+        .vertical_scroll_bar_visibility(ScrollBarVisibility::Auto)
+        .child(content)
         .into()
 }

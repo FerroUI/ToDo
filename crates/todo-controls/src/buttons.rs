@@ -1,8 +1,9 @@
 //! Small declarative components that keep the semantics of native FerroUI Buttons.
 
-use crate::icons::{inherited_icon, Icon};
 use crate::Palette;
-use ferroui_base::layout::{HorizontalAlignment, Orientation, VerticalAlignment};
+use crate::icons::{Icon, inherited_icon};
+use ferroui_base::layout::{HorizontalAlignment, VerticalAlignment};
+use ferroui_base::media::TextWrapping;
 use ferroui_view::prelude::*;
 
 pub fn icon_button(kind: Icon, label: &str, on_click: impl Fn() + 'static) -> Element {
@@ -54,6 +55,7 @@ fn icon_base(kind: Icon, label: &str) -> El<Button> {
 pub fn text_button(label: &str, on_click: impl Fn() + 'static) -> Element {
     button()
         .class("todo-action")
+        .min_height(44.0)
         .automation_properties_name(label)
         .content(label)
         .on_click(move |e| {
@@ -66,6 +68,7 @@ pub fn text_button(label: &str, on_click: impl Fn() + 'static) -> Element {
 pub fn primary_button(label: &str, on_click: impl Fn() + 'static) -> Element {
     button()
         .class("todo-primary")
+        .min_height(44.0)
         .automation_properties_name(label)
         .content(label)
         .on_click(move |e| {
@@ -78,20 +81,29 @@ pub fn primary_button(label: &str, on_click: impl Fn() + 'static) -> Element {
 pub fn action_button(kind: Icon, label: &str, on_click: impl Fn() + 'static) -> Element {
     button()
         .class("todo-action")
-        .horizontal_content_alignment(HorizontalAlignment::Left)
+        .min_height(44.0)
+        .padding((12.0, 10.0))
+        .horizontal_content_alignment(HorizontalAlignment::Stretch)
         .automation_properties_name(label)
         .on_click(move |e| {
             e.set_handled(true);
             on_click();
         })
         .child(
-            stack_panel()
-                .orientation(Orientation::Horizontal)
-                .spacing(12.0)
-                .child(inherited_icon(kind, 18.0))
+            grid()
+                .column_definitions("24,*")
+                .column_spacing(8.0)
+                .child(
+                    border()
+                        .vertical_alignment(VerticalAlignment::Center)
+                        .child(inherited_icon(kind, 18.0)),
+                )
                 .child(
                     text_block()
+                        .grid_column(1)
                         .text(label)
+                        .font_size(14.0)
+                        .text_wrapping(TextWrapping::Wrap)
                         .vertical_alignment(VerticalAlignment::Center),
                 ),
         )
@@ -129,6 +141,14 @@ pub fn task_check(checked: bool, color: &str, on_click: impl Fn() + 'static) -> 
 }
 
 pub fn star_button(important: bool, color: &str, on_click: impl Fn() + 'static) -> Element {
+    star_action(important, color, on_click).into()
+}
+
+pub fn star_action(
+    important: bool,
+    color: &str,
+    on_click: impl Fn() + 'static,
+) -> El<ToggleButton> {
     let label = if important {
         "Remove importance"
     } else {
@@ -155,7 +175,6 @@ pub fn star_button(important: bool, color: &str, on_click: impl Fn() + 'static) 
             },
             18.0,
         ))
-        .into()
 }
 
 pub fn text(value: &str, size: f64, color: &str) -> Element {

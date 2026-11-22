@@ -1,8 +1,9 @@
+use chrono::{Local, Timelike};
+use ferroui_base::Ref;
 use ferroui_base::platform::storage::{
     FilePickerFileType, FilePickerOpenOptions, FilePickerSaveOptions,
 };
 use ferroui_base::threading::Dispatcher;
-use ferroui_base::Ref;
 use ferroui_controls::Window;
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -35,6 +36,16 @@ async fn handle(
 ) -> Result<(), String> {
     let provider = window.storage_provider();
     match request {
+        HostRequest::NavigationBack { .. } => {}
+        HostRequest::Refresh { sync } => {
+            todo_ui::commit_pending_edits(vm, window);
+            let now = Local::now();
+            vm.tick(now.date_naive(), (now.hour() * 60 + now.minute()) as u16);
+            vm.finish_refresh();
+            if sync {
+                return Err("Microsoft synchronization is available in the browser app.".into());
+            }
+        }
         HostRequest::Export { filename, contents } => {
             let mut options = FilePickerSaveOptions::new();
             options.set_suggested_file_name(Some(filename));
@@ -57,7 +68,7 @@ async fn handle(
         HostRequest::Import => {
             let mut options = FilePickerOpenOptions::new();
             options.set_file_type_filter(Some(vec![
-                FilePickerFileType::new(Some("To Do backup")).with_patterns(&["*.json"])
+                FilePickerFileType::new(Some("To Do backup")).with_patterns(&["*.json"]),
             ]));
             let files = provider
                 .open_file_picker_async(options)

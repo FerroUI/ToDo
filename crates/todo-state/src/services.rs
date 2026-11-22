@@ -19,6 +19,8 @@ pub enum HostRequest {
     ConnectMicrosoft { client_id: String },
     DisconnectMicrosoft,
     SyncMicrosoft,
+    Refresh { sync: bool },
+    NavigationBack { available: bool },
     OpenUrl { url: String },
 }
 

@@ -3,7 +3,7 @@ use ferroui_base::input::Key;
 use ferroui_base::layout::VerticalAlignment as V;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{icon, icon_button, Icon};
+use todo_controls::{Icon, icon, icon_button};
 use todo_state::AppViewModel;
 pub(super) fn view(vm: Rc<AppViewModel>, my_day: bool, drafts: Rc<Drafts>) -> Element {
     rerender(move || content(vm.clone(), my_day, drafts.clone()))
@@ -31,7 +31,7 @@ fn content(vm: Rc<AppViewModel>, my_day: bool, drafts: Rc<Drafts>) -> Element {
         .padding((10.0, 4.0))
         .child(
             grid()
-                .column_definitions("36,*,Auto,36")
+                .column_definitions("36,*,36")
                 .row_definitions("Auto,Auto")
                 .child(border().vertical_alignment(V::Center).child(icon(
                     Icon::Add,
@@ -41,6 +41,8 @@ fn content(vm: Rc<AppViewModel>, my_day: bool, drafts: Rc<Drafts>) -> Element {
                 .child(
                     text_box()
                         .name("NewTask")
+                        .automation_properties_name("Add a task")
+                        .automation_properties_help_text("Type a task and press Enter to add it.")
                         .node_ref(drafts.task_input)
                         .grid_column(1)
                         .class("todo-input")
@@ -61,14 +63,15 @@ fn content(vm: Rc<AppViewModel>, my_day: bool, drafts: Rc<Drafts>) -> Element {
                 )
                 .child(
                     border()
-                        .grid_column(if vm.is_narrow() { 1 } else { 2 })
-                        .grid_row(if vm.is_narrow() { 1 } else { 0 })
+                        // Hints must never take width from the editor in a narrow list pane.
+                        .grid_column(1)
+                        .grid_row(1)
                         .vertical_alignment(V::Center)
                         .child(super::entry_hint::view(&vm, &draft.get())),
                 )
                 .child(
                     border()
-                        .grid_column(3)
+                        .grid_column(2)
                         .vertical_alignment(V::Center)
                         .child(icon_button(Icon::ArrowUp, "Add task", move || {
                             submit.submit_task(&add);

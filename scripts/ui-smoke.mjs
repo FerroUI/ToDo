@@ -10,6 +10,8 @@ import { verifyNativeMenus } from "./ui/native-menus.mjs";
 import { verifyListPresentation } from "./ui/list-presentation.mjs";
 import { verifySidebar } from "./ui/sidebar.mjs";
 import { verifyScheduling } from "./ui/scheduling.mjs";
+import { verifyDetailPresentation } from "./ui/detail-review.mjs";
+import { verifyTouch } from "./ui/touch.mjs";
 
 const [site, output = "test-results/ui", ...extra] = process.argv.slice(2);
 if (!site || extra.length) throw new Error("usage: ui-smoke.mjs <built-site> [output-directory]");
@@ -131,7 +133,9 @@ try {
   await verifyAdaptive(ui, { taskId: task.id });
   await verifyNativeMenus(ui);
   await verifyScheduling(ui, task.id);
+  await verifyDetailPresentation(ui, task.id);
   await verifyListPresentation(ui);
+  await verifyTouch(ui);
   await verifySidebar(ui);
 
   const demo = new URL(page.url);

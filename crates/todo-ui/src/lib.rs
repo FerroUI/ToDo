@@ -10,6 +10,7 @@ mod settings;
 mod shell;
 mod sidebar;
 mod suggestions;
+mod touch;
 
 use ferroui_base::Ref;
 use ferroui_controls::{Application, Control};
@@ -20,6 +21,7 @@ use std::rc::Rc;
 use todo_state::AppViewModel;
 
 pub use editing::commit_pending_edits;
+pub use shell::{can_navigate_back, navigate_back};
 
 /// Retains component owners, subscriptions and recyclable item templates for the view lifetime.
 pub fn create_view(vm: Rc<AppViewModel>) -> Ref<Control> {

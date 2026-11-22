@@ -35,6 +35,7 @@ pub(super) fn view(
         .key(format!("nav-{target:?}"))
         .name(format!("Navigate{target:?}"))
         .automation_properties_name(title.clone())
+        .tool_tip_tip(title)
         .tag(crate::drag::list_tag(&target))
         .with(move |button| {
             crate::drag::attach_list_target(button, drop_target.clone());
@@ -90,6 +91,7 @@ pub(super) fn view(
                             String::new()
                         })
                         .font_size(12.0)
+                        .margin((if count > 0 { 8.0 } else { 0.0 }, 0.0, 0.0, 0.0))
                         .foreground(p.secondary)
                         .vertical_alignment(V::Center),
                 )

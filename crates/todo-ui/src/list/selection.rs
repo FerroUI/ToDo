@@ -2,7 +2,7 @@ use crate::{palette, rows::Rows};
 use ferroui_base::layout::{Orientation, VerticalAlignment as V};
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{icon_button, Icon};
+use todo_controls::{Icon, icon_button};
 use todo_state::{AppViewModel, Panel};
 
 pub(super) fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
@@ -31,6 +31,7 @@ pub(super) fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
                         .grid_column(1)
                         .text(format!("{count} selected"))
                         .font_size(13.0)
+                        .text_trimming(<dyn ferroui_base::media::TextTrimming>::character_ellipsis())
                         .foreground(p.text)
                         .vertical_alignment(V::Center)
                         .margin((6.0, 0.0)),

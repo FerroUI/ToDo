@@ -5,7 +5,7 @@ use ferroui_base::layout::{HorizontalAlignment as H, Orientation};
 use ferroui_base::media::TextWrapping;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{action_button, primary_button, text_button, Icon};
+use todo_controls::{Icon, action_button, primary_button, text_button};
 use todo_domain::Action;
 use todo_state::{AppViewModel, HostRequest, Panel};
 
@@ -114,7 +114,7 @@ pub fn share(vm: Rc<AppViewModel>) -> Element {
     let export = vm.clone();
     let open = vm.clone();
     stack_panel().spacing(14.0).margin(8.0)
-        .child(text_block().text("Share a copy of your tasks").font_size(16.0).foreground(p.text))
+        .child(text_block().text("Share a copy of your tasks").font_size(16.0).foreground(p.text).text_wrapping(TextWrapping::Wrap))
         .child(text_block().text("Export a backup to transfer your lists. Live Microsoft list invitations and access permissions are managed in Microsoft To Do.")
             .font_size(13.0).foreground(p.secondary).text_wrapping(TextWrapping::Wrap))
         .child(action_button(Icon::Download, "Export backup", move || export.export_backup()))

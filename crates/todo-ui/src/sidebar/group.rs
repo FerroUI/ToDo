@@ -24,6 +24,7 @@ pub(super) fn header(vm: Rc<AppViewModel>, group: &ListGroup) -> Element {
             .name(format!("Group{id}"))
             .class("todo-flat")
             .height(40.0)
+            .padding((12.0, 0.0))
             .horizontal_content_alignment(H::Stretch)
             .vertical_content_alignment(V::Stretch)
             .automation_properties_name(&group.name)
@@ -61,7 +62,7 @@ pub(super) fn header(vm: Rc<AppViewModel>, group: &ListGroup) -> Element {
             })
             .child(
                 grid()
-                    .column_definitions("26,*")
+                    .column_definitions("28,*")
                     .child(border().vertical_alignment(V::Center).child(icon(
                         if group.collapsed {
                             Icon::ChevronRight

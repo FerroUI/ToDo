@@ -22,6 +22,18 @@ pub fn flush_edits() {
     }
 }
 
+#[wasm_bindgen(js_name = navigateBack)]
+pub fn navigate_back() -> bool {
+    top_level().is_some_and(|root| todo_ui::navigate_back(&root))
+}
+
+#[wasm_bindgen(js_name = finishRefresh)]
+pub fn finish_refresh() {
+    if let Some(vm) = crate::app::view_model() {
+        vm.finish_refresh();
+    }
+}
+
 #[wasm_bindgen(js_name = importData)]
 pub fn import_data(json: &str) -> Result<(), JsValue> {
     crate::app::view_model()

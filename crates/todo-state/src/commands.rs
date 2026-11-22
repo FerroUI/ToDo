@@ -168,7 +168,7 @@ impl AppViewModel {
         self.dispatch(Action::DeleteTask(id));
         self.show_panel(Panel::None);
         if !self.status().starts_with("Could not save") {
-            self.set_status("Task deleted. You can undo this change.".into());
+            self.set_undo_status("Task deleted. You can undo this change.".into());
         }
     }
 

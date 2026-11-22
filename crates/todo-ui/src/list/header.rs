@@ -11,11 +11,23 @@ pub(super) fn view(
     inset: f64,
     drafts: Rc<crate::shell::Drafts>,
 ) -> Element {
+    let foreground = foreground.to_owned();
+    rerender(move || content(vm.clone(), &foreground, inset, drafts.clone()))
+}
+
+fn content(
+    vm: Rc<AppViewModel>,
+    foreground: &str,
+    inset: f64,
+    drafts: Rc<crate::shell::Drafts>,
+) -> Element {
     let my_day = matches!(vm.view(), View::MyDay);
     let menu = vm.clone();
     let suggest = vm.clone();
     let sort = vm.clone();
     let show_nav = vm.clone();
+    let sort_trigger = use_hook(NodeRef::<ferroui_controls::Button>::new);
+    let options_trigger = use_hook(NodeRef::<ferroui_controls::Button>::new);
     let mut header = grid()
         .column_definitions("*,Auto")
         .row_definitions("Auto,Auto,Auto")
@@ -55,46 +67,65 @@ pub(super) fn view(
         .spacing(4.0)
         .vertical_alignment(V::Top);
     if my_day {
-        toolbar = toolbar.child(todo_controls::colored_icon_button(
-            Icon::Lightbulb,
-            "Suggestions",
-            foreground,
-            move || suggest.show_panel(Panel::Suggestions),
-        ));
+        toolbar = toolbar.child(
+            todo_controls::toolbar_button(Icon::Lightbulb, "Suggestions", foreground)
+                .key("header-suggestions")
+                .on_click(move |event| {
+                    event.set_handled(true);
+                    suggest.show_panel(Panel::Suggestions);
+                }),
+        );
     } else {
         toolbar = toolbar.child(
             todo_controls::toolbar_button(Icon::Sort, "Sort tasks", foreground)
+                .key("header-sort")
+                .node_ref(sort_trigger)
                 .with(move |button| crate::menus::header_sort(button, sort.clone())),
         );
     }
     if matches!(vm.view(), View::Search(_)) {
         let cancel = vm.clone();
-        toolbar = toolbar.child(todo_controls::colored_icon_button(
-            Icon::Close,
-            "Close search",
-            foreground,
-            move || drafts.cancel_search(&cancel),
-        ));
+        toolbar = toolbar.child(
+            todo_controls::toolbar_button(Icon::Close, "Close search", foreground)
+                .key("header-close-search")
+                .on_click(move |event| {
+                    event.set_handled(true);
+                    drafts.cancel_search(&cancel);
+                }),
+        );
     }
-    toolbar = toolbar.child(
-        todo_controls::toolbar_button(Icon::More, "List options", foreground)
-            .with(move |button| crate::menus::header_options(button, menu.clone())),
-    );
-    header = header.child(toolbar).child(
-        border()
-            .grid_row(2)
-            .grid_column_span(2)
-            .child(super::sort_status::view(vm, foreground)),
-    );
+    let options = todo_controls::toolbar_button(Icon::More, "List options", foreground)
+        .key("header-options")
+        .node_ref(options_trigger)
+        .with(move |button| crate::menus::header_options(button, menu.clone()));
+    toolbar = toolbar.child(options);
+    header = header
+        .child(toolbar)
+        .child(
+            border()
+                .grid_row(2)
+                .grid_column_span(2)
+                .child(super::sort_status::view(
+                    vm,
+                    foreground,
+                    if my_day {
+                        options_trigger
+                    } else {
+                        sort_trigger
+                    },
+                )),
+        );
     header.into()
 }
 
 fn title(vm: Rc<AppViewModel>, foreground: &str) -> Element {
     let text = text_block()
         .text(vm.title())
+        .automation_properties_heading_level(1)
         .font_size(30.0)
         .font_weight(FontWeight::SemiBold)
         .text_trimming(<dyn ferroui_base::media::TextTrimming>::character_ellipsis())
+        .max_lines(1)
         .foreground(foreground);
     let View::List(id) = vm.view() else {
         return text.into();

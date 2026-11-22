@@ -26,6 +26,7 @@ pub(super) fn attach(
     let weak_anchor = anchor.downgrade();
     let owned_items = items_owner.clone();
     let opening_focus = restore.clone();
+    let opening_vm = vm.clone();
     let opening = menu.opening(move |event| {
         let (Some(menu), Some(anchor)) = (weak_menu.upgrade(), weak_anchor.upgrade()) else {
             event.set_cancel(true);
@@ -39,6 +40,7 @@ pub(super) fn attach(
             event.set_cancel(true);
             return;
         }
+        opening_vm.request(todo_state::HostRequest::NavigationBack { available: true });
         *opening_focus.borrow_mut() = Some(ReturnFocus::capture(&anchor));
         menu.items().clear();
         if let Some(previous) = owned_items.borrow_mut().take() {
@@ -53,6 +55,7 @@ pub(super) fn attach(
         *owned_items.borrow_mut() = Some(owner);
     });
     let closed = menu.add_handler(MenuBase::closed_event(), move |_, _| {
+        crate::shell::navigation::sync_host(&vm);
         if let Some(restore) = restore.borrow_mut().take() {
             restore.schedule(vm.clone());
         }

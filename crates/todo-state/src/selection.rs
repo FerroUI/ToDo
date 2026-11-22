@@ -164,7 +164,7 @@ impl AppViewModel {
         ));
         let removed = ids.iter().all(|id| self.state().task(*id).is_none());
         if removed && !self.status().starts_with("Could not save") {
-            self.set_status(format!("{count} tasks deleted. You can undo this change."));
+            self.set_undo_status(format!("{count} tasks deleted. You can undo this change."));
         }
         self.notify();
     }
@@ -188,7 +188,7 @@ impl AppViewModel {
                 .is_some_and(|task| task.list_id == list_id)
         });
         if moved && !self.status().starts_with("Could not save") {
-            self.set_status(format!("{count} tasks moved. You can undo this change."));
+            self.set_undo_status(format!("{count} tasks moved. You can undo this change."));
         }
         self.notify();
     }

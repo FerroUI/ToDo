@@ -61,7 +61,7 @@ impl TopLevelRoute {
                     return;
                 };
                 if let (Some(vm), Some(drafts)) = (vm.upgrade(), drafts.upgrade()) {
-                    keyboard::handle(&vm, &drafts, event);
+                    keyboard::handle(&root, &vm, &drafts, event);
                 }
                 drop(root);
             },

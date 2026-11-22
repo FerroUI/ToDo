@@ -1,25 +1,19 @@
 use super::input::{Drafts, focus_later};
 use ferroui_base::input::{Key, KeyEventArgs, KeyModifiers};
-use ferroui_controls::TextBox;
+use ferroui_controls::{Control, TextBox};
 use todo_domain::{Action, View};
-use todo_state::{AppViewModel, HostRequest, Panel};
+use todo_state::{AppViewModel, Panel};
 
-pub(super) fn handle(vm: &AppViewModel, drafts: &Drafts, event: &KeyEventArgs) {
+pub(super) fn handle(root: &Control, vm: &AppViewModel, drafts: &Drafts, event: &KeyEventArgs) {
     if event.key == Key::Escape {
-        if vm.navigation_overlay_open() {
-            vm.close_navigation();
-        } else if vm.panel() != Panel::None {
-            vm.show_panel(Panel::None);
-        } else if vm.selected().is_some() {
-            vm.select(None);
-        } else if vm.selection_mode() {
-            vm.end_selection();
-        } else if matches!(vm.view(), View::Search(_)) {
-            drafts.cancel_search(vm);
-        } else if vm.is_narrow() && vm.sidebar_visible() {
-            vm.toggle_sidebar();
-        }
+        super::navigation::back(vm, drafts, false);
         event.set_handled(true);
+        return;
+    }
+    if event.key == Key::Left && event.key_modifiers.contains(KeyModifiers::ALT) {
+        if super::navigation::navigate_back(root) {
+            event.set_handled(true);
+        }
         return;
     }
     if !matches!(
@@ -86,7 +80,7 @@ pub(super) fn handle(vm: &AppViewModel, drafts: &Drafts, event: &KeyEventArgs) {
             Key::Y => vm.redo(),
             Key::D1 => vm.toggle_sidebar(),
             Key::P => vm.print_list(),
-            Key::R if vm.cloud_connected() => vm.request(HostRequest::SyncMicrosoft),
+            Key::R => vm.refresh(),
             _ => return,
         }
         event.set_handled(true);

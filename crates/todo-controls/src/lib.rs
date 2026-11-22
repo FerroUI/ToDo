@@ -12,8 +12,8 @@ mod templates;
 mod theme;
 
 pub use buttons::{
-    action_button, colored_icon_button, icon_button, primary_button, star_button, task_card,
-    task_check, text, text_button, toolbar_button,
+    action_button, colored_icon_button, icon_button, primary_button, star_action, star_button,
+    task_card, task_check, text, text_button, toolbar_button,
 };
 pub use fonts::{EMOJI_FONT_FAMILY, font_options, install_emoji_font};
 pub use icons::{Icon, icon, inherited_icon};

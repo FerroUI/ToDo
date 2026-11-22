@@ -6,7 +6,11 @@ use todo_domain::{SortOrder, View};
 use todo_state::AppViewModel;
 
 /// The reference app keeps the active sort visible and offers reverse and clear in place.
-pub(super) fn view(vm: Rc<AppViewModel>, foreground: &str) -> Element {
+pub(super) fn view(
+    vm: Rc<AppViewModel>,
+    foreground: &str,
+    trigger: NodeRef<ferroui_controls::Button>,
+) -> Element {
     let order = vm.sort();
     if order == SortOrder::Manual {
         return Element::Empty;
@@ -43,7 +47,7 @@ pub(super) fn view(vm: Rc<AppViewModel>, foreground: &str) -> Element {
                 .child(
                     text_block()
                         .text(label)
-                        .font_size(12.0)
+                        .font_size(13.0)
                         .foreground(foreground)
                         .vertical_alignment(V::Center)
                         .text_trimming(
@@ -80,7 +84,13 @@ pub(super) fn view(vm: Rc<AppViewModel>, foreground: &str) -> Element {
                     Icon::Close,
                     "Remove sort",
                     foreground,
-                    move || clear.set_sort(SortOrder::Manual),
+                    move || {
+                        // The clear button is about to leave the tree; hand focus to its retained trigger.
+                        if let Some(button) = trigger.get_untracked() {
+                            button.focus();
+                        }
+                        clear.set_sort(SortOrder::Manual);
+                    },
                 )),
         )
         .into()

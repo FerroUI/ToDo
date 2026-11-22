@@ -2,8 +2,8 @@ use crate::palette;
 use ferroui_base::layout::{HorizontalAlignment as H, Orientation};
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{action_button, Icon, ALL_LIST_THEMES};
-use todo_domain::{Action, Id, SortOrder, View, TASKS_LIST};
+use todo_controls::{ALL_LIST_THEMES, Icon, action_button};
+use todo_domain::{Action, Id, SortOrder, TASKS_LIST, View};
 use todo_state::{AppViewModel, Panel};
 
 pub fn list(vm: Rc<AppViewModel>) -> Element {
@@ -91,6 +91,7 @@ pub fn sort(vm: Rc<AppViewModel>) -> Element {
 
 pub fn themes(vm: Rc<AppViewModel>) -> Element {
     let p = palette(&vm);
+    let selected_accent = vm.accent();
     let mut swatches = wrap_panel()
         .orientation(Orientation::Horizontal)
         .item_width(104.0)
@@ -105,6 +106,14 @@ pub fn themes(vm: Rc<AppViewModel>) -> Element {
                 .height(68.0)
                 .margin(4.0)
                 .padding(0.0)
+                .border_thickness(2.0)
+                .border_brush(if selected_accent.eq_ignore_ascii_case(theme.accent) {
+                    p.accent
+                } else {
+                    "Transparent"
+                })
+                .automation_properties_name(format!("{} list theme", theme.name))
+                .tool_tip_tip(theme.name)
                 .on_click(move |_| {
                     if let View::List(id) = select.view() {
                         select.dispatch(Action::SetListTheme {
@@ -120,7 +129,11 @@ pub fn themes(vm: Rc<AppViewModel>) -> Element {
                 })
                 .child(
                     border()
-                        .background(theme.background)
+                        .background(if vm.is_dark() {
+                            theme.dark_background
+                        } else {
+                            theme.background
+                        })
                         .corner_radius(4.0)
                         .padding(10.0)
                         .child(
@@ -137,7 +150,7 @@ pub fn themes(vm: Rc<AppViewModel>) -> Element {
                                 .child(
                                     text_block()
                                         .text(theme.name)
-                                        .font_size(11.0)
+                                        .font_size(12.0)
                                         .foreground(p.text),
                                 ),
                         ),

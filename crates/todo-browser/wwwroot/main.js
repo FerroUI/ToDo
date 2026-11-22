@@ -4,6 +4,7 @@ import { attachRuntime, today, width, reportError } from "./host.js";
 import { prepareMicrosoft, attachMicrosoft } from "./graph.js";
 import { registerOffline } from "./offline.js";
 import { loadEmojiFont } from "./fonts.js";
+import { attachNavigation } from "./navigation.js";
 
 try {
   await prepareMicrosoft();
@@ -17,6 +18,7 @@ try {
     attachRuntime(runtime);
     globalThis.todoApp = runtime;
     runtime.runMain(globalThis.location.search, emojiFont);
+    attachNavigation(runtime);
     void attachMicrosoft(runtime);
     new ResizeObserver(() => runtime.resizeWindow(width())).observe(document.getElementById("out"));
     matchMedia("(prefers-color-scheme: dark)").addEventListener("change", event => runtime.updateTheme(event.matches));

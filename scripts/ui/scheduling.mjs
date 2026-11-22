@@ -16,6 +16,8 @@ export async function verifyScheduling(ui, taskId) {
   const tomorrow = (await current()).due_date;
   await clickControl(button("Remove due date"), "direct due-date removal");
   await until(async () => !(await current()).due_date, "due date is removed");
+  await control(element => element.name === "TaskDueDate" && element.focused,
+    "clearing a due date retains keyboard focus in its scheduling row");
   await open("TaskDueDate");
   await choose("Pick a date");
   await control(element => element.name === "ScheduleCalendar", "native calendar");
@@ -55,5 +57,9 @@ export async function verifyScheduling(ui, taskId) {
   await until(async () => !(await current()).recurrence, "repeat is removed");
   await page.press("Escape");
   await control(element => element.name === "NewTask", "list after scheduling review");
+  await control(element => element.text?.startsWith("Notifications are blocked."), "non-overlapping notification status");
+  await clickControl(button("Dismiss message"), "dismiss the notification status");
+  await control(element => element.name === "NewTask" && element.focused,
+    "dismissing status returns focus to the retained task composer");
   console.log("ok: native schedule quick menus, calendar keyboard selection, inline validation, custom correction, and direct removal");
 }

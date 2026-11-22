@@ -25,7 +25,7 @@ pub(super) fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
                 event.set_handled(true);
             }))
         .child(text_box().grid_column(1).name("NewStep").text(vm.step_draft(id))
-            .class("todo-input").placeholder_text("Add step").font_size(13.0)
+            .class("todo-input").placeholder_text("Add step").font_size(14.0)
             .automation_properties_name("Add step")
             .automation_properties_help_text("Type a step and press Enter. You can keep adding steps without leaving this field.")
             .foreground(p.accent).background("Transparent").border_thickness(0.0)

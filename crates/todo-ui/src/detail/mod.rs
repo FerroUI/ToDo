@@ -12,11 +12,12 @@ use self::fields::section;
 use self::steps::steps;
 use crate::palette;
 use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
+use ferroui_base::media::TextWrapping;
 use ferroui_controls::primitives::ScrollBarVisibility;
 use ferroui_view::prelude::*;
 pub(crate) use fields::edit_field;
 use std::rc::Rc;
-use todo_controls::{Icon, action_button, icon_button, star_button, task_check};
+use todo_controls::{Icon, icon_button, star_button, task_check};
 use todo_domain::{Action, Id};
 use todo_state::{AppViewModel, Panel};
 
@@ -93,6 +94,7 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
                 },
                 if included { p.accent } else { p.secondary },
             )
+            .name("TaskMyDay")
             .on_click(move |event| {
                 day.dispatch(Action::SetMyDay {
                     id,
@@ -101,9 +103,12 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
                 event.set_handled(true);
             }),
             included.then(|| {
-                icon_button(Icon::Close, "Remove from My Day", move || {
-                    remove_day.dispatch(Action::SetMyDay { id, day: None });
-                })
+                action_row::clear_button(
+                    "Remove from My Day",
+                    p.secondary,
+                    "TaskMyDay",
+                    move || remove_day.dispatch(Action::SetMyDay { id, day: None }),
+                )
             }),
         ),
     ));
@@ -114,7 +119,8 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
             vm.clone(),
             text_block()
                 .text(format!("Assigned to {assignee}"))
-                .font_size(13.0)
+                .font_size(14.0)
+                .text_wrapping(TextWrapping::Wrap)
                 .margin(16.0)
                 .foreground(p.text),
         ));
@@ -140,11 +146,14 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
         .list(task.list_id)
         .map(|list| list.name.clone())
         .unwrap_or_default();
-    content = content.child(action_button(
-        Icon::List,
-        &format!("Move from {list_name}"),
-        move || move_task.show_panel(Panel::MoveTask(id)),
-    ));
+    content = content.child(
+        action_row::action(Icon::List, &format!("Move from {list_name}"), p.secondary).on_click(
+            move |event| {
+                move_task.show_panel(Panel::MoveTask(id));
+                event.set_handled(true);
+            },
+        ),
+    );
     border()
         .key(format!("task-detail-{id}"))
         .background(p.background)
@@ -187,7 +196,7 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
                         .child(
                             text_block()
                                 .text(format!("Created {}", task.created_on.format("%-d %B")))
-                                .font_size(11.0)
+                                .font_size(12.0)
                                 .foreground(p.secondary)
                                 .vertical_alignment(V::Center)
                                 .horizontal_alignment(H::Center),

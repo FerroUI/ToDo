@@ -1,9 +1,9 @@
 use crate::palette;
-use ferroui_base::layout::{Orientation, VerticalAlignment as V};
+use ferroui_base::layout::{HorizontalAlignment as H, Orientation, VerticalAlignment as V};
 use ferroui_base::media::{FontWeight, TextWrapping};
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{icon, icon_button, Icon};
+use todo_controls::{Icon, icon, icon_button};
 use todo_domain::Action;
 use todo_state::{AppViewModel, Panel};
 
@@ -18,12 +18,13 @@ pub fn view(vm: Rc<AppViewModel>) -> Element {
                 .text("Make the most of your day")
                 .font_size(18.0)
                 .font_weight(FontWeight::SemiBold)
+                .text_wrapping(TextWrapping::Wrap)
                 .foreground(p.text),
         )
         .child(
             text_block()
                 .text("Here are a few tasks you might want to add to My Day.")
-                .font_size(13.0)
+                .font_size(14.0)
                 .foreground(p.secondary)
                 .text_wrapping(TextWrapping::Wrap)
                 .margin((0.0, 0.0, 0.0, 12.0)),
@@ -46,7 +47,7 @@ pub fn view(vm: Rc<AppViewModel>) -> Element {
                             .text("Add tasks to your lists and find suggestions here.")
                             .text_wrapping(TextWrapping::Wrap)
                             .foreground(p.secondary)
-                            .font_size(13.0),
+                            .font_size(14.0),
                     ),
             ),
         );
@@ -62,10 +63,14 @@ pub fn view(vm: Rc<AppViewModel>) -> Element {
                 .padding((10.0, 8.0))
                 .child(
                     grid()
-                        .column_definitions("*,36")
+                        .column_definitions("*,40")
+                        .column_spacing(8.0)
                         .child(
                             button()
+                                .name(format!("SuggestionTask{id}"))
                                 .class("todo-flat")
+                                .automation_properties_name(&task.title)
+                                .horizontal_content_alignment(H::Stretch)
                                 .background("Transparent")
                                 .padding((2.0, 6.0))
                                 .on_click(move |_| open.select(Some(id)))
@@ -75,25 +80,26 @@ pub fn view(vm: Rc<AppViewModel>) -> Element {
                                         .child(
                                             text_block()
                                                 .text(&task.title)
-                                                .font_size(13.0)
+                                                .font_size(14.0)
                                                 .foreground(p.text)
                                                 .text_wrapping(TextWrapping::Wrap),
                                         )
                                         .child(
                                             text_block()
                                                 .text(vm.task_metadata(&task))
-                                                .font_size(11.0)
+                                                .font_size(12.0)
+                                                .text_trimming(<dyn ferroui_base::media::TextTrimming>::character_ellipsis())
                                                 .foreground(p.secondary),
                                         ),
                                 ),
                         )
                         .child(border().grid_column(1).vertical_alignment(V::Center).child(
-                            icon_button(Icon::Add, "Add to My Day", move || {
-                                add.dispatch(Action::SetMyDay {
-                                    id,
-                                    day: Some(add.today()),
-                                })
-                            }),
+                            todo_controls::toolbar_button(Icon::Add, "Add to My Day", p.accent)
+                                .width(40.0).height(40.0)
+                                .on_click(move |event| {
+                                    event.set_handled(true);
+                                    add.dispatch(Action::SetMyDay { id, day: Some(add.today()) });
+                                }),
                         )),
                 ),
         );

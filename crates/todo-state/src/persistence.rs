@@ -95,6 +95,7 @@ impl AppViewModel {
             }
             Err(error) => {
                 self.dirty.set(true);
+                self.status_undo.set(false);
                 *self.status.borrow_mut() = format!("Could not save your changes: {error}")
             }
         }

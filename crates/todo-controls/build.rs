@@ -8,6 +8,7 @@ fn main() {
             "Window",
             "Button",
             "ToggleButton",
+            "ToggleSwitch",
             "TextBox",
             "TextBlock",
             "PathIcon",

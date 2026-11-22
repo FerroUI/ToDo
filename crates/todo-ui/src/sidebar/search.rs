@@ -27,7 +27,7 @@ pub(super) fn view(
                 .placeholder_text("Search")
                 .automation_properties_name("Search tasks, steps, notes and tags")
                 .height(32.0)
-                .font_size(13.0)
+                .font_size(14.0)
                 .padding((8.0, 4.0))
                 .background(p.surface)
                 .on_changed(ferroui_controls::TextBox::text_property(), move |value| {
