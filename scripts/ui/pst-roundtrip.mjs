@@ -70,7 +70,15 @@ export async function verifyPstRoundTrip(ui, output) {
     await clickControl(named("TaskRepeat"),"PST repeat schedule");
     await clickControl(element=>element.type.endsWith("MenuItem")&&element.automationName==="Weekly","weekly repeat schedule");
     await visible(named("TaskNotes"),"PST note");
-    await edit("TaskNotes",notes);
+    // CDP insertText is delivered through the browser text-input bridge, whose
+    // single-line composing surface normalizes embedded line breaks. Exercise
+    // the editor's real Enter handling, as the detail review does, then commit.
+    const [firstLine,secondLine]=notes.split("\n");
+    await edit("TaskNotes",firstLine);
+    await page.press("Enter");
+    await page.type(secondLine);
+    await page.press("Enter",["ctrl"]);
+    await until(async()=>(await task()).notes===notes,"multiline PST note is committed");
     await visible(named("AddAttachment"),"PST file action");
     await choose(named("AddAttachment"),"attach PST fixture",sourceFile);
     await until(async()=>(await task()).attachments.some(file=>file.name===filename),"PST attachment storage");
