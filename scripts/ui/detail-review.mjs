@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { verifySettingsPresentation } from "./settings-review.mjs";
 
 const button = label => element => element.type.endsWith("Button") && element.automationName === label;
 const menu = label => element => element.type.endsWith("MenuItem") && element.automationName === label;
@@ -20,7 +19,10 @@ export async function verifyDetailPresentation(ui, taskId) {
   const note = "Notes stay readable when a detail pane becomes narrow.\nReview the dates, steps and release checklist before sharing the plan.";
   await resize(1280, 800);
   await clickControl(button(original.title), "task for detail layout review");
-  await edit("TaskNotes", note);
+  const [firstLine, secondLine] = note.split("\n");
+  await edit("TaskNotes", firstLine);
+  await page.press("Enter");
+  await page.type(secondLine);
   await page.press("Enter", ["ctrl"]);
   await until(async () => (await current()).notes === note, "multiline note commits with Control+Enter");
   await edit("NewStep", longStep, true);
@@ -72,6 +74,5 @@ export async function verifyDetailPresentation(ui, taskId) {
   for (const field of ["steps", "due_date", "reminder", "recurrence"]) assert.deepEqual(restored[field], original[field], `${field} is unchanged by dismissed forms`);
   await page.press("Escape");
   await control(named("NewTask"), "list after detail review");
-  await verifySettingsPresentation(ui);
   console.log("ok: wrapped detail editors, compact native menus, confirmation, recurrence and reminder forms; presentation captures");
 }

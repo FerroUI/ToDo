@@ -1,6 +1,22 @@
+use ferroui_base::input::KeyEventArgs;
 use ferroui_controls::{Control, TextBox};
 use todo_domain::Action;
 use todo_state::AppViewModel;
+
+/// Leave composition keys to the native editor, including an empty pending preedit.
+pub(crate) fn is_composing(event: &KeyEventArgs) -> bool {
+    let Some(source) = event.source().and_then(|source| source.cast::<Control>()) else {
+        return false;
+    };
+    source
+        .cast::<TextBox>()
+        .or_else(|| {
+            source
+                .get_visual_ancestors()
+                .find_map(|ancestor| ancestor.cast::<TextBox>())
+        })
+        .is_some_and(|field| field.is_composing_text())
+}
 
 /// Commits visible document/settings editors before a host hides, closes or exports them.
 /// Collect first: dispatch can synchronously reconcile and replace these controls.

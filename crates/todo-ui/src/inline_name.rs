@@ -53,6 +53,9 @@ pub(crate) fn editor(
             blur.commit_rename(target);
         })
         .on_key_down(move |event| {
+            if crate::editing::is_composing(event) {
+                return;
+            }
             match event.key {
                 Key::Return => {
                     if let Some(input) = event.source().and_then(|source| source.cast::<TextBox>())

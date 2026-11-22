@@ -32,13 +32,14 @@ pub(crate) fn edit_field(
         }
     });
     let enter = commit.clone();
-    text_box()
+    let shortcut = commit.clone();
+    let editor = text_box()
         .name(name)
         .class("todo-input")
         .text(value)
         .automation_properties_name(if notes { "Task notes" } else { placeholder })
         .automation_properties_help_text(if notes {
-            "Enter adds a new line. Control+Enter saves the note."
+            "Enter adds a new line. Ctrl+Enter or Command+Enter saves the note."
         } else {
             "Press Enter to save."
         })
@@ -62,6 +63,9 @@ pub(crate) fn edit_field(
             }
         })
         .on_key_down(move |event| {
+            if crate::editing::is_composing(event) {
+                return;
+            }
             let modified_enter = event
                 .key_modifiers
                 .intersects(KeyModifiers::CONTROL | KeyModifiers::META);
@@ -71,7 +75,12 @@ pub(crate) fn edit_field(
                 }
                 event.set_handled(true);
             }
-        })
+        });
+    if notes {
+        super::notes_key::with_commit(editor, shortcut)
+    } else {
+        editor
+    }
 }
 
 pub(super) fn section(vm: Rc<AppViewModel>, child: impl IntoChild) -> Element {

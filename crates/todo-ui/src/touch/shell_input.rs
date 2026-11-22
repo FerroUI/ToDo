@@ -6,7 +6,7 @@ use ferroui_base::input::{
 use ferroui_controls::{Grid, ListBox, ScrollViewer};
 use std::rc::Rc;
 use todo_state::{
-    gestures::{Axis, TouchTrack, BACK_DISTANCE, EDGE_WIDTH, REFRESH_DISTANCE},
+    gestures::{Axis, TouchTrack, BACK_DISTANCE, REFRESH_DISTANCE},
     Panel, NAVIGATION_WIDTH,
 };
 
@@ -27,7 +27,7 @@ impl GestureRecognizerImpl for ShellRecognizer {
         if point.y < 36.0 {
             return;
         }
-        let back = point.x <= EDGE_WIDTH && (this.can_back)();
+        let back = this.contains_back_edge(event) && (this.can_back)();
         let drawer = vm.navigation_overlay_open() && point.x <= NAVIGATION_WIDTH;
         let refresh = vm.panel() == Panel::None
             && !vm.navigation_overlay_open()

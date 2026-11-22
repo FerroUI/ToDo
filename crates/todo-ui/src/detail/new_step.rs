@@ -31,7 +31,7 @@ pub(super) fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
             .foreground(p.accent).background("Transparent").border_thickness(0.0)
             .on_changed(TextBox::text_property(), move |text| draft.set_step_draft(id, text.clone().unwrap_or_default()))
             .on_key_down(move |event| {
-                if event.key == Key::Return {
+                if event.key == Key::Return && !crate::editing::is_composing(event) {
                     if let Some(field) = event.source().and_then(|source| source.cast::<TextBox>()) { submit(&add, id, &field); }
                     event.set_handled(true);
                 }

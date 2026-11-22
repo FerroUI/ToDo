@@ -48,7 +48,7 @@ pub(super) fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
                 .child(action(
                     "SwipeMove",
                     "Move to list",
-                    Icon::List,
+                    Icon::MoveToList,
                     "#366F76",
                     move |event| {
                         if let Some(id) = close_and_id(event) {

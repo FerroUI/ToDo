@@ -34,7 +34,7 @@ pub(super) fn view(
                     changed.search_changed(typing.clone(), value.clone().unwrap_or_default());
                 })
                 .on_key_down(move |event| {
-                    if event.key == Key::Return {
+                    if event.key == Key::Return && !crate::editing::is_composing(event) {
                         enter.submit_search(&update);
                         event.set_handled(true);
                     }

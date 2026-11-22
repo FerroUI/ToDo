@@ -55,7 +55,7 @@ fn content(vm: Rc<AppViewModel>, my_day: bool, drafts: Rc<Drafts>) -> Element {
                         .padding((4.0, 9.0))
                         .foreground(p.text)
                         .on_key_down(move |event| {
-                            if event.key == Key::Return {
+                            if event.key == Key::Return && !crate::editing::is_composing(event) {
                                 keyboard.submit_task(&enter);
                                 event.set_handled(true);
                             }

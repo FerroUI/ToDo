@@ -1,6 +1,6 @@
 use super::{drag_session::DragSession, hub::Hub};
 use ferroui_base::input::gesture_recognizers::GestureRecognizer;
-use ferroui_base::input::{IPointer, Pointer};
+use ferroui_base::input::{IPointer, Pointer, PointerEventArgs};
 use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
 use ferroui_base::{
     ferro_class, ferro_impl_classes, instantiate, FerroObjectImpl, Point, Ref, StyledElementImpl,
@@ -12,7 +12,10 @@ use std::{
     cell::RefCell,
     rc::{Rc, Weak},
 };
-use todo_state::{gestures::TouchTrack, AppViewModel};
+use todo_state::{
+    gestures::{TouchTrack, EDGE_WIDTH},
+    AppViewModel,
+};
 
 #[repr(C)]
 pub(super) struct ShellRecognizer {
@@ -94,6 +97,15 @@ pub(crate) fn shell_feedback(dark: bool) -> Element {
 }
 
 impl ShellRecognizer {
+    /// Safe-area padding can offset TodoApp inside its TopLevel. Every recognizer
+    /// reserves this same shell-local edge while movement stays in root coordinates.
+    pub fn contains_back_edge(&self, event: &PointerEventArgs) -> bool {
+        self.root.upgrade().is_some_and(|root| {
+            let point = event.get_position(Some(&root));
+            (0.0..=EDGE_WIDTH).contains(&point.x)
+        })
+    }
+
     pub fn cancel(&self) {
         let session = self.session.borrow_mut().take();
         let drag = self.drag.borrow_mut().take();

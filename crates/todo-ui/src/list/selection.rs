@@ -47,7 +47,7 @@ pub(super) fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
                             move || complete.complete_selected_tasks(),
                         )))
                         .child(border().is_enabled(count > 0).child(icon_button(
-                            Icon::List,
+                            Icon::MoveToList,
                             "Move selected tasks",
                             move || move_tasks.show_panel(Panel::MoveSelection),
                         )))

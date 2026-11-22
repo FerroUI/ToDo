@@ -228,9 +228,11 @@ pub fn task(vm: Rc<AppViewModel>, id: Id) -> Element {
         .child(action_button(Icon::Calendar, "Set due date", move || {
             due.show_panel(Panel::DueDate(id))
         }))
-        .child(action_button(Icon::List, "Move task to…", move || {
-            move_task.show_panel(Panel::MoveTask(id))
-        }))
+        .child(action_button(
+            Icon::MoveToList,
+            "Move task to…",
+            move || move_task.show_panel(Panel::MoveTask(id)),
+        ))
         .child(action_button(Icon::Copy, "Duplicate task", move || {
             duplicate.dispatch(Action::DuplicateTask(id));
             duplicate.show_panel(Panel::None);

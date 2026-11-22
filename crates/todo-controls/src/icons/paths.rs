@@ -21,6 +21,9 @@ pub(super) fn data(icon: Icon) -> &'static str {
         Icon::List => {
             "M3,4 H5 V6 H3 Z M8,4 H22 V5.5 H8 Z M3,11 H5 V13 H3 Z M8,11 H22 V12.5 H8 Z M3,18 H5 V20 H3 Z M8,18 H22 V19.5 H8 Z"
         }
+        Icon::MoveToList => {
+            "M3,3 H5 V5 H3 Z M8,3 H22 V4.5 H8 Z M3,10 H5 V12 H3 Z M8,10 H22 V11.5 H8 Z M3,17 H5 V19 H3 Z M8,17.25 H19.1 L15.4,13.6 L16.5,12.5 L22,18 L16.5,23.5 L15.4,22.4 L19.1,18.75 H8 Z"
+        }
         Icon::Search => {
             "F0 M10,2 A8,8 0 1 1 10,18 A8,8 0 1 1 10,2 Z M10,3.5 A6.5,6.5 0 1 0 10,16.5 A6.5,6.5 0 1 0 10,3.5 Z M15,16 L16,15 L23,22 L22,23 Z"
         }

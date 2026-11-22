@@ -8,7 +8,7 @@ use ferroui_base::input::{
     IPointer, PointerEventArgs, PointerPressedEventArgs, PointerReleasedEventArgs, PointerType,
 };
 use std::rc::Rc;
-use todo_state::gestures::{Axis, TouchTrack, EDGE_WIDTH};
+use todo_state::gestures::{Axis, TouchTrack};
 
 impl GestureRecognizerImpl for SidebarRecognizer {
     fn pointer_pressed(this: &Self, event: &PointerPressedEventArgs) {
@@ -16,7 +16,7 @@ impl GestureRecognizerImpl for SidebarRecognizer {
             event.pointer().type_(),
             PointerType::Touch | PointerType::Pen
         ) || !event.pointer().is_primary()
-            || event.get_position(None).x <= EDGE_WIDTH
+            || hub::shell(&this.base).is_some_and(|shell| shell.contains_back_edge(event))
         {
             return;
         }

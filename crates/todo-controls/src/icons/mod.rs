@@ -17,6 +17,7 @@ pub enum Icon {
     Calendar,
     Home,
     List,
+    MoveToList,
     Search,
     Menu,
     Add,

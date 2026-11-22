@@ -81,7 +81,8 @@ pub fn repeat(vm: Rc<AppViewModel>, id: Id) -> Element {
                             .max_length(5)
                             .on_changed(TextBox::text_property(), move |_| error.set(String::new()))
                             .on_key_down(move |event| {
-                                if event.key == Key::Return {
+                                if event.key == Key::Return && !crate::editing::is_composing(event)
+                                {
                                     enter();
                                     event.set_handled(true);
                                 }

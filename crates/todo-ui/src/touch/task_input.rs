@@ -12,7 +12,7 @@ use ferroui_controls::primitives::ToggleButton;
 use ferroui_controls::{Button, CheckBox, Control, TextBox};
 use std::rc::Rc;
 use todo_state::{
-    gestures::{settle_swipe, swipe_offset, Axis, TouchTrack, EDGE_WIDTH},
+    gestures::{settle_swipe, swipe_offset, Axis, TouchTrack},
     Panel,
 };
 
@@ -31,7 +31,7 @@ impl GestureRecognizerImpl for TaskRecognizer {
         let Some(vm) = this.vm.upgrade() else { return };
         let Some(id) = task_id(&root) else { return };
         let point = event.get_position(None);
-        if point.x <= EDGE_WIDTH
+        if hub::shell(&this.base).is_some_and(|shell| shell.contains_back_edge(event))
             || is_action(event)
             || is_editor_or_toggle(event)
             || vm.panel() != Panel::None

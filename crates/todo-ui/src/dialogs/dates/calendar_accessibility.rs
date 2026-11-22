@@ -22,6 +22,7 @@ pub(super) fn attach(calendar: &Ref<Calendar>) {
     let changed = calendar.property_changed(move |event| {
         if event.property() == Calendar::display_date_property().as_property()
             || event.property() == Calendar::display_mode_property().as_property()
+            || event.property() == Calendar::selected_date_property().as_property()
         {
             changed_refresh.schedule();
         }
@@ -87,10 +88,24 @@ fn update(calendar: &Calendar) {
             Some("PART_PreviousButton") => Some(format!("Previous {period}")),
             Some("PART_NextButton") => Some(format!("Next {period}")),
             Some("PART_HeaderButton") => {
-                let caption = button
+                let mut caption = button
                     .content()
                     .and_then(|value| value.downcast_ref::<String>().cloned())
                     .unwrap_or_default();
+                if calendar.display_mode() == CalendarMode::Month {
+                    // Match the app's English month-first labels without changing
+                    // the framework culture or the native year/decade captions.
+                    let date = calendar.display_date();
+                    if let Some(date) =
+                        Date::from_ymd_opt(date.year(), date.month() as u32, date.day() as u32)
+                    {
+                        let formatted = date.format("%B %Y").to_string();
+                        if caption != formatted {
+                            button.set_content(Some(Rc::new(formatted.clone())));
+                            caption = formatted;
+                        }
+                    }
+                }
                 Some(format!("{caption}, choose month and year"))
             }
             _ => button.data_context().and_then(|value| {

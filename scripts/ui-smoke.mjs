@@ -11,15 +11,19 @@ import { verifyListPresentation } from "./ui/list-presentation.mjs";
 import { verifySidebar } from "./ui/sidebar.mjs";
 import { verifyScheduling } from "./ui/scheduling.mjs";
 import { verifyDetailPresentation } from "./ui/detail-review.mjs";
+import { verifySettingsPresentation } from "./ui/settings-review.mjs";
 import { verifyTouch } from "./ui/touch.mjs";
+import { runReviewGroups } from "./ui/review-groups.mjs";
+import { verifyDemo } from "./ui/demo.mjs";
 
 const [site, output = "test-results/ui", ...extra] = process.argv.slice(2);
 if (!site || extra.length) throw new Error("usage: ui-smoke.mjs <built-site> [output-directory]");
 const ui = await createHarness(site, output);
-const { page, snapshot, saved, healthy, until, ready, control, clickControl, clickText,
-  focusControl, edit, navigate, capture } = ui;
+const { page, snapshot, saved, until, ready, control, clickControl, clickText,
+  focusControl, edit, navigate } = ui;
 
 let failure;
+let reviewFailures = [];
 try {
   await page.navigate();
   await ready();
@@ -133,37 +137,14 @@ try {
   await verifyAdaptive(ui, { taskId: task.id });
   await verifyNativeMenus(ui);
   await verifyScheduling(ui, task.id);
-  await verifyDetailPresentation(ui, task.id);
-  await verifyListPresentation(ui);
-  await verifyTouch(ui);
-  await verifySidebar(ui);
-
-  const demo = new URL(page.url);
-  demo.search = "?demo=1&nooffline=1";
-  await navigate("Page.navigate", { url: demo.href });
-  await control(element => element.type.endsWith("TextBlock") && element.text === "Plan the week ahead", "demo task rows");
-  await capture("my-day");
-  await clickText("Review the new designs");
-  await control(element => element.name === "TaskTitle", "demo task details");
-  await capture("details");
-  await page.press("Escape");
-  await until(async () => !(await snapshot()).elements.some(element => element.name === "TaskTitle"), "Escape closes task details");
-  const chooseTheme = async theme => {
-    await clickControl(element => element.automationName === "Settings", "Settings button");
-    await clickText(`${theme} theme`);
-    await until(() => page.evaluate(`JSON.parse(localStorage.getItem('ferroui.todo.demo.v1') || '{}').settings?.theme === ${JSON.stringify(theme)}`), `${theme} theme is saved`);
-    await clickControl(element => element.automationName === "Close settings", "Close settings button");
-    await until(async () => !(await snapshot()).elements.some(element => element.automationName === "Close settings"), "Settings closes");
-  };
-  await chooseTheme("Dark");
-  await capture("my-day-dark");
-  await chooseTheme("Light");
-  await page.resize(390, 844);
-  await until(async () => (await snapshot()).width < 400, "the narrow viewport");
-  await control(element => element.name === "NewTask", "narrow task composer");
-  await capture("my-day-narrow");
-  healthy();
-  console.log(`ok: desktop, task-detail, dark-theme and narrow renders; ${page.requests.length} requests; previews in ${output}`);
+  reviewFailures = await runReviewGroups(ui, output, [
+    { name: "detail", run: () => verifyDetailPresentation(ui, task.id) },
+    { name: "settings", run: () => verifySettingsPresentation(ui) },
+    { name: "list", run: () => verifyListPresentation(ui) },
+    { name: "touch", run: () => verifyTouch(ui) },
+    { name: "sidebar", run: () => verifySidebar(ui) },
+    { name: "demo", run: () => verifyDemo(ui, output) },
+  ]);
 } catch (error) {
   failure = error;
   // Keep the primary error even if a failed renderer cannot provide a diagnostic snapshot.
@@ -172,5 +153,9 @@ try {
 } finally {
   try { await writeFile(path.join(output, "browser.log"), page.log.join("\n")); } catch {}
   try { await page.close(); } catch (error) { failure ??= error; }
+}
+if (reviewFailures.length) {
+  throw new AggregateError([...reviewFailures.map(review => review.error), ...(failure ? [failure] : [])],
+    `UI review groups failed: ${reviewFailures.map(review => `${review.name} (${review.phase})`).join(", ")}${failure ? "; gate cleanup also failed" : ""}`);
 }
 if (failure) throw failure;

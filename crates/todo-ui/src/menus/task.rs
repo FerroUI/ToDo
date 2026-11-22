@@ -94,7 +94,7 @@ pub(super) fn items(vm: Rc<AppViewModel>, id: Id) -> Vec<Element> {
         } else {
             "Move task to"
         },
-        Icon::List,
+        Icon::MoveToList,
         move_items,
     ));
     items.push(batch(

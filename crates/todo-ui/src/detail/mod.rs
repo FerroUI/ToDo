@@ -2,6 +2,7 @@ mod action_row;
 mod attachments;
 mod fields;
 mod new_step;
+mod notes_key;
 mod schedule_menu;
 mod scheduling;
 mod step_menu;
@@ -147,12 +148,15 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
         .map(|list| list.name.clone())
         .unwrap_or_default();
     content = content.child(
-        action_row::action(Icon::List, &format!("Move from {list_name}"), p.secondary).on_click(
-            move |event| {
-                move_task.show_panel(Panel::MoveTask(id));
-                event.set_handled(true);
-            },
-        ),
+        action_row::action(
+            Icon::MoveToList,
+            &format!("Move from {list_name}"),
+            p.secondary,
+        )
+        .on_click(move |event| {
+            move_task.show_panel(Panel::MoveTask(id));
+            event.set_handled(true);
+        }),
     );
     border()
         .key(format!("task-detail-{id}"))
