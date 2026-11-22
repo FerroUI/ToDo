@@ -43,15 +43,35 @@ export async function verifyAdaptive(ui, { taskId }) {
 
   // A deliberate desktop choice survives both compact and medium layouts.
   await resize(1024, 844);
+  await verifyNavigationLabel(ui, "Hide navigation");
   await clickControl(element => element.automationName === "Hide navigation", "hide desktop navigation");
   await until(async () => !named(await snapshot(), "SearchTasks"), "manual navigation hiding");
+  await verifyNavigationLabel(ui, "Show navigation");
   await resize(390, 844);
   await resize(1024, 844);
   assert(!named(await snapshot(), "SearchTasks"), "resizing must retain the hidden navigation preference");
+  await verifyNavigationLabel(ui, "Show navigation");
   await clickControl(element => element.automationName === "Show navigation", "restore desktop navigation");
   await control(element => element.name === "SearchTasks", "restored desktop search");
+  await verifyNavigationLabel(ui, "Hide navigation");
+  await resize(320, 844);
+  await resize(1024, 844);
+  await control(element => element.name === "SearchTasks", "navigation restored after compact layout");
+  await verifyNavigationLabel(ui, "Hide navigation");
   console.log("ok: 320/390 single panes, 760/800 two panes and overlay navigation, 980/1024 three panes; bounded dialogs and keyboard focus return");
   await verifyDrafts(ui, taskId);
+}
+
+async function verifyNavigationLabel({ page, until }, label) {
+  // Read the actual accessibility DOM, not only the control's current property.
+  // Retained controls must notify automation peers when the label changes.
+  await until(() => page.evaluate(`(() => {
+    const controls = [...document.querySelectorAll('[role="button"][aria-label]')]
+      .filter(element => /^(Show|Hide) navigation$/.test(element.getAttribute('aria-label')));
+    return controls.length === 1
+      && controls[0].getAttribute('aria-label') === ${JSON.stringify(label)}
+      && controls[0].getAttribute('aria-description') === ${JSON.stringify(label)};
+  })()`), `screen-reader navigation name and help update to ${label}`);
 }
 
 async function verifyReducedHeight(ui, title) {
