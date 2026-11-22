@@ -45,6 +45,21 @@ export async function verifySettingsPresentation(ui) {
     await until(async () => !(await snapshot()).elements.some(element => element.automationName === "Close settings"), "Settings is dismissed");
   }
   await resize(1280, 800);
+  const originalList = (await saved()).lists.find(list => list.name === "Test list");
+  assert(originalList, "the newly-created list remains available for theme review");
+  await clickControl(button(originalList.name), "newly-created list for theme review");
+  const selectedCurrent = async width => {
+    await control(button("Current list theme"), "the existing color is represented");
+    const choices = (await snapshot()).elements.filter(element =>
+      element.type.endsWith("Button") && element.automationName?.endsWith(" list theme"));
+    const selected = choices.filter(element => element.automationItemStatus === "Selected");
+    assert.equal(selected.length, 1, "exactly one list-theme choice is selected");
+    assert.equal(selected[0].automationName, "Current list theme");
+    for (const choice of choices) {
+      assert(choice.hit, `${choice.automationName} stays reachable`);
+      bounded(choice, width, choice.automationName);
+    }
+  };
   // The palette dialog must stay legible in either application theme.
   const changeTheme = async theme => {
     await clickControl(button("Settings"), "theme preference");
@@ -57,8 +72,17 @@ export async function verifySettingsPresentation(ui) {
     await clickControl(button("List options"), "list theme menu");
     await clickControl(element => element.type.endsWith("MenuItem") && element.automationName === "Change theme", "change list theme");
     await control(button("Blue list theme"), "named list-theme swatches");
+    await selectedCurrent(1280);
     await capture(`list-theme-dialog-${theme.toLowerCase()}`);
-    await page.press("Escape");
+    await resize(320, 844);
+    await selectedCurrent(320);
+    await capture(`list-theme-dialog-${theme.toLowerCase()}-narrow`);
+    await clickControl(button("Current list theme"), "keep the current list theme");
+    await until(async () => !(await snapshot()).elements.some(element => element.automationName === "Current list theme"), "keeping the current theme closes the picker");
+    const unchanged = (await saved()).lists.find(list => list.id === originalList.id);
+    assert.equal(unchanged.color, originalList.color, "reviewing or keeping Current must preserve the stored accent");
+    assert.equal(unchanged.background, originalList.background, "keeping Current must preserve the stored background");
+    await resize(1280, 800);
   }
   await changeTheme(originalTheme);
 }

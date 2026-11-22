@@ -49,13 +49,14 @@ pub(crate) fn attach_sidebar_source(root: &Ref<Button>, vm: Rc<AppViewModel>) {
     let holding = root.add_handler(InputElement::holding_event(), move |_, event| {
         if event.holding_state() == HoldingState::Started
             && matches!(event.pointer_type(), PointerType::Touch | PointerType::Pen)
-            && weak
-                .upgrade()
-                .is_some_and(|recognizer| recognizer.hold(event.pointer_event_args().pointer()))
         {
-            // Delay the existing menu until a stationary release. Movement after Holding
-            // belongs to organization, rather than opening a popup beneath a drag.
+            // Own both live and late hold notifications. Captured input can leave the native
+            // hold timer pending after scrolling/dragging; it must not open a delayed menu.
+            // A valid stationary hold opens the menu only on our qualified release path.
             event.set_handled(true);
+            if let Some(recognizer) = weak.upgrade() {
+                recognizer.hold(event.pointer_event_args().pointer());
+            }
         }
     });
     let weak = recognizer.downgrade();

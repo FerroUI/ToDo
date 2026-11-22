@@ -11,7 +11,10 @@ export async function verifySidebar(ui) {
   await resize(1280, 1000);
   const createList = async name => {
     await clickControl(button("New list"), "New list");
-    await edit("ListName", name, true);
+    await edit("ListName", name);
+    await until(async () => (await control(element => element.name === "ListName", "list-name editor")).text === name,
+      `the complete Unicode name ${name} reaches the editor`);
+    await page.press("Enter");
     return until(async () => (await saved()).lists.find(list => list.name === name), `saved ${name}`);
   };
   const createGroup = async name => {

@@ -49,10 +49,12 @@ impl TaskRecognizer {
             if event.holding_state() == HoldingState::Started
                 && matches!(event.pointer_type(), PointerType::Touch | PointerType::Pen)
             {
+                // Captured gesture input bypasses the native routed hold timer's release
+                // notification. Consume a late Started too: only our live pending session
+                // may select, and a completed swipe must never fall through to a context menu.
+                event.set_handled(true);
                 if let Some(recognizer) = weak.upgrade() {
-                    if recognizer.hold(event.pointer_event_args().pointer()) {
-                        event.set_handled(true);
-                    }
+                    recognizer.hold(event.pointer_event_args().pointer());
                 }
             }
         });

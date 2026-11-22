@@ -198,6 +198,7 @@ pub fn inspect_view() -> String {
         });
         Some(json!({ "type": visual.get_type().name(), "name": visual.name(), "text": text,
             "automationName": AutomationProperties::get_name(&visual),
+            "automationItemStatus": AutomationProperties::get_item_status(&visual),
             "focused": visual.cast::<InputElement>().is_some_and(|input| input.is_focused()),
             "x": origin.x, "y": origin.y, "width": bounds.width, "height": bounds.height, "hit": hit }))
     }).collect::<Vec<_>>();

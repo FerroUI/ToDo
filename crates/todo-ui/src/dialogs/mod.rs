@@ -5,6 +5,7 @@ mod help;
 mod menus;
 mod name;
 mod step_menu;
+mod themes;
 
 use crate::palette;
 use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
@@ -56,7 +57,7 @@ pub fn view(vm: Rc<AppViewModel>) -> Element {
             forms::move_to(vm.clone())
         }
         Panel::Sort => menus::sort(vm.clone()),
-        Panel::Themes => menus::themes(vm.clone()),
+        Panel::Themes => themes::view(vm.clone()),
         Panel::TaskMenu(id) => menus::task(vm.clone(), id),
         Panel::StepMenu { task_id, step_id } => step_menu::view(vm.clone(), task_id, step_id),
         Panel::Help => forms::help(vm.clone()),

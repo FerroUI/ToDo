@@ -1,8 +1,6 @@
-use crate::palette;
-use ferroui_base::layout::{HorizontalAlignment as H, Orientation};
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{action_button, Icon, ALL_LIST_THEMES};
+use todo_controls::{action_button, Icon};
 use todo_domain::{Action, Id, SortOrder, View, TASKS_LIST};
 use todo_state::{AppViewModel, Panel};
 
@@ -87,87 +85,6 @@ pub fn sort(vm: Rc<AppViewModel>) -> Element {
         ));
     }
     content.into()
-}
-
-pub fn themes(vm: Rc<AppViewModel>) -> Element {
-    let p = palette(&vm);
-    let selected_accent = vm.accent();
-    let mut swatches = wrap_panel()
-        .orientation(Orientation::Horizontal)
-        .item_width(104.0)
-        .item_height(76.0);
-    for theme in ALL_LIST_THEMES {
-        let select = vm.clone();
-        let color = theme.accent.to_string();
-        swatches = swatches.child(
-            button()
-                .class("todo-flat")
-                .width(94.0)
-                .height(68.0)
-                .margin(4.0)
-                .padding(0.0)
-                .border_thickness(2.0)
-                .border_brush(if selected_accent.eq_ignore_ascii_case(theme.accent) {
-                    p.accent
-                } else {
-                    "Transparent"
-                })
-                .automation_properties_name(format!("{} list theme", theme.name))
-                .tool_tip_tip(theme.name)
-                .on_click(move |_| {
-                    if let View::List(id) = select.view() {
-                        select.dispatch(Action::SetListTheme {
-                            id,
-                            color: color.clone(),
-                            background: None,
-                        });
-                        select.show_panel(Panel::None);
-                    } else {
-                        select.set_smart_color(color.clone());
-                        select.show_panel(Panel::None);
-                    }
-                })
-                .child(
-                    border()
-                        .background(if vm.is_dark() {
-                            theme.dark_background
-                        } else {
-                            theme.background
-                        })
-                        .corner_radius(4.0)
-                        .padding(10.0)
-                        .child(
-                            stack_panel()
-                                .spacing(7.0)
-                                .child(
-                                    border()
-                                        .height(5.0)
-                                        .width(54.0)
-                                        .horizontal_alignment(H::Left)
-                                        .background(theme.accent)
-                                        .corner_radius(2.0),
-                                )
-                                .child(
-                                    text_block()
-                                        .text(theme.name)
-                                        .font_size(12.0)
-                                        .foreground(p.text),
-                                ),
-                        ),
-                ),
-        );
-    }
-    stack_panel()
-        .spacing(12.0)
-        .child(
-            text_block()
-                .text("Choose a color for this list")
-                .font_size(13.0)
-                .foreground(p.secondary)
-                .margin(8.0),
-        )
-        .child(swatches)
-        .into()
 }
 
 pub fn task(vm: Rc<AppViewModel>, id: Id) -> Element {

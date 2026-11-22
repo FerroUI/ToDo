@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { open, sleep, colours } from "../../FerroUI/scripts/browser/harness.mjs";
+import { typeText } from "./text-input.mjs";
 
 // Shared driver over the actual compiled controls. No application commands bypass input handling.
 export async function createHarness(site, output) {
@@ -69,7 +70,7 @@ export async function createHarness(site, output) {
     const field = await control(element => element.name === name, name);
     await page.click(field.x + field.width / 2, field.y + field.height / 2);
     await page.press("a", ["ctrl"]);
-    await page.type(text);
+    await typeText(page, text);
     // Empty typing emits no key, so explicitly remove the selected contents.
     if (!text) await page.press("Backspace");
     if (enter) await page.press("Enter");
