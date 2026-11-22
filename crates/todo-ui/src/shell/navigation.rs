@@ -1,6 +1,7 @@
 use super::Drafts;
 use ferroui_base::{Ref, WeakRef};
-use ferroui_controls::{ContextMenu, Control, Grid};
+use ferroui_controls::primitives::FlyoutBase;
+use ferroui_controls::{ContextMenu, Control, Grid, TextBox};
 use std::rc::Rc;
 use todo_domain::View;
 use todo_state::{AppViewModel, HostRequest, Panel};
@@ -37,7 +38,7 @@ pub(super) fn attach(root: &Ref<Grid>, vm: Rc<AppViewModel>, drafts: Rc<Drafts>)
             available_vm.upgrade().is_some_and(|vm| available(&vm))
                 || available_root
                     .upgrade()
-                    .is_some_and(|root| open_menu(&root).is_some())
+                    .is_some_and(|root| popup_open(&root))
         }),
     );
 }
@@ -86,7 +87,31 @@ fn open_menu(root: &Control) -> Option<Ref<ContextMenu>> {
         .find_map(|control| control.context_menu().filter(|menu| menu.is_open()))
 }
 
-fn close_menu(root: &Control) -> bool {
+fn open_editor_flyout(root: &Control) -> Option<Ref<FlyoutBase>> {
+    root.get_visual_descendants()
+        .filter_map(|visual| visual.cast::<TextBox>())
+        .find_map(|editor| {
+            let owner: &Control = &editor;
+            editor.context_flyout().filter(|flyout| {
+                flyout.is_open()
+                    && flyout
+                        .target()
+                        .is_some_and(|target| std::ptr::eq(&*target, owner))
+            })
+        })
+}
+
+fn popup_open(root: &Control) -> bool {
+    open_editor_flyout(root).is_some() || open_menu(root).is_some()
+}
+
+pub(super) fn dismiss_popup(root: &Control) -> bool {
+    // Native touch selection uses a transient flyout: focus stays in the editor,
+    // so Escape does not route through the menu. Dismiss it before its containing pane.
+    if let Some(flyout) = open_editor_flyout(root) {
+        flyout.hide();
+        return true;
+    }
     open_menu(root).is_some_and(|menu| {
         menu.close();
         true
@@ -101,7 +126,7 @@ pub fn navigate_back(root: &Control) -> bool {
         return false;
     };
     if let Some(root) = actions.root.upgrade() {
-        if close_menu(&root) {
+        if dismiss_popup(&root) {
             return true;
         }
         // Back cancels transient naming just like Escape. Flushing first would commit
@@ -116,7 +141,7 @@ pub fn navigate_back(root: &Control) -> bool {
 
 pub fn can_navigate_back(root: &Control) -> bool {
     actions(root).is_some_and(|actions| {
-        actions.vm.upgrade().is_some_and(|vm| available(&vm)) || open_menu(root).is_some()
+        actions.vm.upgrade().is_some_and(|vm| available(&vm)) || popup_open(root)
     })
 }
 

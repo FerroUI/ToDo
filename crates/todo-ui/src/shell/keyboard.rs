@@ -9,7 +9,9 @@ pub(super) fn handle(root: &Control, vm: &AppViewModel, drafts: &Drafts, event: 
         return;
     }
     if event.key == Key::Escape {
-        super::navigation::back(vm, drafts, false);
+        if !super::navigation::dismiss_popup(root) {
+            super::navigation::back(vm, drafts, false);
+        }
         event.set_handled(true);
         return;
     }

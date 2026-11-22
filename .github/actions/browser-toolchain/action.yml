@@ -73,6 +73,17 @@ runs:
         path: ${{ steps.compiled_key.outputs.paths }}
         key: ${{ steps.compiled_key.outputs.key }}
         restore-keys: ${{ steps.compiled_key.outputs.restore-prefix }}
+    - name: Retain application freshness only for an exact compilation hit
+      shell: bash
+      env:
+        TODO_CACHE_HIT: ${{ steps.compiled.outputs.cache-hit }}
+        TODO_CACHE_PRIMARY_KEY: ${{ steps.compiled.outputs.cache-primary-key }}
+        TODO_CACHE_MATCHED_KEY: ${{ steps.compiled.outputs.cache-matched-key }}
+      run: |
+        python3 scripts/ci-browser-cache.py restore-app \
+          --cache-hit "$TODO_CACHE_HIT" \
+          --primary-key "$TODO_CACHE_PRIMARY_KEY" \
+          --matched-key "$TODO_CACHE_MATCHED_KEY"
     - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
       with:
         node-version: 24

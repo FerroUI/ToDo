@@ -21,10 +21,13 @@ A second pass starts from `cf00e258d95b30f0f41ce9b90a6dd68e6b95a72e` and address
 | Compact numeric/time fields | The native clear button consumed 30px inside narrow interval/time editors | Apply the same scoped style to these value fields, preserving normal keyboard editing |
 | Attachment removal | Deleting the focused removal control could leave focus on an unmounted element | Move focus to the retained Add file action before dispatching removal |
 | Help and composition | Browser new-task help omitted the required Alt modifier; refresh/Back were undocumented; the legacy name form could submit Return during composition | Match help to the existing platform routes and use the shared composition guard before name submission |
+| Native edit menus | A touch-selection flyout retains editor focus, allowing Escape to reach the shell beneath it | Dismiss the open native edit surface before the drawer or view; verify text-selection menus and ordinary editor drags separately, retaining focus, draft, and document checks |
 
 The regression scenarios inspect actual FerroUI layout bounds and native `PART_TextPresenter` ownership. They compare composer centers with its rendered container, compare its columns with actual task controls/text, and verify empty, focused, typed, and recognized-date states at desktop and narrow widths. Existing three-pane checks now verify the same primary-row alignment. Rename checks compare geometry before, during, and after editing, rather than assuming a fixed title or row height. Search and recurrence checks verify the absence of the duplicate clear template part. Populated Suggestions captures and an add/remove round trip cover both desktop and compact layouts.
 
 These scenarios extend the existing browser gate; they add no workflow, browser build, or platform matrix. The application continues to use native WinUI templates, shared Rust controls, reactive drafts, and domain commands. No CSS offsets, HTML replacement editors, or framework-submodule patches are introduced by this pass.
+
+The review also found that the immutable compilation cache key omitted application Rust sources, so a source change could restore old app artifacts under an exact hit and prevent saving their replacements. The key now covers tracked compiler inputs, including embedded assets. App-source timestamp normalization is restricted to a verified exact key match; fallback restores retain fresh application timestamps so Cargo must validate changed sources. Lightweight fixture checks cover source/asset changes, QA-only changes, exact hits, fallback hits, and dirty or mismatched inputs within the existing test gate.
 
 ## Findings addressed in this round
 

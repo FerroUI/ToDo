@@ -38,7 +38,8 @@ export async function composerGeometry(ui, label, { hint = false, focused, text 
 function alignWithTask({ view, plus, submit }, title) {
   const row = one(view.elements, button(title), "comparison task row");
   const inRow = element => element.hit && centerY(element) >= row.y && centerY(element) <= bottom(row);
-  const complete = one(view.elements, element => inRow(element) && button("Mark as completed")(element), "task completion");
+  const complete = one(view.elements, element => inRow(element) && element.type === "CheckBox"
+    && element.automationName === "Mark as completed", "task completion");
   const importance = one(view.elements, element => inRow(element)
     && (button("Mark as important")(element) || button("Remove importance")(element)), "task importance");
   const label = one(view.elements, element => /TextBlock$/.test(element.type) && element.text === title, "task title text");

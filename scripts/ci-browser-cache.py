@@ -23,7 +23,7 @@ EXCLUDED = {".git", "node_modules", "target"}
 
 
 def git(directory, *args):
-    return subprocess.check_output(["git", "-C", str(directory), *args])
+    return subprocess.check_output(["git", "--no-optional-locks", "-C", str(directory), *args])
 
 
 def pins():
@@ -50,7 +50,7 @@ def pinned_sources():
     expected = git(ROOT, "rev-parse", "HEAD:FerroUI").decode().strip()
     if commit != expected:
         raise RuntimeError("FerroUI must match the application's committed submodule pin")
-    subprocess.run(["git", "-C", str(FRAMEWORK), "diff", "--quiet", "HEAD", "--"], check=True)
+    subprocess.run(["git", "--no-optional-locks", "-C", str(FRAMEWORK), "diff", "--quiet", "HEAD", "--"], check=True)
     timestamp = int(git(FRAMEWORK, "show", "-s", "--format=%ct", "HEAD")) * 1_000_000_000
     files, directories = [], set()
     for entry in git(FRAMEWORK, "ls-files", "--stage", "-z").split(b"\0"):
@@ -73,6 +73,30 @@ def pinned_sources():
     return commit, timestamp, files, directories
 
 
+def application_inputs():
+    """Include tracked compiler inputs, not the separately staged browser runtime/QA."""
+    files = set()
+    for entry in git(
+        ROOT, "ls-files", "--stage", "-z", "--", "crates", ".cargo",
+        "Cargo.toml", "Cargo.lock", "rust-toolchain", "rust-toolchain.toml",
+    ).split(b"\0"):
+        if not entry:
+            continue
+        metadata, relative = entry.split(b"\t", 1)
+        relative = Path(os.fsdecode(relative))
+        if metadata.split()[0] == b"160000" or EXCLUDED.intersection(relative.parts):
+            continue
+        if "wwwroot" not in relative.parts:
+            files.add(ROOT / relative)
+    return files
+
+
+def normalize(files, directories, timestamp):
+    for path in [*files, *sorted(directories, key=lambda p: len(p.parts), reverse=True)]:
+        stat = path.stat(follow_symlinks=False)
+        os.utime(path, ns=(stat.st_atime_ns, timestamp), follow_symlinks=False)
+
+
 def cache_key(commit):
     digest = hashlib.sha256()
     inputs = {
@@ -82,9 +106,7 @@ def cache_key(commit):
         ROOT / "scripts/build-browser.sh",
         ROOT / "scripts/ci-browser-cache.py",
         ROOT / ".github/actions/browser-toolchain/action.yml",
-        *ROOT.glob("crates/*/Cargo.toml"),
-        *ROOT.glob("crates/*/build.rs"),
-        *ROOT.glob("rust-toolchain*"),
+        *application_inputs(),
     }
     for path in sorted(inputs):
         digest.update(str(path.relative_to(ROOT)).encode() + b"\0")
@@ -115,9 +137,7 @@ def prepare(dry_run):
         # their derived ancestor directories. Never walk or touch .git,
         # untracked/generated files, node_modules or target contents. The full
         # submodule SHA in the exact cache key prevents reuse across revisions.
-        for path in [*files, *sorted(directories, key=lambda p: len(p.parts), reverse=True)]:
-            stat = path.stat(follow_symlinks=False)
-            os.utime(path, ns=(stat.st_atime_ns, timestamp), follow_symlinks=False)
+        normalize(files, directories, timestamp)
     key = cache_key(commit)
     emit("key", key)
     # Keep canonical toolchain/framework artifacts usable across app manifest and
@@ -129,13 +149,50 @@ def prepare(dry_run):
     print(f"Pinned source timestamps: {len(files)} files, {len(directories)} source directories; dry-run={dry_run}")
 
 
+def restore_app(cache_hit, primary_key, matched_key, dry_run=False):
+    # A prefix hit may contain a different application. Keep fresh checkout times
+    # so Cargo cannot mistake changed content for an older compiled dependency.
+    if cache_hit != "true":
+        print("Application timestamps unchanged: no exact compilation cache hit")
+        return False
+    commit, timestamp, _, _ = pinned_sources()
+    expected = cache_key(commit)
+    if primary_key != expected or matched_key != expected:
+        raise RuntimeError("Restored compilation key does not match current compiler inputs")
+    files = sorted(application_inputs())
+    subprocess.run(
+        ["git", "--no-optional-locks", "-C", str(ROOT), "diff", "--quiet", "HEAD", "--",
+         *[str(path.relative_to(ROOT)) for path in files]], check=True,
+    )
+    if not dry_run:
+        if os.environ.get("GITHUB_ACTIONS") != "true":
+            raise RuntimeError("Source timestamp normalization is CI-only; use --dry-run locally")
+        directories = set()
+        for path in files:
+            directory = path.parent
+            while directory != ROOT:
+                directories.add(directory)
+                directory = directory.parent
+        # Exact content equality, not a commit-time heuristic, makes these old
+        # timestamps safe. Include watched source directories; leave generated,
+        # untracked and runtime files themselves untouched.
+        normalize(files, directories, timestamp)
+    print(f"Exact application cache verified: {len(files)} compiler inputs; dry-run={dry_run}")
+    return True
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("pins", "prepare"))
+    parser.add_argument("command", choices=("pins", "prepare", "restore-app"))
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--cache-hit", default="")
+    parser.add_argument("--primary-key", default="")
+    parser.add_argument("--matched-key", default="")
     arguments = parser.parse_args()
     if arguments.command == "pins":
         for name, value in pins().items():
             emit(name, value)
-    else:
+    elif arguments.command == "prepare":
         prepare(arguments.dry_run)
+    else:
+        restore_app(arguments.cache_hit, arguments.primary_key, arguments.matched_key, arguments.dry_run)
