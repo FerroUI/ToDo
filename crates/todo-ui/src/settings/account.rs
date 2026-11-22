@@ -20,7 +20,9 @@ pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
         return content
             .child(
                 text_block()
-                    .text("Connect Microsoft To Do and Planner in the browser app.")
+                    .text(if vm.cloud_hint().is_empty() {
+                        "Microsoft account services are unavailable in this host. Connect in the browser app.".to_owned()
+                    } else { vm.cloud_hint() })
                     .font_size(12.0)
                     .foreground(p.secondary)
                     .text_wrapping(TextWrapping::Wrap),

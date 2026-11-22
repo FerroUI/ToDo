@@ -1,4 +1,6 @@
 import { equal, mergeFields } from "./codec.js";
+import { serviceEnvironment } from "./auth.js";
+import { requireCloudService } from "./environment.js";
 
 export const isPlanner = task => task.external?.provider === "Planner";
 export const plannerPath = id => `planner/tasks/${encodeURIComponent(id)}`;
@@ -6,6 +8,12 @@ export const localFields = task => ({ title: task.title, notes: task.notes || ""
 export const remoteFields = (task, details) => ({ title: task.title || "Untitled task", notes: details.description || "", completed: task.percentComplete === 100, due_date: dateOnly(task.dueDateTime) });
 export const stepFields = step => ({ title: step.title, completed: !!step.completed });
 export const remoteStepFields = step => ({ title: step.title || "Untitled step", completed: !!step.isChecked });
+
+function plannerEntry() {
+  const environment = serviceEnvironment();
+  requireCloudService(environment, "planner");
+  return environment.plannerUrl;
+}
 
 function dateOnly(value) {
   if (!value) return null;
@@ -33,7 +41,7 @@ export function importTask(id, remote, details, today) {
     position: id, linked_resources: sourceLinks(details),
     // The production Graph contract has no task webUrl. Keep this official entry
     // point stable instead of fabricating an undocumented task-deep-link route.
-    external: { provider: "Planner", id: remote.id, url: "https://planner.cloud.microsoft/" } };
+    external: { provider: "Planner", id: remote.id, url: plannerEntry() } };
 }
 
 export function taskPatch(next, remote) {
@@ -55,7 +63,7 @@ export function applyFields(local, fields, remote, details, today) {
   if (previous.completed !== fields.completed) local.completed_on = fields.completed ? dateOnly(remote.completedDateTime) || today : null;
   local.linked_resources = sourceLinks(details);
   local.assigned_to = "me";
-  local.external = { provider: "Planner", id: remote.id, url: "https://planner.cloud.microsoft/" };
+  local.external = { provider: "Planner", id: remote.id, url: plannerEntry() };
 }
 
 export function requireEtag(value, label) {

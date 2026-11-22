@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
+import { cloudEnvironment } from "../crates/todo-browser/wwwroot/cloud/environment.js";
 
 registerHooks({
   resolve(specifier, context, next) {
@@ -9,13 +10,13 @@ registerHooks({
   },
   load(url, context, next) {
     if (url !== "fixture:auth") return next(url, context);
-    return { format: "module", shortCircuit: true, source: `export const accessToken=async renew=>{globalThis.graphTransport.tokens.push(renew);return 'test-only-token';};` };
+    return { format: "module", shortCircuit: true, source: `export const accessToken=async (renew,scopes)=>{globalThis.graphTransport.tokens.push(renew);globalThis.graphTransport.scopes.push(scopes);return 'test-only-token';}; export const serviceEnvironment=()=>globalThis.graphTransport.environment;` };
   },
 });
 const { graph, graphBytes, graphUpload, collection } = await import("../crates/todo-browser/wwwroot/cloud/client.js");
 const json = (value, status = 200, headers) => new Response(JSON.stringify(value), { status, headers });
 function fixture(responses) {
-  const state = globalThis.graphTransport = { tokens: [], requests: [] };
+  const state = globalThis.graphTransport = { tokens: [], scopes: [], requests: [], environment: cloudEnvironment() };
   globalThis.fetch = async (url, options) => {
     state.requests.push({ url: String(url), ...options });
     if (!responses.length) throw new Error("Unexpected additional network request");
@@ -72,4 +73,46 @@ test("collections reject malformed pages and canonical repeated next links", asy
   await assert.rejects(collection("me/todo/lists"), /repeated/);
   fixture([json({ value: null })]);
   await assert.rejects(collection("me/todo/lists"), /invalid collection/);
+});
+
+test("sovereign Graph and attachment requests reject other clouds before acquiring tokens", async () => {
+  const state = fixture([json({ id: "government" })]);
+  state.environment = cloudEnvironment("usgov");
+  for (const origin of ["https://graph.microsoft.com", "https://dod-graph.microsoft.us", "https://microsoftgraph.chinacloudapi.cn"]) {
+    await assert.rejects(graph(`${origin}/v1.0/me/todo/lists`), /unexpected continuation/);
+  }
+  assert.equal(state.tokens.length, 0);
+  assert.equal((await graph("me/todo/lists/list")).id, "government");
+  assert.equal(state.requests[0].url, "https://graph.microsoft.us/v1.0/me/todo/lists/list");
+});
+
+test("optional service scopes survive pagination, conditional uploads, and token renewal", async t => {
+  t.mock.method(globalThis, "setTimeout", callback => { callback(); return 0; });
+  const state = fixture([
+    json({ value: [{ id: 1 }], "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/outlook/masterCategories?$skip=1" }),
+    json({}, 401), json({ value: [{ id: 2 }] }), json({ id: "file" }),
+  ]);
+  assert.deepEqual(await collection("me/outlook/masterCategories", { scopes: ["MailboxSettings.Read"] }), [{ id: 1 }, { id: 2 }]);
+  assert.deepEqual(state.scopes, Array(3).fill(["MailboxSettings.Read"]));
+  assert.deepEqual(state.tokens, [false, false, true]);
+  await graph("me/drive/special/approot:/state.json:/content", "PUT", { version: 1 }, '"revision"', { scopes: ["Files.ReadWrite.AppFolder"] });
+  assert.deepEqual(state.scopes.at(-1), ["Files.ReadWrite.AppFolder"]);
+  assert.equal(state.requests.at(-1).headers["If-Match"], '"revision"');
+  assert.equal(state.requests.at(-1).body, '{"version":1}');
+});
+
+test("unsupported cloud services stop without network requests or token acquisition", async () => {
+  const state = fixture([]); state.environment = cloudEnvironment("china");
+  for (const path of ["me/todo/lists", "me/planner/tasks", "me/outlook/masterCategories"]) {
+    await assert.rejects(graph(path), error => error.code === "cloud_service_unavailable");
+  }
+  assert.equal(state.tokens.length, 0); assert.equal(state.requests.length, 0);
+});
+
+test("binary downloads cancel an oversized stream even when its length header is false", async () => {
+  let cancelled = false;
+  const stream = new ReadableStream({ pull(controller) { controller.enqueue(new Uint8Array([1, 2, 3])); }, cancel() { cancelled = true; } });
+  fixture([new Response(stream, { headers: { "Content-Length": "1" } })]);
+  await assert.rejects(graphBytes("me/todo/lists/list/tasks/task/attachments/file/$value", { maxBytes: 2 }), /exceeds/);
+  assert.equal(cancelled, true);
 });

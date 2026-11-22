@@ -1,3 +1,5 @@
+import { cloudEnvironment } from "./environment.js";
+
 const GUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const TENANTS = new Set(["common", "organizations", "consumers"]);
 export const CLIENT_KEY = "ferroui.todo.microsoft.client";
@@ -6,8 +8,8 @@ let deployment;
 
 export function normalizeConfiguration(value = {}, address = location) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Microsoft sign-in configuration must be a JSON object.");
-  if (Object.keys(value).some(key => !["clientId", "tenant", "redirectUri"].includes(key))) {
-    throw new Error("Microsoft sign-in configuration accepts only the public clientId, tenant, and redirectUri. Never put a client secret in this app.");
+  if (Object.keys(value).some(key => !["clientId", "tenant", "redirectUri", "cloud"].includes(key))) {
+    throw new Error("Microsoft sign-in configuration accepts only the public clientId, tenant, redirectUri, and cloud. Never put a client secret in this app.");
   }
   const string = (name, fallback) => {
     if (value[name] == null) return fallback;
@@ -16,8 +18,11 @@ export function normalizeConfiguration(value = {}, address = location) {
   };
   const clientId = string("clientId", "");
   if (clientId && !GUID.test(clientId)) throw new Error("Enter the Application (client) ID of your Microsoft Entra SPA registration.");
-  const tenant = string("tenant", "common").toLowerCase() || "common";
+  const cloud = cloudEnvironment(string("cloud", "global") || "global").id;
+  let tenant = string("tenant", cloud === "global" ? "common" : "organizations").toLowerCase() || (cloud === "global" ? "common" : "organizations");
   if (!TENANTS.has(tenant) && !GUID.test(tenant)) throw new Error("Microsoft tenant must be common, organizations, consumers, or a tenant ID.");
+  if (cloud !== "global" && tenant === "consumers") throw new Error("National Microsoft clouds support organizational accounts only; personal accounts use the global cloud.");
+  if (cloud !== "global" && tenant === "common") tenant = "organizations";
   const current = new URL(address.pathname, address.origin);
   current.pathname = current.pathname.replace(/\/index\.html$/, "/");
   const redirectUri = string("redirectUri", "") || current.href;
@@ -28,7 +33,7 @@ export function normalizeConfiguration(value = {}, address = location) {
     || redirect.origin !== current.origin || redirect.pathname !== current.pathname || redirect.search || redirect.hash) {
     throw new Error(`Register this app's exact SPA redirect URI: ${current.href}`);
   }
-  return { clientId, tenant, redirectUri: redirect.href };
+  return { clientId, tenant, redirectUri: redirect.href, cloud };
 }
 
 export function deploymentConfiguration() {
@@ -75,8 +80,10 @@ export async function resolveConfiguration(clientId) {
   if (saved && (!override || saved.clientId.toLowerCase() === override.toLowerCase())) return saved;
   let configured;
   try { configured = await deploymentConfiguration(); }
-  catch (error) { if (!override) throw error; }
+  catch (error) { if (!override || !saved) throw error; }
   if (!override || configured?.clientId.toLowerCase() === override.toLowerCase()) return configured;
-  // A user's separate registration must not inherit another application's tenant restriction.
-  return normalizeConfiguration({ clientId: override });
+  // A separate registration does not inherit a tenant restriction, but the
+  // deployment's national cloud must remain fixed to avoid sending its account
+  // to an unrelated Microsoft environment.
+  return normalizeConfiguration({ clientId: override, cloud: configured?.cloud || saved?.cloud || "global" });
 }

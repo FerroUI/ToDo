@@ -1,5 +1,6 @@
 {
   "clientId": "",
   "tenant": "common",
-  "redirectUri": ""
+  "redirectUri": "",
+  "cloud": "global"
 }

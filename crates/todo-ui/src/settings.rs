@@ -1,4 +1,5 @@
 mod account;
+mod connections;
 mod controls;
 mod data;
 
@@ -54,6 +55,16 @@ fn content(vm: Rc<AppViewModel>) -> Element {
     }
     content = content
         .child(section_label("General", p.text))
+        .child(if vm.background_supported() {
+            toggle(
+                vm.clone(),
+                "Keep running in background",
+                settings.keep_running_in_background,
+                |s, enabled| s.keep_running_in_background = enabled,
+            )
+        } else {
+            Element::Empty
+        })
         .child(toggle(
             vm.clone(),
             "Confirm before deleting",
@@ -113,6 +124,7 @@ fn content(vm: Rc<AppViewModel>) -> Element {
             |s, v| s.show_flagged_email = v,
         ))
         .child(account::view(vm.clone()))
+        .child(connections::view(vm.clone()))
         .child(data::view(vm.clone()));
     border()
         .background(p.background)

@@ -118,6 +118,6 @@ pub fn share(vm: Rc<AppViewModel>) -> Element {
         .child(text_block().text("Export a backup to transfer your lists. Live Microsoft list invitations and access permissions are managed in Microsoft To Do.")
             .font_size(13.0).foreground(p.secondary).text_wrapping(TextWrapping::Wrap))
         .child(action_button(Icon::Download, "Export backup", move || export.export_backup()))
-        .child(action_button(Icon::Share, "Open Microsoft To Do", move || open.request(HostRequest::OpenUrl { url: "https://to-do.office.com/tasks/".into() })))
+        .child(action_button(Icon::Share, "Open Microsoft To Do", move || open.request(HostRequest::OpenMicrosoftToDo)))
         .into()
 }

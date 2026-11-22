@@ -46,6 +46,9 @@ export function independentCopy(document) {
   document.settings ||= {};
   document.settings.auto_sync = false;
   document.settings.planner_enabled = false;
+  document.settings.outlook_categories_enabled = false;
+  document.settings.presentation_sync_enabled = false;
+  document.settings.keep_running_in_background = false;
   for (const list of document.lists) delete list.cloud;
   for (const task of document.tasks) {
     const external = task.external;

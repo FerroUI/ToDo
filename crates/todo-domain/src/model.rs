@@ -211,6 +211,9 @@ pub struct Settings {
     pub microsoft_client_id: String,
     pub auto_sync: bool,
     pub planner_enabled: bool,
+    pub outlook_categories_enabled: bool,
+    pub presentation_sync_enabled: bool,
+    pub keep_running_in_background: bool,
     pub smart_colors: std::collections::BTreeMap<String, String>,
 }
 
@@ -232,6 +235,9 @@ impl Default for Settings {
             microsoft_client_id: String::new(),
             auto_sync: true,
             planner_enabled: false,
+            outlook_categories_enabled: false,
+            presentation_sync_enabled: false,
+            keep_running_in_background: false,
             smart_colors: std::collections::BTreeMap::new(),
         }
     }

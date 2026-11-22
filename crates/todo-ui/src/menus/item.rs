@@ -4,6 +4,42 @@ use ferroui_controls::{ContextMenu, MenuItem};
 use ferroui_view::prelude::*;
 use todo_controls::{inherited_icon, Icon};
 
+pub(crate) fn color_command(
+    label: &str,
+    color: &str,
+    checked: bool,
+    action: impl Fn() + 'static,
+) -> Element {
+    menu_item()
+        .header(
+            text_block()
+                .text(label)
+                .max_width(220.0)
+                .text_trimming(<dyn ferroui_base::media::TextTrimming>::character_ellipsis()),
+        )
+        .tool_tip_tip(label)
+        .automation_properties_name(format!(
+            "{} category {label}",
+            if checked { "Remove" } else { "Add" }
+        ))
+        .toggle_type(ferroui_controls::MenuItemToggleType::CheckBox)
+        .is_checked(checked)
+        .icon(
+            border()
+                .width(12.0)
+                .height(12.0)
+                .corner_radius(3.0)
+                .background(color),
+        )
+        .on_key_down(super::keys::isolate)
+        .on_click(move |event| {
+            close(event);
+            action();
+            event.set_handled(true);
+        })
+        .into()
+}
+
 pub(crate) fn command(
     label: impl Into<String>,
     symbol: Icon,

@@ -18,7 +18,7 @@ use std::rc::Rc;
 use todo_domain::Id;
 use todo_state::AppViewModel;
 
-pub(crate) use item::{command, command_detail, destructive};
+pub(crate) use item::{color_command, command, command_detail, destructive};
 
 /// Attach a feature's live command factory to an ordinary menu button.
 pub(crate) fn attach_actions(

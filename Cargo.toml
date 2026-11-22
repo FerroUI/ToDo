@@ -2,6 +2,8 @@
 resolver = "2"
 members = [
   "crates/todo-domain",
+  "crates/todo-interop",
+  "crates/todo-interop-wasm",
   "crates/todo-state",
   "crates/todo-controls",
   "crates/todo-ui",
@@ -291,6 +293,7 @@ getrandom = { version = "0.4" }
 # <<< FerroUI workspace dependencies
 chrono = { version = "0.4", default-features = false, features = ["std", "serde"] }
 todo-domain = { path = "crates/todo-domain" }
+todo-interop = { path = "crates/todo-interop" }
 todo-state = { path = "crates/todo-state" }
 todo-controls = { path = "crates/todo-controls" }
 todo-ui = { path = "crates/todo-ui" }

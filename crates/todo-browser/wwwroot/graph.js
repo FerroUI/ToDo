@@ -5,6 +5,7 @@ import { synchronize } from "./cloud/sync.js";
 import { synchronizePlanner, forgetPlannerMappings } from "./cloud/planner.js";
 import { serializeMicrosoft } from "./cloud/operations.js";
 import { automaticSync, requiresSyncReview } from "./cloud/automatic.js";
+import { connectedActions, connectedAppRequest, connectedPreferencesChanged, resetConnectedApps, restoreConnectedApps, synchronizeConnectedApps } from "./cloud/connected.js";
 
 let runtime, startupError, restored, configuration;
 let preferences = { auto_sync: true, planner_enabled: false };
@@ -32,7 +33,7 @@ export async function prepareMicrosoft() {
     recoverCommit();
     configuration = await auth.configuration();
     if (!demo()) restored = await auth.restore();
-  } catch (error) { startupError = error; }
+  } catch (error) { startupError = error; restored = auth.account(); }
 }
 
 function capabilities() {
@@ -43,6 +44,12 @@ export async function attachMicrosoft(value) {
   runtime = value;
   capabilities();
   microsoftDocumentChanged(runtime.exportData());
+  if (startupError?.optionalConsent) {
+    for (const scope of startupError.optionalScopes || []) {
+      if (scope.endsWith("MailboxSettings.Read")) runtime.setIntegrationPreference("outlook_categories_enabled", false);
+      if (scope.endsWith("Files.ReadWrite.AppFolder")) runtime.setIntegrationPreference("presentation_sync_enabled", false);
+    }
+  }
   if (startupError) runtime.hostError(startupError.message);
   document.addEventListener("visibilitychange", () => document.hidden ? automatic.pause() : automatic.resume());
   window.addEventListener("online", () => automatic.resume());
@@ -56,6 +63,8 @@ export function microsoftDocumentChanged(contents) {
   try {
     const next = JSON.parse(contents).settings || {};
     if (preferences.planner_enabled !== next.planner_enabled) plannerPaused = false;
+    if (preferences.outlook_categories_enabled !== next.outlook_categories_enabled
+      || preferences.presentation_sync_enabled !== next.presentation_sync_enabled) connectedPreferencesChanged();
     preferences = next;
     if (!ownCommit) automatic.changed();
   } catch { /* Rust reports invalid documents at the persistence boundary. */ }
@@ -63,7 +72,7 @@ export function microsoftDocumentChanged(contents) {
 
 export function microsoftRequest(action, date = today()) {
   if (action.kind === "syncMicrosoft") automatic.retry();
-  if (["connectMicrosoft","reconnectMicrosoft","disconnectMicrosoft","signOutMicrosoft"].includes(action.kind)) {
+  if (["connectMicrosoft","reconnectMicrosoft","disconnectMicrosoft","signOutMicrosoft", ...connectedActions].includes(action.kind)) {
     return barrier(() => operations(action, date));
   }
   return operations(action, date);
@@ -84,7 +93,7 @@ export function microsoftExclusive(perform, { restore = false } = {}) {
   return barrier(() => operations({ kind: "localDocumentOperation", perform, restore }));
 }
 
-export function microsoftAccountId() { return auth.account()?.homeAccountId || null; }
+export function microsoftAccountId() { return auth.accountKey(); }
 
 async function performRequest(action, date) {
   if (action.kind === "localDocumentOperation") {
@@ -96,6 +105,7 @@ async function performRequest(action, date) {
         try { await auth.disconnect(); }
         finally {
           forgetDocumentMappings(); forgetPlannerMappings(); clearCloudCache();
+          resetConnectedApps(runtime, { restore: true });
           runtime.cloudState(false, "Local account");
           configuration = await auth.configuration().catch(() => null); capabilities();
           runtime.hostStatus("Restored as a local copy. Microsoft sync is paused.");
@@ -109,6 +119,7 @@ async function performRequest(action, date) {
     try {
       const user = await graph("me?$select=id,displayName,userPrincipalName");
       runtime.cloudState(true, user.displayName || user.userPrincipalName || restored.username);
+      restoreConnectedApps(runtime, auth.accountKey(), preferences);
     } catch (error) {
       runtime.cloudState(!!auth.account(), "Sign-in required · Reconnect your Microsoft account");
       runtime.hostError(error.message);
@@ -117,6 +128,7 @@ async function performRequest(action, date) {
   }
   if (demo()) throw new Error("Open the normal app to connect an account; demo tasks are kept separate.");
   if (["connectMicrosoft", "reconnectMicrosoft", "signOutMicrosoft"].includes(action.kind)) runtime.flushEdits();
+  if (connectedActions.includes(action.kind)) return connectedAppRequest(runtime, action.kind);
   if (action.kind === "connectMicrosoft") return auth.connect(action.client_id);
   if (action.kind === "reconnectMicrosoft") return auth.reconnect();
   if (["disconnectMicrosoft", "signOutMicrosoft"].includes(action.kind)) {
@@ -126,6 +138,7 @@ async function performRequest(action, date) {
     }
     finally {
       clearCloudCache(); runtime.cloudState(false, "Local account");
+      resetConnectedApps(runtime);
       configuration = await auth.configuration().catch(() => null); capabilities();
     }
     return;
@@ -141,10 +154,10 @@ async function performRequest(action, date) {
     if (!action.automatic) runtime.cloudState(true, "Syncing…");
     try {
       ownCommit = true;
-      const changed = await synchronize(runtime, account.homeAccountId, date);
+      let changed = await synchronize(runtime, auth.accountKey(), date);
       if (preferences.planner_enabled && auth.isWorkAccount() && (!plannerPaused || !action.automatic)) {
         try {
-          await synchronizePlanner(runtime, account.homeAccountId, date, { force: !action.automatic });
+          await synchronizePlanner(runtime, auth.accountKey(), date, { force: !action.automatic });
           plannerPaused = false;
         } catch (error) {
           plannerPaused = requiresSyncReview(error);
@@ -152,7 +165,10 @@ async function performRequest(action, date) {
           runtime.hostError(`Planner sync needs attention: ${error.message}`);
         }
       }
-      if (changed || !action.automatic) runtime.cloudState(true, `${account.username || "Microsoft account"} · Synced`);
+      const connected = await synchronizeConnectedApps(runtime, auth.accountKey(), preferences, { force: !action.automatic });
+      changed ||= connected.changed;
+      if (changed || !action.automatic || connected.issues.length) runtime.cloudState(true,
+        `${account.username || "Microsoft account"} · ${connected.issues.length ? "Tasks synced · Connected app needs attention" : "Synced"}`);
     } catch (error) {
       if (!action.automatic) runtime.cloudState(true, `${account.username || "Microsoft account"} · Sync needs attention`);
       throw error;

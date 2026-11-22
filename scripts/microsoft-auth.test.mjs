@@ -54,6 +54,7 @@ async function fixture({ config = { clientId: CLIENT }, saved = false, response 
   if (saved) {
     sessionStorage.setItem("ferroui.todo.microsoft.client", CLIENT);
     sessionStorage.setItem("ferroui.todo.microsoft.account", ACCOUNT.homeAccountId);
+    if (typeof saved === "object") sessionStorage.setItem("ferroui.todo.microsoft.configuration", JSON.stringify(saved));
   }
   const auth = await import(`../crates/todo-browser/wwwroot/cloud/auth.js?auth-test=${++sequence}`);
   return {
@@ -66,7 +67,7 @@ async function fixture({ config = { clientId: CLIENT }, saved = false, response 
 test("deployment configuration enables sign-in without loading MSAL or choosing a cached account on startup", async () => {
   const { auth, calls } = await fixture();
   assert.equal(await auth.restore(), null);
-  assert.deepEqual(await auth.configuration(), { clientId: CLIENT, tenant: "common", redirectUri: BASE, configured: true, source: "deployment" });
+  assert.deepEqual(await auth.configuration(), { clientId: CLIENT, tenant: "common", redirectUri: BASE, cloud: "global", configured: true, source: "deployment" });
   assert.equal(calls.some(([kind]) => kind === "script"), false);
   await auth.connect("");
   const options = calls.find(([kind]) => kind === "initialize")[1];
@@ -200,4 +201,124 @@ test("a configuration failure still removes sensitive callback parameters and an
   assert.deepEqual(navigation, ["/ToDo/?nooffline=1"]);
   await auth.connect(CLIENT);
   assert.equal((await auth.configuration()).clientId, CLIENT);
+});
+
+test("optional service consent uses the selected account without broadening ordinary sync scopes", async () => {
+  const value = await fixture({ saved: true, accounts: [ACCOUNT] });
+  await value.auth.restore();
+  await value.auth.requestScopes(["MailboxSettings.Read"]);
+  const request = value.calls.find(([kind]) => kind === "reconnect")[1];
+  assert.deepEqual(request.scopes, ["MailboxSettings.Read"]);
+  assert.equal(request.account, ACCOUNT);
+  value.tokenFailure = { errorCode: "consent_required" };
+  await assert.rejects(value.auth.accessToken(false, ["MailboxSettings.Read"]), error => error.requiresInteraction && /optional Microsoft service/.test(error.message));
+  assert.equal(value.auth.sessionStatus().needsInteraction, false);
+  await assert.rejects(value.auth.accessToken(false, ["Files.ReadWrite.AppFolder"]));
+  assert.equal(value.auth.sessionStatus().needsInteraction, false);
+  value.tokenFailure = null;
+  await value.auth.accessToken();
+  assert.deepEqual(value.calls.filter(([kind]) => kind === "token").at(-1)[1].scopes, ["Tasks.ReadWrite", "User.Read"]);
+  await assert.rejects(value.auth.requestScopes(["Mail.Read"]), /not supported/);
+});
+
+test("optional token success cannot hide a base task session needing reconnection", async () => {
+  const value = await fixture({ saved: true, accounts: [ACCOUNT] });
+  await value.auth.restore();
+  value.tokenFailure = { errorCode: "interaction_required" };
+  await assert.rejects(value.auth.accessToken());
+  assert.equal(value.auth.sessionStatus().needsInteraction, true);
+  value.tokenFailure = null;
+  await value.auth.accessToken(false, ["MailboxSettings.Read"]);
+  assert.equal(value.auth.sessionStatus().needsInteraction, true);
+  await value.auth.accessToken();
+  assert.equal(value.auth.sessionStatus().needsInteraction, false);
+});
+
+test("sovereign sessions acquire only their resource scopes and isolate account bindings", async () => {
+  const value = await fixture({ saved: { clientId: CLIENT, cloud: "usgovdod", tenant: OTHER }, accounts: [{ ...ACCOUNT, tenantId: OTHER }] });
+  await value.auth.restore(); await value.auth.accessToken();
+  assert.equal(value.calls.find(([kind]) => kind === "initialize")[1].auth.authority, `https://login.microsoftonline.us/${OTHER}`);
+  assert.deepEqual(value.calls.find(([kind]) => kind === "token")[1].scopes, ["https://dod-graph.microsoft.us/Tasks.ReadWrite", "https://dod-graph.microsoft.us/User.Read"]);
+  assert.equal(value.auth.accountKey(), `usgovdod:${ACCOUNT.homeAccountId}`);
+  assert.equal(value.auth.serviceEnvironment().graph, "https://dod-graph.microsoft.us");
+  await value.auth.requestScopes(["Files.ReadWrite.AppFolder"]);
+  assert.deepEqual(value.calls.find(([kind]) => kind === "reconnect")[1].scopes, ["https://dod-graph.microsoft.us/Files.ReadWrite.AppFolder"]);
+});
+
+test("client override preserves national cloud and refuses to guess a cloud after configuration failure", async () => {
+  const value = await fixture({ config: { clientId: CLIENT, cloud: "usgov", tenant: OTHER } });
+  await value.auth.connect(OTHER);
+  assert.equal(value.calls.find(([kind]) => kind === "initialize")[1].auth.authority, "https://login.microsoftonline.us/organizations");
+  const failed = await fixture(); failed.configFailure = new TypeError("offline");
+  await assert.rejects(failed.auth.connect(OTHER), /offline/);
+  assert.equal(failed.calls.some(([kind]) => kind === "initialize"), false);
+});
+
+test("unsupported China To Do connection stops before MSAL or token work", async () => {
+  const value = await fixture({ config: { clientId: CLIENT, cloud: "china" } });
+  await assert.rejects(value.auth.connect(), error => error.code === "cloud_service_unavailable" && /21Vianet/.test(error.message));
+  assert.equal(value.calls.some(([kind]) => kind === "script" || kind === "initialize" || kind === "login"), false);
+});
+
+const OPTIONAL_KEY = "ferroui.todo.microsoft.optional-consent";
+async function optionalConsentMarker() {
+  const value = await fixture({ saved: true, accounts: [ACCOUNT] });
+  await value.auth.restore(); await value.auth.requestScopes(["MailboxSettings.Read"]);
+  return sessionStorage.getItem(OPTIONAL_KEY);
+}
+
+test("declined optional consent preserves only the previous selected account and its task authorization", async () => {
+  const marker = await optionalConsentMarker();
+  const other = { ...ACCOUNT, homeAccountId: "unselected" };
+  const value = await fixture({ saved: true, accounts: [other, ACCOUNT], failure: { errorCode: "access_denied", message: "private callback details" } });
+  sessionStorage.setItem(OPTIONAL_KEY, marker); location.search = "?error=access_denied&error_description=private";
+  await assert.rejects(value.auth.restore(), error => error.optionalConsent === true && /task connection is still available/.test(error.message) && !error.message.includes("private"));
+  assert.equal(value.auth.account(), ACCOUNT); assert.equal(value.auth.sessionStatus().needsInteraction, false);
+  assert.equal(sessionStorage.getItem(OPTIONAL_KEY), null);
+  assert.equal(value.calls.some(([kind]) => kind === "clear"), false);
+  assert.equal(await value.auth.accessToken(), "test-access-token");
+  assert.deepEqual(value.calls.find(([kind]) => kind === "token")[1].scopes, ["Tasks.ReadWrite", "User.Read"]);
+  assert.deepEqual(value.navigation, ["/ToDo/"]);
+});
+
+test("optional callback recovery rejects stale, changed-registration, changed-account, and malformed markers", async () => {
+  const marker = JSON.parse(await optionalConsentMarker());
+  for (const value of [
+    { ...marker, createdAt: Date.now() - 31 * 60_000 },
+    { ...marker, configuration: JSON.stringify([OTHER, "common", "global", BASE]) },
+    { ...marker, configuration: JSON.stringify([CLIENT, "organizations", "usgov", BASE]) },
+    { ...marker, account: "another-account" },
+    { ...marker, scopes: ["Mail.Read"] },
+  ]) {
+    const h = await fixture({ saved: true, accounts: [ACCOUNT], failure: { errorCode: "access_denied" } });
+    sessionStorage.setItem(OPTIONAL_KEY, JSON.stringify(value)); location.search = "?error=access_denied";
+    await assert.rejects(h.auth.restore(), error => error.code === "access_denied" && !error.optionalConsent);
+    assert.equal(h.auth.account(), null); assert.equal(sessionStorage.getItem(OPTIONAL_KEY), null);
+  }
+  const missing = await fixture({ saved: true, accounts: [{ ...ACCOUNT, homeAccountId: "other" }], failure: { errorCode: "user_cancelled" } });
+  sessionStorage.setItem(OPTIONAL_KEY, JSON.stringify(marker)); location.search = "?error=access_denied";
+  await assert.rejects(missing.auth.restore(), error => !error.optionalConsent);
+  assert.equal(missing.auth.account(), null);
+});
+
+test("disconnect during an optional redirect failure cannot resurrect the cached task account", async () => {
+  const marker = await optionalConsentMarker();
+  const h = await fixture({ saved: true, accounts: [ACCOUNT] }), gate = Promise.withResolvers();
+  sessionStorage.setItem(OPTIONAL_KEY, marker); location.search = "?error=access_denied";
+  h.app.handleRedirectPromise = async () => { await gate.promise; throw { errorCode: "access_denied" }; };
+  const restored = h.auth.restore(), rejected = assert.rejects(restored, error => error.code === "account_changed");
+  await new Promise(resolve => setImmediate(resolve));
+  await h.auth.disconnect(); gate.resolve(); await rejected;
+  assert.equal(h.auth.account(), null); assert.equal(sessionStorage.getItem(OPTIONAL_KEY), null);
+  assert.equal(sessionStorage.getItem("ferroui.todo.microsoft.account"), null);
+});
+
+test("successful callbacks and explicit base reconnects consume optional consent markers", async () => {
+  const marker = await optionalConsentMarker();
+  const h = await fixture({ saved: true, accounts: [ACCOUNT], response: { account: ACCOUNT } });
+  sessionStorage.setItem(OPTIONAL_KEY, marker); location.search = "?code=opaque&state=opaque";
+  await h.auth.restore(); assert.equal(sessionStorage.getItem(OPTIONAL_KEY), null);
+  await h.auth.requestScopes(["Files.ReadWrite.AppFolder"]); assert(sessionStorage.getItem(OPTIONAL_KEY));
+  await h.auth.reconnect(); assert.equal(sessionStorage.getItem(OPTIONAL_KEY), null);
+  await assert.rejects(h.auth.requestScopes(["Tasks.ReadWrite"]), /Use Reconnect/);
 });

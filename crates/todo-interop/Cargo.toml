@@ -1,0 +1,18 @@
+[package]
+name = "todo-interop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+todo-domain.workspace = true
+chrono.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+outlook-pst = "=1.2.0"
+base64 = "0.22"
+sha2 = "0.10"
+encoding_rs = "0.8"

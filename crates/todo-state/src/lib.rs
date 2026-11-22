@@ -15,6 +15,7 @@ mod scheduling;
 mod selection;
 mod services;
 
+pub use integration::OutlookCategory;
 pub use layout::{PaneLayout, COMPACT_WIDTH, DETAIL_WIDTH, MINIMUM_LIST_WIDTH, NAVIGATION_WIDTH};
 pub use naming::{RenameSession, RenameTarget};
 pub use navigation::{view_title, Panel};
@@ -57,6 +58,9 @@ pub struct AppViewModel {
     cloud_configured: Cell<bool>,
     cloud_work_account: Cell<bool>,
     cloud_label: RefCell<String>,
+    cloud_hint: RefCell<String>,
+    background_supported: Cell<bool>,
+    outlook_categories: RefCell<Vec<OutlookCategory>>,
     completed_expanded: Cell<bool>,
     sort: Cell<SortOrder>,
     sort_reversed: Cell<bool>,
@@ -108,6 +112,9 @@ impl AppViewModel {
                 cloud_configured: Cell::new(false),
                 cloud_work_account: Cell::new(false),
                 cloud_label: RefCell::new(String::new()),
+                cloud_hint: RefCell::new(String::new()),
+                background_supported: Cell::new(false),
+                outlook_categories: RefCell::new(Vec::new()),
                 completed_expanded: Cell::new(true),
                 sort: Cell::new(SortOrder::Manual),
                 sort_reversed: Cell::new(false),

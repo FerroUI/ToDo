@@ -1,5 +1,10 @@
+mod native;
 mod persistence;
 mod services;
+
+#[global_allocator]
+static ALLOCATOR: todo_interop::allocation_budget::ParserAllocator =
+    todo_interop::allocation_budget::ParserAllocator::new();
 
 use chrono::{Local, Timelike};
 use ferroui_base::threading::{DispatcherPriority, DispatcherTimer};
@@ -14,7 +19,22 @@ use todo_state::AppViewModel;
 
 fn main() {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
+    if args.first().is_some_and(|arg| arg == "--prepare-pst") {
+        std::process::exit(native::pst_child());
+    }
     let demo = args.iter().any(|arg| arg == "--demo");
+    let directory = persistence::data_directory();
+    let _instance = if demo {
+        None
+    } else {
+        match persistence::lock_directory(&directory) {
+            Ok(lock) => Some(lock),
+            Err(error) => {
+                eprintln!("{error}");
+                return;
+            }
+        }
+    };
     AppBuilder::configure::<Application>()
         .use_platform_detect()
         .with_inter_font()
@@ -30,7 +50,7 @@ fn main() {
             move |app, _| {
                 todo_controls::install_theme(app);
                 let today = Local::now().date_naive();
-                let directory = persistence::data_directory();
+                let directory = directory.clone();
                 let (state, error) = if demo {
                     (AppState::sample(today), None)
                 } else {
@@ -56,7 +76,7 @@ fn main() {
                 window.set_height(820.0);
                 window.set_min_width(380.0);
                 window.set_min_height(480.0);
-                services::install(&vm, &window, directory);
+                services::install(&vm, &window, directory, demo);
                 if let Some(error) = error {
                     vm.report_error(error);
                 }

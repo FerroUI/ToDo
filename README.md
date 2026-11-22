@@ -19,12 +19,16 @@ The application includes the main personal task workflows and optional Microsoft
 - Mixed list/group navigation ordering, list-to-group dragging, keyboard tree navigation, and leading-emoji list icons.
 - Visible sort direction with reverse/reset controls, search cancellation, native Calendar selection, and WinUI Settings switches.
 - Calendar-aware daily, weekday, weekly, monthly, yearly, and custom interval recurrence.
-- Undo/redo, JSON backup and restore, portable backups with attachment bytes and checksums, Microsoft Graph data archives, and print view.
+- Undo/redo, JSON backup and restore, portable backups with attachment bytes and checksums, Microsoft Graph data archives, Outlook task PST import/export, and print view.
 - Light, dark, and system themes; per-list colors; original vector icons and My Day landscape.
 - Adaptive one-, two-, and three-pane layouts, retained drafts and keyboard focus, virtualized task rows, and FerroUI accessibility support.
 - Browser storage, installable app metadata, and offline resources cached after a successful load.
 - Optional Microsoft sign-in with MSAL and PKCE, automatic foreground synchronization, explicit **Sync now**, cloud file attachments, categories, and linked source actions.
 - Optional **Assigned to me** integration for work-account Planner tasks, including title, completion, due date, notes, and checklist edits.
+- Optional Outlook master-category catalogue with color-aware selection and separate `MailboxSettings.Read` consent.
+- Optional OneDrive app-folder synchronization of My Day, groups, ordering, and appearance between installations using the same Microsoft application registration.
+- Fixed global, GCC High, and DoD identity/Graph configurations; unsupported China-operated To Do services are reported explicitly.
+- Desktop Microsoft services through an isolated Node.js worker, system-browser PKCE login, local attachment storage, and optional tray operation when the platform supports it.
 
 A normal launch starts with an empty Tasks list. Add `?demo=1` to the browser URL, or pass `--demo` to the desktop executable, to inspect sample tasks without modifying the normal task document.
 
@@ -61,23 +65,25 @@ cargo run --locked -p todo-desktop --profile fast-release
 cargo run --locked -p todo-desktop --profile fast-release -- --demo
 ```
 
-The desktop host shares the UI and model with the browser. It saves `tasks.json` in the platform's application-data directory under `FerroUI/ToDo`; `TODO_DATA_DIR` overrides that directory. Browser attachments, Microsoft sign-in/sync, system notifications, and completion audio are not all implemented by the desktop host; see [platform coverage](docs/features.md#platform-coverage).
+The desktop host shares the UI and model with the browser. It saves `tasks.json` in the platform's application-data directory under `FerroUI/ToDo`; `TODO_DATA_DIR` overrides that directory. Its Microsoft, attachment, and portable/PST archive services run in an isolated **Node.js 22 or later** worker; `TODO_NODE_BINARY` selects a particular Node executable. The worker uses vendored dependencies and requires no runtime npm install. Local task editing continues without the worker.
+
+Native authentication opens the system browser and uses a registered **Mobile and desktop applications** loopback redirect, normally `http://localhost/`. Tokens live only in the worker's memory and are discarded when it exits. An optional **Keep running in the background** setting keeps sync and reminders active after closing the window only when a usable system tray is available; Quit still stops the process. Native PST import runs in an isolated child on Linux, Windows, and macOS with a deadline and a 1.5 GiB cumulative Rust allocation budget; Linux/Windows also enforce OS memory limits. See the [native service guide](docs/NATIVE-MICROSOFT.md) for setup, platform gates, and verification limits.
 
 ## Microsoft account connection
 
-The local application works without an account. Optional synchronization requires **your own Microsoft Entra application registration configured as a single-page application**, its Application (client) ID, an exact redirect URI for the deployment, and consent for `Tasks.ReadWrite` and `User.Read`.
+The local application works without an account. Optional synchronization requires **your own Microsoft Entra application registration**, its public Application (client) ID, correctly registered browser/native redirect URIs, and delegated consent for `Tasks.ReadWrite` and `User.Read`. The owner-run registration helper can produce a reviewable registration plan and apply it through an already authenticated Azure CLI session; it does not log in, create secrets, or grant consent automatically.
 
-Follow the [Microsoft account setup guide](docs/MICROSOFT.md). Configure the public client ID at deployment time, or enter it in Settings for a local setup. Connect the account to enable automatic synchronization; **Sync now** and pull-to-refresh also synchronize on demand. Work accounts can enable **Settings → Connected apps → Planner**. Authentication uses the bundled Microsoft Authentication Library with redirect sign-in, PKCE, reconnect, local disconnect, and Microsoft sign-out. Tokens stay in session storage and are excluded from task documents and backups. There is no client secret or application-owned backend.
+Follow the [Microsoft account setup guide](docs/MICROSOFT.md). Configure the public client ID at deployment time, or enter it in Settings for a local setup. Connect the account to enable automatic synchronization; **Sync now** and pull-to-refresh also synchronize on demand. Work accounts can enable **Settings → Connected apps → Planner**. Outlook category colors and OneDrive device settings each request their own optional permission only when enabled; declining either preserves the existing task connection. Browser tokens use session storage; native tokens use worker memory. Neither is part of task documents or backups. There is no client secret or application-owned server.
 
-The existing Pages build accepts repository variables `MICROSOFT_CLIENT_ID`, `MICROSOFT_TENANT`, and `MICROSOFT_REDIRECT_URI`; the corresponding local build variables have a `TODO_` prefix. The canonical production redirect is `https://ferroui.com/ToDo/`. These are public SPA settings, not secrets. An operator must create or supply the Entra application registration before deployment-configured sign-in can work.
+The Pages build accepts repository variables `MICROSOFT_CLIENT_ID`, `MICROSOFT_TENANT`, `MICROSOFT_REDIRECT_URI`, and `MICROSOFT_CLOUD`; the corresponding local build variables have a `TODO_` prefix. The canonical production redirect is `https://ferroui.com/ToDo/`. These are public settings, not secrets. Browser SPA and native public-client redirects are separate entries on the same registration. Native configuration uses `TODO_MICROSOFT_NATIVE_REDIRECT_URI` for its loopback address.
 
-The integration has automated tests for OAuth, Graph transport, delta synchronization, attachments, interrupted writes, Planner, backups, and host orchestration using simulated services. A live account sign-in and round-trip sync have not been verified as part of this implementation. Invitation administration, shared-list assignee editing, Microsoft’s private My Day/group metadata, PST import/export, and closed-app push synchronization remain outside the implemented surface. See the [integration review](docs/integration-review.md) for the comparison with Microsoft To Do and the [feature matrix](docs/features.md#microsoft-graph-synchronization) for the boundary.
+The integration has automated tests for OAuth, cloud/scope isolation, Graph transport, delta synchronization, files, interrupted writes, Planner, category caching, OneDrive replica merging, PST/portable archives, and host orchestration. A live Microsoft login/round-trip and acceptance of the exported PST in desktop Outlook have not been verified. Invitation administration, shared-list assignee editing, Microsoft's private My Day/group metadata, rich native Outlook recurrence export, and closed-process push remain outside the implemented surface. OneDrive settings sync is an independent app format and does not synchronize Microsoft's private client state. See the [integration review](docs/integration-review.md), [PST format guide](docs/OUTLOOK-PST.md), and [feature matrix](docs/features.md#microsoft-graph-synchronization) for exact boundaries.
 
 ## Check changes
 
 ```bash
-cargo fmt -p todo-domain -p todo-state -p todo-controls -p todo-ui -p todo-browser -p todo-desktop --check
-cargo test --locked -p todo-domain -p todo-state
+cargo fmt -p todo-domain -p todo-state -p todo-controls -p todo-ui -p todo-browser -p todo-desktop -p todo-interop -p todo-interop-wasm --check
+cargo test --locked -p todo-domain -p todo-state -p todo-interop
 node --test scripts/*.test.mjs
 node scripts/ui-smoke.mjs target/browser/todo-browser
 ```
@@ -93,13 +99,15 @@ The Rust suites cover domain behavior, conservative date/time recognition, atomi
 | `todo-controls` | WinUI theme integration, resources, control templates, and original vector icons |
 | `todo-ui` | Declarative Rust views, virtualized row projection, detail panels, and dialogs |
 | `todo-browser` | FerroUI browser startup, persistence, offline assets, files, notifications, and Graph bridge |
-| `todo-desktop` | Native startup, application-data persistence, file dialogs, and platform services |
+| `todo-desktop` | Native startup, persistence, file dialogs, tray/notifications, and isolated service-worker bridge |
+| `todo-interop` | Bounded Outlook PST parsing and task/property/attachment projection |
+| `todo-interop-wasm` | Dedicated browser-worker WASM entry point for the shared PST reader |
 
 Read [Architecture](docs/architecture.md) for state flow, performance decisions, and extension points. [Reference behavior](docs/reference-behavior.md) records the Microsoft documentation used for interaction decisions and distinguishes verified workflows from inferred adaptive thresholds. The [UI, UX, and feature review](docs/ui-ux-review.md) records the full review, this polishing round, and remaining fidelity gaps.
 
 ## FerroUI submodule
 
-`FerroUI/` is a real Git submodule pinned to [`062b29a537a7eef132ea9038df9d3fafb6ced6e3`](https://github.com/wieslawsoltes/FerroUI/commit/062b29a537a7eef132ea9038df9d3fafb6ced6e3), the upstream `main` revision verified on 22 November 2026. All framework crates resolve through paths into that checkout.
+`FerroUI/` is a real Git submodule pinned by the repository's gitlink. Run `git submodule status FerroUI` to inspect the exact recorded revision. All framework crates resolve through paths into that checkout.
 
 To recover a missing checkout:
 

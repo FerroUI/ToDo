@@ -1,7 +1,8 @@
-import { accessToken } from "./auth.js";
+import * as auth from "./auth.js";
 import { createCloudReader } from "./delta.js";
+import { cloudEnvironment, requireCloudService } from "./environment.js";
+import { boundedBlob } from "./response.js";
 
-const ROOT = "https://graph.microsoft.com/v1.0/";
 let mutationRevision = 0;
 export const cloudRevision = () => mutationRevision;
 export const segment = value => encodeURIComponent(value);
@@ -9,16 +10,19 @@ export const listPath = id => `me/todo/lists/${segment(id)}`;
 export const taskPath = (listId, id) => `${listPath(listId)}/tasks/${segment(id)}`;
 
 export function graphUrl(path) {
-  const url = new URL(path, ROOT);
-  if (url.origin !== "https://graph.microsoft.com" || !url.pathname.startsWith("/v1.0/") || url.username || url.password || url.hash) {
+  const environment = auth.serviceEnvironment?.() || cloudEnvironment();
+  const url = new URL(path, `${environment.graph}/v1.0/`);
+  if (url.origin !== environment.graph || !url.pathname.startsWith("/v1.0/") || url.username || url.password || url.hash) {
     throw new Error("Microsoft returned an unexpected continuation URL.");
   }
+  if (/\/(?:todo|planner)(?:\/|$)/i.test(url.pathname)) requireCloudService(environment, /\/planner(?:\/|$)/i.test(url.pathname) ? "planner" : "todo");
+  if (/\/outlook\/masterCategories(?:\/|$)/i.test(url.pathname)) requireCloudService(environment, "categories");
   return url;
 }
 
-async function request(path, method, body, etag, attempt = 0, renew = false, rawHeaders) {
+async function request(path, method, body, etag, attempt = 0, renew = false, rawHeaders, options = {}) {
   const url = graphUrl(path);
-  const headers = { Authorization: `Bearer ${await accessToken(renew)}`, Accept: "application/json" };
+  const headers = { Authorization: `Bearer ${await auth.accessToken(renew, options.scopes)}`, Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (rawHeaders) Object.assign(headers, rawHeaders);
   if (etag) headers["If-Match"] = etag;
@@ -34,7 +38,7 @@ async function request(path, method, body, etag, attempt = 0, renew = false, raw
     const header = response.headers.get("Retry-After");
     const delay = Number(header) || Math.max(0, (Date.parse(header) - Date.now()) / 1000) || 2 ** attempt;
     await new Promise(resolve => setTimeout(resolve, Math.min(20, Math.max(1, delay)) * 1000));
-    return request(path, method, body, etag, attempt + 1, response.status === 401, rawHeaders);
+    return request(path, method, body, etag, attempt + 1, response.status === 401, rawHeaders, options);
   }
   if (response.status === 204 || (response.status === 404 && method === "DELETE")) return null;
   if (!response.ok) {
@@ -49,10 +53,10 @@ async function request(path, method, body, etag, attempt = 0, renew = false, raw
   return response;
 }
 
-export async function graph(path, method = "GET", body, etag) {
+export async function graph(path, method = "GET", body, etag, options = {}) {
   let result;
   try {
-    const response = await request(path, method, body, etag);
+    const response = await request(path, method, body, etag, 0, false, undefined, options);
     result = response ? await response.json() : null;
     return result;
   } finally {
@@ -60,14 +64,10 @@ export async function graph(path, method = "GET", body, etag) {
   }
 }
 
-export async function graphBytes(path) {
-  const response = await request(path, "GET", undefined, undefined, 0, false, { Accept: "*/*" });
+export async function graphBytes(path, options = {}) {
+  const response = await request(path, "GET", undefined, undefined, 0, false, { Accept: "*/*" }, options);
   if (!response) throw new Error("Microsoft returned an empty attachment.");
-  const length = Number(response.headers.get("Content-Length"));
-  if (Number.isFinite(length) && length > 25 * 1024 * 1024) throw new Error("Microsoft attachment exceeds the 25 MB limit.");
-  const blob = await response.blob();
-  if (blob.size > 25 * 1024 * 1024) throw new Error("Microsoft attachment exceeds the 25 MB limit.");
-  return blob;
+  return boundedBlob(response, options.maxBytes ?? 25 * 1024 * 1024);
 }
 
 export async function graphUpload(sessionUrl, chunk, start, total) {
@@ -85,14 +85,14 @@ export async function graphUpload(sessionUrl, chunk, start, total) {
   } finally { mutationRevision++; reader.invalidate(sessionUrl); }
 }
 
-export async function collection(path) {
+export async function collection(path, options = {}) {
   const items = [];
   const visited = new Set();
   while (path) {
     const canonical = graphUrl(path).href;
     if (visited.has(canonical) || visited.size >= 10_000) throw new Error("Microsoft returned a repeated or excessive continuation sequence.");
     visited.add(canonical);
-    const page = await graph(path);
+    const page = await graph(path, "GET", undefined, undefined, options);
     if (!Array.isArray(page?.value)) throw new Error("Microsoft returned an invalid collection.");
     items.push(...page.value);
     path = page["@odata.nextLink"];

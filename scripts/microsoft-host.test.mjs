@@ -8,6 +8,8 @@ const modules = {
     export const configuration = async () => ({ configured: true });
     export const restore = async () => fixture().account;
     export const account = () => fixture().account;
+    export const accountKey = () => fixture().account?.homeAccountId || null;
+    export const serviceEnvironment = () => ({ id: "global", todoUrl: "https://to-do.office.com/tasks/" });
     export const isWorkAccount = () => !!fixture().account;
     export const sessionStatus = () => ({ needsInteraction: false });
     export const connect = async () => fixture().events.push("connect");
@@ -32,6 +34,13 @@ const modules = {
   "planner.js": `
     export const synchronizePlanner = (...args) => globalThis.microsoftHostFixture.planner(...args);
     export const forgetPlannerMappings = () => globalThis.microsoftHostFixture.events.push("forget-planner");`,
+  "connected.js": `
+    export const connectedActions = ['enableOutlookCategories','refreshOutlookCategories','disableOutlookCategories','enablePresentationSync','disablePresentationSync'];
+    export const connectedAppRequest = async (_runtime,kind) => { globalThis.microsoftHostFixture.events.push(kind); return true; };
+    export const connectedPreferencesChanged = () => {};
+    export const resetConnectedApps = () => {};
+    export const restoreConnectedApps = () => {};
+    export const synchronizeConnectedApps = async () => ({changed:false,issues:[]});`,
   "attachment-content.js": `
     export const materializeCloudAttachment = async () => null;
     export const openCloudAttachment = async () => {};

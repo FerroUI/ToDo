@@ -2,6 +2,27 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use todo_domain::AppState;
 
+/// OS-owned advisory lock is released on process exit, including crashes. Every
+/// native instance acquires it before loading a mutable document or starting sync.
+pub fn lock_directory(directory: &Path) -> Result<std::fs::File, String> {
+    std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o700))
+            .map_err(|error| error.to_string())?;
+    }
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(directory.join("native-instance.lock"))
+        .map_err(|error| error.to_string())?;
+    file.try_lock().map_err(|_| "Another To Do desktop instance is using this data directory. Return to that window or close it first.".to_owned())?;
+    Ok(file)
+}
+
 pub fn data_directory() -> PathBuf {
     if let Some(path) = std::env::var_os("TODO_DATA_DIR") {
         return path.into();

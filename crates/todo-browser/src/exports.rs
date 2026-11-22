@@ -119,6 +119,29 @@ pub fn host_status(message: &str) {
     }
 }
 
+#[wasm_bindgen(js_name = cloudHint)]
+pub fn cloud_hint(message: &str) {
+    if let Some(vm) = crate::app::view_model() {
+        vm.set_cloud_hint(message);
+    }
+}
+
+#[wasm_bindgen(js_name = outlookCategories)]
+pub fn outlook_categories(contents: &str) -> Result<(), JsValue> {
+    crate::app::view_model()
+        .ok_or_else(|| JsValue::from_str("The app is starting"))?
+        .set_outlook_categories(contents)
+        .map_err(|error| JsValue::from_str(&error))
+}
+
+#[wasm_bindgen(js_name = setIntegrationPreference)]
+pub fn set_integration_preference(feature: &str, enabled: bool) -> Result<(), JsValue> {
+    crate::app::view_model()
+        .ok_or_else(|| JsValue::from_str("The app is starting"))?
+        .set_integration_preference(feature, enabled)
+        .map_err(|error| JsValue::from_str(&error))
+}
+
 #[wasm_bindgen(js_name = validateImportData)]
 pub fn validate_import_data(json: &str) -> Result<String, JsValue> {
     todo_domain::AppState::from_json(json)

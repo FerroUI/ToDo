@@ -23,6 +23,7 @@ fn content(vm: Rc<AppViewModel>, id: Id) -> Element {
         return Element::Empty;
     };
     let p = palette(&vm);
+    let catalogue = vm.outlook_categories();
     let mut content = stack_panel().spacing(2.0).child(
         text_block()
             .text("Categories")
@@ -34,11 +35,26 @@ fn content(vm: Rc<AppViewModel>, id: Id) -> Element {
     for category in &task.tags {
         let name = category.clone();
         let remove = vm.clone();
+        let color = catalogue
+            .iter()
+            .find(|entry| entry.name.eq_ignore_ascii_case(category))
+            .map(|entry| entry.color.as_str())
+            .unwrap_or("#8A8886");
         content =
             content.child(
                 grid()
                     .column_definitions("*,40")
                     .min_height(40.0)
+                    .child(
+                        border()
+                            .width(12.0)
+                            .height(12.0)
+                            .corner_radius(3.0)
+                            .background(color)
+                            .horizontal_alignment(ferroui_base::layout::HorizontalAlignment::Left)
+                            .vertical_alignment(V::Center)
+                            .margin((16.0, 0.0, 0.0, 0.0)),
+                    )
                     .child(
                         text_block()
                             .text(category)
@@ -46,7 +62,7 @@ fn content(vm: Rc<AppViewModel>, id: Id) -> Element {
                             .foreground(p.text)
                             .text_wrapping(TextWrapping::Wrap)
                             .vertical_alignment(V::Center)
-                            .margin((16.0, 6.0, 4.0, 6.0)),
+                            .margin((36.0, 6.0, 4.0, 6.0)),
                     )
                     .child(border().grid_column(1).vertical_alignment(V::Center).child(
                         clear_button(
@@ -70,6 +86,66 @@ fn content(vm: Rc<AppViewModel>, id: Id) -> Element {
                         ),
                     )),
             );
+    }
+    if !catalogue.is_empty() {
+        let picker = vm.clone();
+        content = content.child(
+            button()
+                .class("todo-action")
+                .min_height(44.0)
+                .horizontal_alignment(ferroui_base::layout::HorizontalAlignment::Stretch)
+                .margin((8.0, 2.0))
+                .padding((8.0, 8.0))
+                .automation_properties_name("Choose Outlook categories")
+                .child(
+                    text_block()
+                        .text("Choose Outlook categories")
+                        .font_size(14.0)
+                        .foreground(p.accent)
+                        .text_wrapping(TextWrapping::Wrap),
+                )
+                .with(move |button| {
+                    let model = picker.clone();
+                    crate::menus::attach_actions(button, picker.clone(), move || {
+                        let Some(task) = model.state().task(id).cloned() else {
+                            return Vec::new();
+                        };
+                        model
+                            .outlook_categories()
+                            .into_iter()
+                            .map(|category| {
+                                let checked = task
+                                    .tags
+                                    .iter()
+                                    .any(|name| name.eq_ignore_ascii_case(&category.name));
+                                let change = model.clone();
+                                let name = category.name.clone();
+                                crate::menus::color_command(
+                                    &category.name,
+                                    &category.color,
+                                    checked,
+                                    move || {
+                                        let Some(mut tags) =
+                                            change.state().task(id).map(|task| task.tags.clone())
+                                        else {
+                                            return;
+                                        };
+                                        if let Some(index) = tags
+                                            .iter()
+                                            .position(|tag| tag.eq_ignore_ascii_case(&name))
+                                        {
+                                            tags.remove(index);
+                                        } else {
+                                            tags.push(name.clone());
+                                        }
+                                        change.dispatch(Action::SetTags { id, tags });
+                                    },
+                                )
+                            })
+                            .collect()
+                    });
+                }),
+        );
     }
     let enter = vm.clone();
     let click = vm.clone();

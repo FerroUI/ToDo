@@ -1,16 +1,17 @@
+use crate::native::NativeServices;
 use chrono::{Local, Timelike};
-use ferroui_base::platform::storage::{
-    FilePickerFileType, FilePickerOpenOptions, FilePickerSaveOptions,
-};
+use ferroui_base::platform::storage::FilePickerSaveOptions;
 use ferroui_base::threading::Dispatcher;
 use ferroui_base::Ref;
 use ferroui_controls::Window;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::PathBuf;
 use std::rc::Rc;
 use todo_state::{AppViewModel, HostRequest, HostServices};
+mod files;
 
-pub fn install(vm: &Rc<AppViewModel>, window: &Ref<Window>, directory: PathBuf) {
+pub fn install(vm: &Rc<AppViewModel>, window: &Ref<Window>, directory: PathBuf, demo: bool) {
+    let native = NativeServices::install(vm, window, directory.clone(), demo);
     let weak_vm = Rc::downgrade(vm);
     let weak_window = window.downgrade();
     vm.set_services(HostServices {
@@ -19,8 +20,9 @@ pub fn install(vm: &Rc<AppViewModel>, window: &Ref<Window>, directory: PathBuf) 
                 return;
             };
             let directory = directory.clone();
+            let native = native.clone();
             Dispatcher::ui_thread().spawn_local(async move {
-                if let Err(error) = handle(&vm, &window, directory, request).await {
+                if let Err(error) = handle(&vm, &window, directory, native, request).await {
                     vm.report_error(error);
                 }
             });
@@ -32,6 +34,7 @@ async fn handle(
     vm: &Rc<AppViewModel>,
     window: &Ref<Window>,
     directory: PathBuf,
+    native: Rc<NativeServices>,
     request: HostRequest,
 ) -> Result<(), String> {
     let provider = window.storage_provider();
@@ -41,9 +44,12 @@ async fn handle(
             todo_ui::commit_pending_edits(vm, window);
             let now = Local::now();
             vm.tick(now.date_naive(), (now.hour() * 60 + now.minute()) as u16);
-            vm.finish_refresh();
             if sync {
-                return Err("Microsoft synchronization is available in the browser app.".into());
+                native.submit(
+                    serde_json::json!({"kind":"syncMicrosoft","today":vm.today().to_string()}),
+                )?;
+            } else {
+                vm.finish_refresh();
             }
         }
         HostRequest::Export { filename, contents } => {
@@ -65,30 +71,15 @@ async fn handle(
                 stream.flush().map_err(|error| error.to_string())?;
             }
         }
-        HostRequest::Import => {
-            let mut options = FilePickerOpenOptions::new();
-            options.set_file_type_filter(Some(vec![
-                FilePickerFileType::new(Some("To Do backup")).with_patterns(&["*.json"])
-            ]));
-            let files = provider
-                .open_file_picker_async(options)
-                .await
-                .map_err(|error| error.to_string())?;
-            if let Some(file) = files.first() {
-                let stream = file
-                    .open_read_async()
-                    .await
-                    .map_err(|error| error.to_string())?;
-                let mut json = String::new();
-                stream
-                    .take(25 * 1024 * 1024 + 1)
-                    .read_to_string(&mut json)
-                    .map_err(|error| error.to_string())?;
-                if json.len() > 25 * 1024 * 1024 {
-                    return Err("The backup must be 25 MB or smaller".into());
-                }
-                vm.import_json(&json)?;
-            }
+        HostRequest::Import
+        | HostRequest::ImportMicrosoft
+        | HostRequest::ImportPst
+        | HostRequest::ExportArchive
+        | HostRequest::ExportMicrosoft
+        | HostRequest::ExportPst
+        | HostRequest::Attach { .. }
+        | HostRequest::OpenAttachment { .. } => {
+            files::handle(vm, window, &native, request).await?;
         }
         HostRequest::Print { html, .. } => {
             std::fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
@@ -109,27 +100,44 @@ async fn handle(
                 return Err("Could not open this link".into());
             }
         }
-        HostRequest::SetTheme { .. } | HostRequest::CompletionSound => {}
-        HostRequest::Notify { title, body } => vm.set_status(format!("{title}: {body}")),
-        HostRequest::RequestNotifications => {
-            vm.set_status("Reminders appear in To Do while the desktop app is open.".into())
+        HostRequest::SetTheme { .. } => {}
+        HostRequest::CompletionSound => crate::native::audio::play(&directory),
+        HostRequest::Notify { title, body } => {
+            vm.set_status(format!("{title}: {body}"));
+            crate::native::notifications::show(vm, window, title, body, false);
         }
-        HostRequest::Attach { .. }
-        | HostRequest::OpenAttachment { .. }
-        | HostRequest::DeleteAttachment { .. } => {
-            return Err("File attachments are available in the browser app.".into());
+        HostRequest::RequestNotifications => {
+            crate::native::notifications::show(
+                vm,
+                window,
+                "To Do".into(),
+                "Your task reminders can appear here while To Do is running.".into(),
+                true,
+            );
         }
         HostRequest::ConnectMicrosoft { .. }
         | HostRequest::ReconnectMicrosoft
         | HostRequest::SignOutMicrosoft
         | HostRequest::DisconnectMicrosoft
         | HostRequest::SyncMicrosoft
-        | HostRequest::ExportMicrosoft
-        | HostRequest::ImportMicrosoft
-        | HostRequest::ExportArchive => {
-            return Err(
-                "Microsoft account synchronization is available in the browser app.".into(),
-            );
+        | HostRequest::DeleteAttachment { .. }
+        | HostRequest::EnableOutlookCategories
+        | HostRequest::RefreshOutlookCategories
+        | HostRequest::DisableOutlookCategories
+        | HostRequest::EnablePresentationSync
+        | HostRequest::DisablePresentationSync => {
+            todo_ui::commit_pending_edits(vm, window);
+            if matches!(request, HostRequest::DisconnectMicrosoft) {
+                vm.finish_refresh();
+                vm.set_cloud_state(false, "Local account");
+                vm.set_cloud_capabilities(true, vm.cloud_configured(), false);
+            }
+            let mut action = serde_json::to_value(request).map_err(|error| error.to_string())?;
+            action["today"] = serde_json::Value::String(vm.today().to_string());
+            native.submit(action)?;
+        }
+        HostRequest::OpenMicrosoftToDo => {
+            native.submit(serde_json::json!({"kind":"openMicrosoftToDo"}))?;
         }
     }
     Ok(())

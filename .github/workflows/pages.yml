@@ -31,7 +31,7 @@ jobs:
         id: toolchain
       - name: Check task state and synchronization
         run: |
-          cargo test --locked -p todo-domain -p todo-state
+          cargo test --locked -p todo-domain -p todo-state -p todo-interop
           node --test scripts/*.test.mjs
       - name: Build browser app
         id: browser_build
@@ -39,6 +39,7 @@ jobs:
           TODO_MICROSOFT_CLIENT_ID: ${{ vars.MICROSOFT_CLIENT_ID }}
           TODO_MICROSOFT_TENANT: ${{ vars.MICROSOFT_TENANT }}
           TODO_MICROSOFT_REDIRECT_URI: ${{ vars.MICROSOFT_REDIRECT_URI }}
+          TODO_MICROSOFT_CLOUD: ${{ vars.MICROSOFT_CLOUD }}
         run: bash scripts/build-browser.sh
       - name: Cache browser compilation
         if: ${{ github.ref == 'refs/heads/main' && steps.toolchain.outputs.build-cache-hit != 'true' }}

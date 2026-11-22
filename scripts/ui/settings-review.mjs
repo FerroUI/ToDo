@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { verifyConnectedSettings } from "./connected-review.mjs";
 
 const button = label => element => element.type.endsWith("Button") && element.automationName === label;
 const toggle = label => element => element.type === "ToggleSwitch" && element.automationName === label;
@@ -40,7 +41,7 @@ export async function verifySettingsPresentation(ui) {
     await capture(`settings-${label}-microsoft`);
     await page.wheel(width - 80, 600, 0, 2400);
     await control(button("Keyboard shortcuts"), "settings footer actions");
-    for (const name of ["Export backup with files", "Restore Microsoft archive…", "Export backup", "Restore backup…"]) {
+    for (const name of ["Export backup with files", "Restore Microsoft archive…", "Import Outlook PST…", "Export Outlook PST", "Export backup", "Restore backup…"]) {
       bounded(await control(button(name), name), width, name);
     }
     await capture(`settings-${label}-data`);
@@ -54,6 +55,7 @@ export async function verifySettingsPresentation(ui) {
     }
     await until(async () => !(await snapshot()).elements.some(element => element.automationName === "Close settings"), "Settings is dismissed");
   }
+  await verifyConnectedSettings(ui);
   await resize(1280, 800);
   const originalList = (await saved()).lists.find(list => list.name === "Test list");
   assert(originalList, "the newly-created list remains available for theme review");

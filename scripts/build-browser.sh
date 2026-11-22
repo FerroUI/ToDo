@@ -12,5 +12,11 @@ for ((TODO_INDEX=0; TODO_INDEX<${#TODO_ARGUMENTS[@]}; TODO_INDEX++)); do
   if [ "${TODO_ARGUMENTS[$TODO_INDEX]}" = "--out" ]; then TODO_SITE="${TODO_ARGUMENTS[$((TODO_INDEX+1))]}"; fi
 done
 FerroUI/scripts/build-browser.sh todo-browser "$@"
+# PST parsing runs in a dedicated worker without loading the UI/Skia module.
+rustup target add wasm32-unknown-unknown
+cargo build --locked --release --target wasm32-unknown-unknown -p todo-interop-wasm
+wasm-bindgen target/wasm32-unknown-unknown/release/todo_interop_wasm.wasm \
+  --target web --out-dir "$TODO_SITE/interop" --out-name todo_interop_wasm
+node scripts/verify-pst-wasm.mjs "$TODO_SITE/interop"
 node scripts/configure-microsoft.mjs "$TODO_SITE"
 node scripts/prepare-site.mjs "$TODO_SITE"

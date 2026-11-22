@@ -1,6 +1,77 @@
 use crate::AppViewModel;
+use serde::Deserialize;
+use todo_domain::Action;
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+pub struct OutlookCategory {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    pub color_name: String,
+}
 
 impl AppViewModel {
+    pub fn background_supported(&self) -> bool {
+        self.background_supported.get()
+    }
+
+    pub fn set_background_supported(&self, supported: bool) {
+        if self.background_supported.replace(supported) != supported {
+            self.notify();
+        }
+    }
+
+    pub fn cloud_hint(&self) -> String {
+        self.cloud_hint.borrow().clone()
+    }
+
+    pub fn set_cloud_hint(&self, hint: &str) {
+        if *self.cloud_hint.borrow() != hint {
+            *self.cloud_hint.borrow_mut() = hint.to_owned();
+            self.notify();
+        }
+    }
+
+    pub fn outlook_categories(&self) -> Vec<OutlookCategory> {
+        self.outlook_categories.borrow().clone()
+    }
+
+    pub fn set_outlook_categories(&self, contents: &str) -> Result<(), String> {
+        let categories: Vec<OutlookCategory> = serde_json::from_str(contents)
+            .map_err(|_| "Microsoft returned an invalid category catalogue".to_owned())?;
+        if categories.len() > 2048
+            || categories.iter().any(|category| {
+                category.id.len() > 1024
+                    || category.name.is_empty()
+                    || category.name.len() > 1024
+                    || category.color_name.len() > 64
+                    || category.color.len() != 7
+                    || !category.color.starts_with('#')
+                    || !category.color[1..]
+                        .bytes()
+                        .all(|byte| byte.is_ascii_hexdigit())
+            })
+        {
+            return Err("Microsoft returned an invalid category catalogue".into());
+        }
+        if *self.outlook_categories.borrow() != categories {
+            *self.outlook_categories.borrow_mut() = categories;
+            self.notify();
+        }
+        Ok(())
+    }
+
+    pub fn set_integration_preference(&self, feature: &str, enabled: bool) -> Result<(), String> {
+        let mut settings = self.state().settings.clone();
+        match feature {
+            "outlook_categories_enabled" => settings.outlook_categories_enabled = enabled,
+            "presentation_sync_enabled" => settings.presentation_sync_enabled = enabled,
+            _ => return Err("Unknown connected application preference".into()),
+        }
+        self.dispatch(Action::SetSettings(settings));
+        Ok(())
+    }
+
     pub fn cloud_supported(&self) -> bool {
         self.cloud_supported.get()
     }

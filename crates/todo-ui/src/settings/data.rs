@@ -16,6 +16,8 @@ pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
     if vm.cloud_supported() {
         let portable = vm.clone();
         let import = vm.clone();
+        let pst = vm.clone();
+        let pst_export = vm.clone();
         content = content
             .child(action_button(
                 Icon::Download,
@@ -26,6 +28,16 @@ pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
                 Icon::Upload,
                 "Restore Microsoft archive…",
                 move || import.request(HostRequest::ImportMicrosoft),
+            ))
+            .child(action_button(
+                Icon::Upload,
+                "Import Outlook PST…",
+                move || pst.request(HostRequest::ImportPst),
+            ))
+            .child(action_button(
+                Icon::Download,
+                "Export Outlook PST",
+                move || pst_export.request(HostRequest::ExportPst),
             ));
         if vm.cloud_connected() {
             let microsoft = vm.clone();

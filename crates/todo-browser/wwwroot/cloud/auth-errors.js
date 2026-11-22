@@ -13,6 +13,7 @@ const MESSAGES = {
   no_network_connectivity: "Microsoft sign-in is unavailable while offline. Your local tasks remain available.",
   library_load_failed: "Could not load Microsoft sign-in. Try again when online.",
   account_changed: "The Microsoft account changed while a request was pending. Sync again with the connected account.",
+  national_cloud_personal_account: "National Microsoft clouds support work or school accounts only. Connect personal Microsoft accounts through a global deployment.",
 };
 
 export function authenticationError(error, operation = "sign-in") {

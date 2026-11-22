@@ -15,13 +15,12 @@ pub(super) fn view(vm: Rc<AppViewModel>, task: &Task) -> Element {
         .as_ref()
         .filter(|source| valid_url(&source.url))
     {
-        rows = rows.child(open(
-            vm.clone(),
-            "Open in Planner",
-            "Open in Planner",
-            &source.url,
-            p.accent,
-        ));
+        let label = if source.url.trim_end_matches('/') == "https://portal.apps.mil" {
+            "Open Microsoft 365"
+        } else {
+            "Open in Planner"
+        };
+        rows = rows.child(open(vm.clone(), label, label, &source.url, p.accent));
         count += 1;
     }
     for source in task

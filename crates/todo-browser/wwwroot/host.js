@@ -8,6 +8,7 @@ import { restorePortable } from "./backup/archive.js";
 import { exportMicrosoftArchive, restoreMicrosoftArchive } from "./cloud/archive.js";
 import { createDocumentStorage } from "./document-storage.js";
 import { synchronizeNavigation } from "./navigation.js";
+import { serviceEnvironment } from "./cloud/auth.js";
 
 const demo = new URLSearchParams(location.search).get("demo") === "1";
 const storageKey = demo ? "ferroui.todo.demo.v1" : "ferroui.todo.v1";
@@ -65,7 +66,15 @@ async function handle(action) {
     case "signOutMicrosoft":
     case "disconnectMicrosoft":
     case "syncMicrosoft":
+    case "enableOutlookCategories":
+    case "refreshOutlookCategories":
+    case "disableOutlookCategories":
+    case "enablePresentationSync":
+    case "disablePresentationSync":
       await microsoftRequest(action, today()); break;
+    case "openMicrosoftToDo":
+      window.open(serviceEnvironment().todoUrl, "_blank", "noopener,noreferrer");
+      break;
     case "export":
       downloadBlob(new Blob([action.contents], { type: "application/json" }), action.filename);
       break;
@@ -75,6 +84,15 @@ async function handle(action) {
         resolveFile: file => materializeCloudAttachment(file.storage_key, microsoftAccountId()),
       }));
       break;
+    case "exportPst": {
+      const { downloadPst } = await import("./backup/pst-export.js");
+      const result = await microsoftExclusive(() => downloadPst(runtime, {
+        resolveFile: file => materializeCloudAttachment(file.storage_key, microsoftAccountId()),
+      }));
+      runtime.hostStatus(result.warnings.length ? `Outlook PST downloaded. ${result.warnings.join(" ")}`
+        : "Outlook PST downloaded, including task files.");
+      break;
+    }
     case "exportMicrosoft":
       await microsoftExclusive(async () => {
         const account = microsoftAccountId();
@@ -92,6 +110,14 @@ async function handle(action) {
           storeFile: storeAttachment, deleteFile: deleteAttachment,
         }), { restore: true });
       }
+      break;
+    }
+    case "importPst": {
+      const { chooseAndRestorePst } = await import("./backup/pst.js");
+      const result = await microsoftExclusive(() => chooseAndRestorePst(runtime, {
+        storeFile: storeAttachment, deleteFile: deleteAttachment,
+      }), { restore: true });
+      if (result?.warnings?.length) runtime.hostStatus(`Imported Outlook tasks. ${result.warnings.join(" ")}`);
       break;
     }
     case "import": {
