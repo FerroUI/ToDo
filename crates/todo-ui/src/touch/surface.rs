@@ -5,9 +5,12 @@ use ferroui_base::{BoxedValue, Ref, WeakRef};
 use ferroui_controls::primitives::ToggleButton;
 use ferroui_controls::{Border, Button, Control, Grid};
 use ferroui_view::prelude::*;
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::Cell,
+    rc::{Rc, Weak},
+};
 use todo_domain::Id;
-use todo_state::AppViewModel;
+use todo_state::{gestures::swipe::SwipeLimits, AppViewModel};
 
 /// The existing, templated card remains intact; only its visual offset changes during a swipe.
 pub(crate) fn task_surface(vm: Rc<AppViewModel>, id: Id, _dark: bool, card: Element) -> Element {
@@ -27,18 +30,42 @@ pub(super) struct Surface {
     pub root: WeakRef<Grid>,
     pub offset: Cell<f64>,
     transform: Ref<TranslateTransform>,
+    vm: Weak<AppViewModel>,
 }
 
 impl Surface {
-    pub fn new(root: &Ref<Grid>) -> Rc<Self> {
+    pub fn new(root: &Ref<Grid>, vm: &Rc<AppViewModel>) -> Rc<Self> {
         Rc::new(Self {
             root: root.downgrade(),
             offset: Cell::new(0.0),
             transform: TranslateTransform::new(),
+            vm: Rc::downgrade(vm),
         })
     }
 
+    pub fn limits(&self) -> SwipeLimits {
+        let (Some(root), Some(vm)) = (self.root.upgrade(), self.vm.upgrade()) else {
+            return SwipeLimits::default();
+        };
+        let state = vm.state();
+        let Some(task) = super::task_id(&root).and_then(|id| state.task(id)) else {
+            return SwipeLimits::default();
+        };
+        let mounted = |name| {
+            root.find_descendant_of_type_where::<Button>(false, |button| {
+                button.name().as_deref() == Some(name)
+            })
+            .is_some()
+        };
+        SwipeLimits::new(
+            mounted("SwipeMyDay"),
+            task.can_move() && mounted("SwipeMove"),
+            task.can_delete() && mounted("SwipeDelete"),
+        )
+    }
+
     pub fn render(&self, offset: f64) {
+        let offset = self.limits().clamp(offset);
         let previous = self.offset.replace(offset);
         let Some(root) = self.root.upgrade() else {
             return;

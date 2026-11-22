@@ -71,6 +71,10 @@ The browser targets global Microsoft identity and Graph endpoints; national-clou
 
 As reviewed on 2026-11-22, Microsoft says its To Do applications will retire **June 30, 2027**. It distinguishes the underlying service, APIs, and synchronization, whose later retirement dates are not yet announced. Export guidance is promised before app retirement, but format details and limits are not published. Existing tasks will not automatically migrate to Planner, and Planner is unavailable to personal Microsoft accounts. These facts affect planning; they do not establish that Graph has already retired. [Microsoft's transition guidance](https://support.microsoft.com/en-us/planner/to-do-to-planner).
 
+## Provider capabilities across input paths
+
+Planner task restrictions apply to native menus, detail actions, swipe rails, mouse and held-touch drag, keyboard deletion, and bulk operations. Planner swipes expose My Day only; flagged-email tasks cannot move into a personal list. Single-action rails use their actual width for drag limits and settling thresholds. Rejected protected operations preserve the current selection and cannot produce a false deletion-success message. These policies remain enforced by the Rust domain beneath every UI route.
+
 ## Verification and limits
 
 The browser suite exercises production modules with controlled MSAL, storage, timer, and Graph fixtures. Focused files include `microsoft-auth*.test.mjs`, `automatic-sync.test.mjs`, `graph-sync.test.mjs`, `graph-delta.test.mjs`, `planner-sync.test.mjs`, `portable-backup.test.mjs`, and `microsoft-archive.test.mjs`. They cover redirects, token renewal, origin validation, scheduling, deltas, files, interruption recovery, move conflicts, Planner revisions, malformed archives, checksums, concurrent edits, and account isolation. Rust tests cover model constraints and document validation.

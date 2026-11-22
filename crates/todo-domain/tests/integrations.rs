@@ -153,3 +153,107 @@ fn outlook_category_names_keep_hashes_and_commas() {
     );
     assert!(AppState::from_json(&state.to_json().unwrap()).is_ok());
 }
+
+#[test]
+fn provider_move_and_delete_capabilities_match_the_domain_commands() {
+    let ordinary = Task::new(2, TASKS_LIST, "Local task".into(), today());
+    let mut flagged = ordinary.clone();
+    flagged.flagged_email = true;
+    assert!(ordinary.can_move() && ordinary.can_delete());
+    assert!(!flagged.can_move() && flagged.can_delete());
+    let assigned = planner();
+    assert!(!assigned.task(2).unwrap().can_move());
+    assert!(!assigned.task(2).unwrap().can_delete());
+
+    for protected in [flagged, assigned.task(2).unwrap().clone()] {
+        let mut state = AppState::default();
+        state.tasks = vec![
+            protected,
+            Task::new(3, TASKS_LIST, "Ordinary".into(), today()),
+        ];
+        state.next_id = 4;
+        let destination = state
+            .apply(
+                Action::AddList {
+                    name: "Destination".into(),
+                },
+                today(),
+            )
+            .unwrap()
+            .created_list
+            .unwrap();
+        for action in [
+            Action::MoveTask {
+                id: 2,
+                list_id: destination,
+            },
+            Action::ReorderTask {
+                id: 2,
+                before: Some(3),
+            },
+            Action::Batch(vec![
+                Action::MoveTask {
+                    id: 3,
+                    list_id: destination,
+                },
+                Action::MoveTask {
+                    id: 2,
+                    list_id: destination,
+                },
+            ]),
+        ] {
+            let before = state.clone();
+            assert!(state.apply(action, today()).is_err());
+            assert_eq!(
+                state, before,
+                "a protected source cannot partially move a mixed batch"
+            );
+        }
+        state
+            .apply(
+                Action::SetMyDay {
+                    id: 2,
+                    day: Some(today()),
+                },
+                today(),
+            )
+            .unwrap();
+        state.apply(Action::ToggleCompleted(2), today()).unwrap();
+        assert!(state.task(2).unwrap().is_my_day(today()));
+        assert!(state.task(2).unwrap().completed);
+    }
+}
+
+#[test]
+fn ordinary_reordering_never_repositions_hidden_provider_records() {
+    let mut state = planner();
+    state.tasks.extend([
+        Task::new(3, TASKS_LIST, "First".into(), today()),
+        Task::new(4, TASKS_LIST, "Second".into(), today()),
+    ]);
+    state.next_id = 5;
+    let protected = state.task(2).unwrap().clone();
+    state
+        .apply(
+            Action::ReorderTask {
+                id: 4,
+                before: Some(3),
+            },
+            today(),
+        )
+        .unwrap();
+    assert_eq!(state.task(2), Some(&protected));
+    let before = state.clone();
+    assert!(
+        state
+            .apply(
+                Action::ReorderTask {
+                    id: 3,
+                    before: Some(2)
+                },
+                today()
+            )
+            .is_err()
+    );
+    assert_eq!(state, before);
+}

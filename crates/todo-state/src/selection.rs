@@ -141,7 +141,12 @@ impl AppViewModel {
         self.notify();
     }
     pub fn delete_selection(&self) {
-        if self.selection_count() == 0 {
+        let ids = self.existing_selection();
+        if ids.is_empty()
+            || !ids
+                .iter()
+                .all(|id| self.state().task(*id).is_some_and(|task| task.can_delete()))
+        {
             return;
         }
         let confirm = self.state().settings.confirm_delete;
@@ -153,44 +158,69 @@ impl AppViewModel {
     }
     pub fn confirm_delete_selection(&self) {
         let ids = self.existing_selection();
-        if ids.is_empty() {
+        if ids.is_empty()
+            || !ids
+                .iter()
+                .all(|id| self.state().task(*id).is_some_and(|task| task.can_delete()))
+        {
             return;
         }
         let count = ids.len();
-        self.clear_selection_state();
-        *self.panel.borrow_mut() = Panel::None;
-        self.dispatch(Action::Batch(
-            ids.iter().copied().map(Action::DeleteTask).collect(),
-        ));
-        let removed = ids.iter().all(|id| self.state().task(*id).is_none());
-        if removed && !self.status().starts_with("Could not save") {
-            self.set_undo_status(format!("{count} tasks deleted. You can undo this change."));
-        }
-        self.notify();
+        self.dispatch_after(
+            Action::Batch(ids.iter().copied().map(Action::DeleteTask).collect()),
+            move |vm, changes| {
+                if ids.iter().all(|id| changes.deleted_tasks.contains(id)) {
+                    if vm.selection().iter().all(|id| ids.contains(id)) {
+                        vm.clear_selection_state();
+                    }
+                    if vm.panel() == Panel::DeleteSelection {
+                        *vm.panel.borrow_mut() = Panel::None;
+                    }
+                    vm.set_undo_status(format!("{count} tasks deleted. You can undo this change."));
+                }
+            },
+        );
     }
     pub fn move_selection(&self, list_id: Id) {
         let ids = self.existing_selection();
-        if ids.is_empty() || self.state().list(list_id).is_none() {
+        if ids.is_empty()
+            || self.state().list(list_id).is_none()
+            || !ids
+                .iter()
+                .all(|id| self.state().task(*id).is_some_and(|task| task.can_move()))
+        {
             return;
         }
         let count = ids.len();
-        self.clear_selection_state();
-        *self.panel.borrow_mut() = Panel::None;
-        self.dispatch(Action::Batch(
-            ids.iter()
-                .copied()
-                .map(|id| Action::MoveTask { id, list_id })
-                .collect(),
-        ));
-        let moved = ids.iter().all(|id| {
-            self.state()
-                .task(*id)
-                .is_some_and(|task| task.list_id == list_id)
-        });
-        if moved && !self.status().starts_with("Could not save") {
-            self.set_undo_status(format!("{count} tasks moved. You can undo this change."));
-        }
-        self.notify();
+        self.dispatch_after(
+            Action::Batch(
+                ids.iter()
+                    .copied()
+                    .map(|id| Action::MoveTask { id, list_id })
+                    .collect(),
+            ),
+            move |vm, changes| {
+                if ids.iter().all(|id| {
+                    vm.state()
+                        .task(*id)
+                        .is_some_and(|task| task.list_id == list_id)
+                }) {
+                    if vm.selection().iter().all(|id| ids.contains(id)) {
+                        vm.clear_selection_state();
+                    }
+                    if vm.panel() == Panel::MoveSelection {
+                        *vm.panel.borrow_mut() = Panel::None;
+                    }
+                    if changes.changed {
+                        vm.set_undo_status(format!(
+                            "{count} tasks moved. You can undo this change."
+                        ));
+                    } else {
+                        vm.notify();
+                    }
+                }
+            },
+        );
     }
     fn clear_selection_state(&self) {
         self.selection.borrow_mut().clear();

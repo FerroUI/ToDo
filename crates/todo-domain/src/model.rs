@@ -89,6 +89,14 @@ impl Task {
             .is_some_and(|source| source.provider == "Planner")
     }
 
+    pub fn can_move(&self) -> bool {
+        !self.is_planner() && !self.flagged_email
+    }
+
+    pub fn can_delete(&self) -> bool {
+        !self.is_planner()
+    }
+
     pub fn is_overdue(&self, today: Date) -> bool {
         !self.completed && self.due_date.is_some_and(|due| due < today)
     }

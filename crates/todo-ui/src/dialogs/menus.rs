@@ -95,11 +95,7 @@ pub fn task(vm: Rc<AppViewModel>, id: Id) -> Element {
     let important = vm.clone();
     let complete = vm.clone();
     let due = vm.clone();
-    let move_task = vm.clone();
     let duplicate = vm.clone();
-    let remove = vm.clone();
-    let up = vm.clone();
-    let down = vm.clone();
     let included = task.is_my_day(vm.today());
     let mut menu = stack_panel()
         .spacing(2.0)
@@ -144,17 +140,22 @@ pub fn task(vm: Rc<AppViewModel>, id: Id) -> Element {
         ))
         .child(action_button(Icon::Calendar, "Set due date", move || {
             due.show_panel(Panel::DueDate(id))
-        }))
-        .child(action_button(
+        }));
+    if task.can_move() {
+        let move_task = vm.clone();
+        menu = menu.child(action_button(
             Icon::MoveToList,
             "Move task to…",
             move || move_task.show_panel(Panel::MoveTask(id)),
-        ))
-        .child(action_button(Icon::Copy, "Duplicate task", move || {
-            duplicate.dispatch(Action::DuplicateTask(id));
-            duplicate.show_panel(Panel::None);
-        }));
-    if vm.sort() == SortOrder::Manual {
+        ));
+    }
+    menu = menu.child(action_button(Icon::Copy, "Duplicate task", move || {
+        duplicate.dispatch(Action::DuplicateTask(id));
+        duplicate.show_panel(Panel::None);
+    }));
+    if task.can_move() && vm.sort() == SortOrder::Manual && matches!(vm.view(), View::List(_)) {
+        let up = vm.clone();
+        let down = vm.clone();
         menu = menu
             .child(action_button(Icon::ArrowUp, "Move up", move || {
                 up.move_task_by(id, -1);
@@ -165,8 +166,10 @@ pub fn task(vm: Rc<AppViewModel>, id: Id) -> Element {
                 down.show_panel(Panel::None);
             }));
     }
-    menu.child(action_button(Icon::Trash, "Delete task", move || {
-        remove.delete_task(id)
-    }))
-    .into()
+    if task.can_delete() {
+        menu = menu.child(action_button(Icon::Trash, "Delete task", move || {
+            vm.delete_task(id)
+        }));
+    }
+    menu.into()
 }

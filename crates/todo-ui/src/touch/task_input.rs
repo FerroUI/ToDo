@@ -11,7 +11,7 @@ use ferroui_controls::primitives::ToggleButton;
 use ferroui_controls::{Button, CheckBox, Control, TextBox};
 use std::rc::Rc;
 use todo_state::{
-    gestures::{settle_swipe, swipe_offset, Axis, TouchTrack},
+    gestures::{Axis, TouchTrack},
     Panel,
 };
 
@@ -82,7 +82,7 @@ impl GestureRecognizerImpl for TaskRecognizer {
             (
                 axis,
                 if session.allow_swipe {
-                    Some(swipe_offset(session.initial, session.track.x))
+                    Some(session.initial + session.track.x)
                 } else {
                     None
                 },
@@ -123,8 +123,9 @@ impl GestureRecognizerImpl for TaskRecognizer {
                 .track
                 .update(point.x - session.start.x, point.y - session.start.y);
             if final_axis == Axis::Horizontal {
+                let limits = this.surface.limits();
                 this.surface
-                    .render(settle_swipe(swipe_offset(session.initial, session.track.x)));
+                    .render(limits.settle(limits.offset(session.initial, session.track.x)));
             } else {
                 this.surface.close();
             }

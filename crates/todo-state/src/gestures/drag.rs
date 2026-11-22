@@ -46,8 +46,10 @@ impl DragOrigin {
             DragItem::Task(id) => {
                 let state = vm.state();
                 let task = state.task(id)?;
-                if input == DragInput::Touch
-                    && (vm.view() != View::List(task.list_id) || vm.sort() != SortOrder::Manual)
+                if !task.can_move()
+                    || !movable_selection(vm)
+                    || input == DragInput::Touch
+                        && (vm.view() != View::List(task.list_id) || vm.sort() != SortOrder::Manual)
                 {
                     return None;
                 }
@@ -112,7 +114,10 @@ impl DragOrigin {
         }
         match self.item {
             DragItem::Task(id) => vm.state().task(id).is_some_and(|task| {
-                Some(task.list_id) == self.parent && Some(task.completed) == self.completed
+                task.can_move()
+                    && movable_selection(vm)
+                    && Some(task.list_id) == self.parent
+                    && Some(task.completed) == self.completed
             }),
             DragItem::Sidebar(SidebarItem::List(id)) => vm
                 .state()
@@ -129,4 +134,11 @@ impl DragOrigin {
             DragItem::Sidebar(SidebarItem::Group(_)) => "Move group",
         }
     }
+}
+
+fn movable_selection(vm: &AppViewModel) -> bool {
+    let state = vm.state();
+    vm.selection()
+        .iter()
+        .all(|id| state.task(*id).is_some_and(|task| task.can_move()))
 }

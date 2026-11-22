@@ -88,7 +88,9 @@ fn reorder(vm: &AppViewModel, id: Id, target: Id, after: bool) -> Option<Action>
     let document = vm.state();
     let source = document.task(id)?;
     let target = document.task(target)?;
-    if source.list_id != list_id
+    if !source.can_move()
+        || !target.can_move()
+        || source.list_id != list_id
         || target.list_id != list_id
         || source.completed != target.completed
     {
@@ -100,6 +102,7 @@ fn reorder(vm: &AppViewModel, id: Id, target: Id, after: bool) -> Option<Action>
             .iter()
             .filter(|candidate| {
                 candidate.id != id
+                    && candidate.can_move()
                     && candidate.list_id == list_id
                     && candidate.completed == target.completed
                     && (candidate.position, candidate.id) > (target.position, target.id)
@@ -114,7 +117,8 @@ fn reorder(vm: &AppViewModel, id: Id, target: Id, after: bool) -> Option<Action>
 
 fn move_to(vm: &AppViewModel, id: Id, list_id: Id) -> Option<Action> {
     let document = vm.state();
-    if document.task(id)?.list_id == list_id || document.list(list_id).is_none() {
+    let source = document.task(id)?;
+    if !source.can_move() || source.list_id == list_id || document.list(list_id).is_none() {
         return None;
     }
     Some(Action::MoveTask { id, list_id })

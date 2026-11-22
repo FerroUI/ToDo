@@ -9,55 +9,63 @@ use todo_domain::{Action, Id};
 use todo_state::{AppViewModel, Panel};
 
 pub(super) fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
-    let included = vm
-        .state()
-        .task(id)
-        .is_some_and(|task| task.is_my_day(vm.today()));
+    let (included, can_move, can_delete) =
+        vm.state().task(id).map_or((false, false, false), |task| {
+            (
+                task.is_my_day(vm.today()),
+                task.can_move(),
+                task.can_delete(),
+            )
+        });
     let day = vm.clone();
     let move_task = vm.clone();
-    grid()
-        .margin((0.0, 0.0, 0.0, 6.0))
-        .child(
-            stack_panel()
-                .name("TaskSwipeRightActions")
-                .orientation(Orientation::Horizontal)
-                .horizontal_alignment(H::Left)
-                .is_visible(false)
-                .child(action(
-                    "SwipeMyDay",
-                    if included {
-                        "Remove from My Day"
-                    } else {
-                        "Add to My Day"
-                    },
-                    Icon::Sun,
-                    "#395EA8",
-                    move |event| {
-                        if let Some(id) = close_and_id(event) {
-                            let included = day
-                                .state()
-                                .task(id)
-                                .is_some_and(|task| task.is_my_day(day.today()));
-                            day.dispatch(Action::SetMyDay {
-                                id,
-                                day: (!included).then(|| day.today()),
-                            });
-                        }
-                    },
-                ))
-                .child(action(
-                    "SwipeMove",
-                    "Move to list",
-                    Icon::MoveToList,
-                    "#366F76",
-                    move |event| {
-                        if let Some(id) = close_and_id(event) {
-                            move_task.show_panel(Panel::MoveTask(id));
-                        }
-                    },
-                )),
-        )
-        .child(
+    let mut right = stack_panel()
+        .name("TaskSwipeRightActions")
+        .orientation(Orientation::Horizontal)
+        .horizontal_alignment(H::Left)
+        .is_visible(false)
+        .child(action(
+            "SwipeMyDay",
+            if included {
+                "Remove from My Day"
+            } else {
+                "Add to My Day"
+            },
+            Icon::Sun,
+            "#395EA8",
+            move |event| {
+                if let Some(id) = close_and_id(event) {
+                    let included = day.state().task(id).map(|task| task.is_my_day(day.today()));
+                    let Some(included) = included else { return };
+                    day.dispatch(Action::SetMyDay {
+                        id,
+                        day: (!included).then(|| day.today()),
+                    });
+                }
+            },
+        ));
+    if can_move {
+        right = right.child(action(
+            "SwipeMove",
+            "Move to list",
+            Icon::MoveToList,
+            "#366F76",
+            move |event| {
+                if let Some(id) = close_and_id(event) {
+                    if move_task
+                        .state()
+                        .task(id)
+                        .is_some_and(|task| task.can_move())
+                    {
+                        move_task.show_panel(Panel::MoveTask(id));
+                    }
+                }
+            },
+        ));
+    }
+    let mut rails = grid().margin((0.0, 0.0, 0.0, 6.0)).child(right);
+    if can_delete {
+        rails = rails.child(
             border()
                 .name("TaskSwipeDeleteAction")
                 .horizontal_alignment(H::Right)
@@ -70,12 +78,15 @@ pub(super) fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
                     move |event| {
                         if let Some(id) = close_and_id(event) {
                             // A destructive swipe always asks, independently of the menu preference.
-                            vm.show_panel(Panel::DeleteTask(id));
+                            if vm.state().task(id).is_some_and(|task| task.can_delete()) {
+                                vm.show_panel(Panel::DeleteTask(id));
+                            }
                         }
                     },
                 )),
-        )
-        .into()
+        );
+    }
+    rails.into()
 }
 
 fn action(
@@ -88,7 +99,7 @@ fn action(
     button()
         .name(name)
         .class("todo-flat")
-        .width(88.0)
+        .width(todo_state::gestures::DELETE_REVEAL)
         .min_height(48.0)
         .padding((4.0, 4.0))
         .vertical_alignment(V::Stretch)

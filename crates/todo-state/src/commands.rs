@@ -153,6 +153,9 @@ impl AppViewModel {
     }
 
     pub fn delete_task(&self, id: Id) {
+        if !self.state().task(id).is_some_and(|task| task.can_delete()) {
+            return;
+        }
         let confirm = self.state().settings.confirm_delete;
         if confirm {
             self.show_panel(Panel::DeleteTask(id));
@@ -162,14 +165,17 @@ impl AppViewModel {
     }
 
     pub fn confirm_delete_task(&self, id: Id) {
-        if self.state().task(id).is_none() {
+        if !self.state().task(id).is_some_and(|task| task.can_delete()) {
             return;
         }
-        self.dispatch(Action::DeleteTask(id));
-        self.show_panel(Panel::None);
-        if !self.status().starts_with("Could not save") {
-            self.set_undo_status("Task deleted. You can undo this change.".into());
-        }
+        self.dispatch_after(Action::DeleteTask(id), move |vm, changes| {
+            if changes.deleted_tasks.contains(&id) {
+                if matches!(vm.panel(), Panel::DeleteTask(target) | Panel::TaskMenu(target) if target == id) {
+                    vm.show_panel(Panel::None);
+                }
+                vm.set_undo_status("Task deleted. You can undo this change.".into());
+            }
+        });
     }
 
     pub fn set_sort(&self, sort: SortOrder) {

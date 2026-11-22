@@ -72,6 +72,9 @@ impl AppViewModel {
             let Some(task) = state.task(id) else {
                 return;
             };
+            if !task.can_move() {
+                return;
+            }
             let mut ids: Vec<_> = state
                 .visible_tasks(
                     &View::List(task.list_id),

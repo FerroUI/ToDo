@@ -33,12 +33,25 @@ pub struct CloudList {
 impl AppState {
     /// Enforce service capabilities below every UI, keyboard and batch command.
     pub(crate) fn validate_integration_action(&self, action: &Action) -> Result<(), DomainError> {
+        match action {
+            Action::MoveTask { id, .. } | Action::ReorderTask { id, .. }
+                if self.task(*id).is_some_and(|task| !task.can_move()) =>
+            {
+                return Err(DomainError::InvalidValue(
+                    "This task stays in its source list. Duplicate it to create an independent task you can move.".into(),
+                ));
+            }
+            Action::DeleteTask(id) if self.task(*id).is_some_and(|task| !task.can_delete()) => {
+                return Err(DomainError::InvalidValue(
+                    "Open this task in Planner to delete it.".into(),
+                ));
+            }
+            _ => {}
+        }
         let task = match action {
-            Action::MoveTask { id, .. }
-            | Action::AssignTask { id, .. }
+            Action::AssignTask { id, .. }
             | Action::SetReminder { id, .. }
             | Action::SetRecurrence { id, .. }
-            | Action::DeleteTask(id)
             | Action::SetTags { id, .. } => Some(*id),
             Action::AddAttachment { task_id, .. }
             | Action::DeleteAttachment { task_id, .. }

@@ -43,7 +43,7 @@ impl TaskRecognizer {
         let recognizer = instantiate(Self {
             base: GestureRecognizer::construct(),
             vm: Rc::downgrade(&vm),
-            surface: Surface::new(root),
+            surface: Surface::new(root, &vm),
             session: RefCell::new(None),
         });
         root.gesture_recognizers().add(&recognizer);

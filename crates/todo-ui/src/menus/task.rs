@@ -29,8 +29,8 @@ pub(super) fn items(vm: Rc<AppViewModel>, id: Id) -> Vec<Element> {
     let included = tasks.iter().all(|task| task.is_my_day(vm.today()));
     let important = tasks.iter().all(|task| task.important);
     let completed = tasks.iter().all(|task| task.completed);
-    let has_planner = tasks.iter().any(|task| task.is_planner());
-    let can_move = !has_planner && tasks.iter().all(|task| !task.flagged_email);
+    let can_move = tasks.iter().all(|task| task.can_move());
+    let can_delete = tasks.iter().all(|task| task.can_delete());
     let mut lists = state.lists.clone();
     lists.sort_by_key(|list| (list.position, list.id));
     let destinations: Vec<_> = lists
@@ -132,7 +132,7 @@ pub(super) fn items(vm: Rc<AppViewModel>, id: Id) -> Vec<Element> {
             select.toggle_task_selection(id)
         }));
     }
-    if !has_planner {
+    if can_delete {
         items.push(separator().into());
         items.push(super::task_action::delete(vm, ids, selected));
     }

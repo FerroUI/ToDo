@@ -159,14 +159,14 @@ impl AppState {
                     .tasks
                     .iter()
                     .filter(|task| {
-                        !task.is_planner()
+                        task.can_delete()
                             && task.completed
                             && list_id.is_none_or(|id| task.list_id == id)
                     })
                     .map(|task| task.id)
                     .collect();
                 self.tasks.retain(|task| {
-                    task.is_planner()
+                    !task.can_delete()
                         || !(task.completed && list_id.is_none_or(|id| task.list_id == id))
                 });
                 Ok(Changes {
@@ -248,7 +248,7 @@ impl AppState {
         }
         if let Some(before_id) = before {
             let target = &self.tasks[self.task_index(before_id)?];
-            if target.list_id != list_id {
+            if target.list_id != list_id || !target.can_move() {
                 return Err(DomainError::InvalidValue(
                     "Reorder tasks within the same list".into(),
                 ));
@@ -257,7 +257,7 @@ impl AppState {
         let mut ids: Vec<_> = self
             .tasks
             .iter()
-            .filter(|task| task.list_id == list_id)
+            .filter(|task| task.list_id == list_id && task.can_move())
             .map(|task| (task.position, task.id))
             .collect();
         ids.sort_unstable();
