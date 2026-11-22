@@ -2,7 +2,7 @@ mod diff;
 mod model;
 pub use model::Row;
 
-use ferroui_base::{collections::FerroList, BoxedValue};
+use ferroui_base::{BoxedValue, collections::FerroList};
 use ferroui_controls::ItemsSource;
 use std::{
     cell::{Cell, RefCell},
@@ -74,7 +74,13 @@ impl Rows {
             View::List(id) => state.list(*id).is_some_and(|list| list.show_completed),
             _ => state.settings.show_completed,
         };
-        let mut tasks = state.visible_tasks(&view, vm.sort(), show_completed, today);
+        let mut tasks = state.visible_tasks_with_direction(
+            &view,
+            vm.sort(),
+            vm.sort_reversed(),
+            show_completed,
+            today,
+        );
         if view == View::Planned {
             // Keep date groups contiguous even when the user changes the secondary sort.
             tasks.sort_by_key(|task| {

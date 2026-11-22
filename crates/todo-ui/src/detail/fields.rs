@@ -1,55 +1,11 @@
 use crate::palette;
-use ferroui_base::input::Key;
+use ferroui_base::input::{Key, KeyModifiers};
+use ferroui_base::layout::VerticalAlignment;
 use ferroui_base::media::{FontWeight, TextWrapping};
 use ferroui_controls::TextBox;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{action_button, Icon};
-use todo_domain::Task;
-use todo_state::{AppViewModel, Panel};
-
-pub(super) fn scheduling(vm: Rc<AppViewModel>, task: &Task) -> Element {
-    let id = task.id;
-    let reminder_vm = vm.clone();
-    let due_vm = vm.clone();
-    let repeat_vm = vm.clone();
-    let reminder = task.reminder.as_ref().map(|r| {
-        format!(
-            "{} at {:02}:{:02}",
-            vm.date_label(r.date),
-            r.minutes_after_midnight / 60,
-            r.minutes_after_midnight % 60
-        )
-    });
-    let due = task
-        .due_date
-        .map(|date| format!("Due {}", vm.date_label(date).to_lowercase()));
-    let repeat = task.recurrence.as_ref().map(|r| r.label());
-    section(
-        vm.clone(),
-        stack_panel()
-            .child(detail_action(
-                vm.clone(),
-                Icon::Bell,
-                reminder.as_deref().unwrap_or("Remind me"),
-                move || reminder_vm.show_panel(Panel::Reminder(id)),
-            ))
-            .child(separator(vm.clone()))
-            .child(detail_action(
-                vm.clone(),
-                Icon::Calendar,
-                due.as_deref().unwrap_or("Add due date"),
-                move || due_vm.show_panel(Panel::DueDate(id)),
-            ))
-            .child(separator(vm.clone()))
-            .child(detail_action(
-                vm.clone(),
-                Icon::Repeat,
-                repeat.as_deref().unwrap_or("Repeat"),
-                move || repeat_vm.show_panel(Panel::Repeat(id)),
-            )),
-    )
-}
+use todo_state::AppViewModel;
 
 pub(crate) fn edit_field(
     name: &str,
@@ -57,66 +13,71 @@ pub(crate) fn edit_field(
     placeholder: &str,
     multiline: bool,
     save: impl Fn(String) + 'static,
-) -> Element {
-    let enter_commits = !multiline || name == "TaskTitle";
-    let commit: Rc<dyn Fn(String)> = Rc::new(save);
+) -> El<TextBox> {
+    let title = name == "TaskTitle";
+    let notes = name == "TaskNotes";
+    let required = title
+        || name
+            .strip_prefix("Step")
+            .is_some_and(|id| id.parse::<u64>().is_ok());
+    let enter_commits = !multiline || title;
+    let original = value.clone();
+    let commit: Rc<dyn Fn(&TextBox)> = Rc::new(move |field| {
+        let text = field.text().unwrap_or_default();
+        if required && text.trim().is_empty() {
+            // Rejected blank names must not leave the retained editor visually blank.
+            field.set_text(Some(original.as_str()));
+        } else {
+            save(text);
+        }
+    });
     let enter = commit.clone();
     text_box()
         .name(name)
         .class("todo-input")
         .text(value)
+        .automation_properties_name(if notes { "Task notes" } else { placeholder })
+        .automation_properties_help_text(if notes {
+            "Enter adds a new line. Control+Enter saves the note."
+        } else {
+            "Press Enter to save."
+        })
         .placeholder_text(placeholder)
-        .font_size(if name == "TaskTitle" { 18.0 } else { 13.0 })
-        .font_weight(if name == "TaskTitle" {
+        .font_size(if title { 18.0 } else { 13.0 })
+        .font_weight(if title {
             FontWeight::SemiBold
         } else {
             FontWeight::Normal
         })
+        .min_height(if notes { 96.0 } else { 36.0 })
+        .vertical_content_alignment(VerticalAlignment::Top)
         .background("Transparent")
         .border_thickness(0.0)
         .padding((6.0, 8.0))
-        .accepts_return(multiline && name != "TaskTitle")
+        .accepts_return(multiline && !title)
         .text_wrapping(TextWrapping::Wrap)
         .on_lost_focus(move |event| {
             if let Some(field) = event.source().and_then(|source| source.cast::<TextBox>()) {
-                commit(field.text().unwrap_or_default());
+                commit(&field);
             }
         })
         .on_key_down(move |event| {
-            if event.key == Key::Return && enter_commits {
+            let modified_enter = event
+                .key_modifiers
+                .intersects(KeyModifiers::CONTROL | KeyModifiers::META);
+            if event.key == Key::Return && (enter_commits || modified_enter) {
                 if let Some(field) = event.source().and_then(|source| source.cast::<TextBox>()) {
-                    enter(field.text().unwrap_or_default());
+                    enter(&field);
                 }
                 event.set_handled(true);
             }
         })
-        .into()
 }
 
-fn detail_action(
-    vm: Rc<AppViewModel>,
-    symbol: Icon,
-    label: &str,
-    click: impl Fn() + 'static,
-) -> Element {
-    let p = palette(&vm);
-    border()
-        .min_height(48.0)
-        .background(p.surface)
-        .child(action_button(symbol, label, click))
-        .into()
-}
 pub(super) fn section(vm: Rc<AppViewModel>, child: impl IntoChild) -> Element {
     border()
         .background(palette(&vm).surface)
         .corner_radius(4.0)
         .child(child)
-        .into()
-}
-fn separator(vm: Rc<AppViewModel>) -> Element {
-    border()
-        .height(1.0)
-        .background(palette(&vm).border)
-        .margin((16.0, 0.0))
         .into()
 }

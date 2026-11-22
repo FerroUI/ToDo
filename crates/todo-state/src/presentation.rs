@@ -1,4 +1,4 @@
-use super::{view_title, AppViewModel};
+use super::{AppViewModel, view_title};
 use todo_domain::{Date, Task, View};
 
 impl AppViewModel {
@@ -27,7 +27,13 @@ impl AppViewModel {
             _ => state.settings.show_completed,
         };
         state
-            .visible_tasks(&self.view(), self.sort(), show, self.today())
+            .visible_tasks_with_direction(
+                &self.view(),
+                self.sort(),
+                self.sort_reversed(),
+                show,
+                self.today(),
+            )
             .into_iter()
             .cloned()
             .collect()
@@ -78,7 +84,18 @@ impl AppViewModel {
         if matches!(self.view(), View::MyDay) {
             self.today().format("%A, %B %-d").to_string()
         } else {
-            let count = self.count(&self.view());
+            let count = if matches!(self.view(), View::Search(_)) {
+                let state = self.state();
+                let count = state.count(&self.view(), self.today());
+                count.active
+                    + if state.settings.show_completed {
+                        count.completed
+                    } else {
+                        0
+                    }
+            } else {
+                self.count(&self.view())
+            };
             format!("{count} {}", if count == 1 { "task" } else { "tasks" })
         }
     }

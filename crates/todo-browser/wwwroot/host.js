@@ -1,4 +1,5 @@
-import { saveAttachment, deleteAttachment, openAttachment, downloadBlob, chooseFile } from "./attachments.js";
+import { deleteAttachment, openAttachment, downloadBlob, chooseFile } from "./attachments.js";
+import { attachFiles } from "./attachment-upload.js";
 import { requestNotifications, notify, completionSound } from "./notifications.js";
 import { microsoftRequest } from "./graph.js";
 import { createDocumentStorage } from "./document-storage.js";
@@ -61,11 +62,7 @@ async function handle(action) {
     }
     case "attach": {
       const files = await chooseFile("", true);
-      for (const file of files) {
-        const key = await saveAttachment(file);
-        try { runtime.attachFile(String(action.task_id), file.name, file.type, file.size, key); }
-        catch (error) { await deleteAttachment(key); throw error; }
-      }
+      await attachFiles(runtime, action.task_id, files);
       break;
     }
     case "openAttachment": await openAttachment(action.key); break;

@@ -22,6 +22,7 @@ fn main() {
             "ContextMenu",
             "MenuItem",
             "Separator",
+            "Calendar",
         ])
         .run();
 }

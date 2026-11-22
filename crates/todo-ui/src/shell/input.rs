@@ -13,6 +13,7 @@ pub(crate) struct Drafts {
     pub search_input: NodeRef<TextBox>,
     pub task_list: NodeRef<ListBox>,
     route: RefCell<View>,
+    search_origin: RefCell<View>,
     search_timer: RefCell<Option<Subscription>>,
 }
 
@@ -29,6 +30,11 @@ impl Drafts {
             task_input: NodeRef::new(),
             search_input: NodeRef::new(),
             task_list: NodeRef::new(),
+            search_origin: RefCell::new(if matches!(view, View::Search(_)) {
+                View::MyDay
+            } else {
+                view.clone()
+            }),
             route: RefCell::new(view),
             search_timer: RefCell::new(None),
         }
@@ -39,6 +45,9 @@ impl Drafts {
         }
         self.search_timer.borrow_mut().take();
         if let View::Search(query) = &view {
+            if !matches!(*self.route.borrow(), View::Search(_)) {
+                *self.search_origin.borrow_mut() = self.route.borrow().clone();
+            }
             self.search.set(query.clone());
         }
         *self.route.borrow_mut() = view;
@@ -46,7 +55,10 @@ impl Drafts {
     pub fn search_changed(&self, vm: Rc<AppViewModel>, query: String) {
         self.search_timer.borrow_mut().take();
         // The mobile search field stays visible until Return; desktop results update as typed.
-        if vm.is_narrow() || vm.view() == View::Search(query.clone()) {
+        if vm.is_narrow()
+            || vm.view() == View::Search(query.clone())
+            || (query.trim().is_empty() && !matches!(vm.view(), View::Search(_)))
+        {
             return;
         }
         *self.search_timer.borrow_mut() = Some(DispatcherTimer::run_once(
@@ -62,6 +74,27 @@ impl Drafts {
     pub fn submit_search(&self, vm: &AppViewModel) {
         self.search_timer.borrow_mut().take();
         vm.navigate(View::Search(self.search.get_untracked()));
+    }
+    pub fn cancel_search(&self, vm: &AppViewModel) {
+        self.search_timer.borrow_mut().take();
+        self.search.set(String::new());
+        // A list may have been removed while search was open (including by synchronization).
+        let origin = self.search_origin.borrow().clone();
+        let origin = if matches!(origin, View::List(id) if vm.state().list(id).is_none()) {
+            View::MyDay
+        } else {
+            origin
+        };
+        if matches!(vm.view(), View::Search(_)) {
+            vm.navigate(origin);
+        }
+        // Updating a two-way input can schedule its debounce again; cancel after reconciliation.
+        self.search_timer.borrow_mut().take();
+        if vm.sidebar_visible() {
+            focus_later(self.search_input, false);
+        } else {
+            focus_later(self.task_input, false);
+        }
     }
     pub fn submit_task(&self, vm: &AppViewModel) {
         let title = self.task.get_untracked();

@@ -1,21 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-todo-build="__BUILD_VERSION__">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
   <meta name="theme-color" content="#f3f3f3">
   <meta name="description" content="Plan your day, organize your lists, and keep track of what matters.">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>To Do</title>
   <link rel="icon" type="image/svg+xml" href="./icon.svg">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./app.css">
-  <link rel="modulepreload" href="./main.js">
-  <link rel="modulepreload" href="./todo-browser.js">
-  <link rel="modulepreload" href="./ferroui.js">
-  <link rel="modulepreload" href="./ferroui-loader.js">
-  <link rel="preload" href="./todo_browser.wasm" as="fetch" type="application/wasm" crossorigin>
+  <link rel="stylesheet" href="./_app/__BUILD_VERSION__/app.css">
 </head>
 <body>
   <main id="out" aria-label="To Do">
@@ -27,6 +23,6 @@
     </div>
   </main>
   <noscript>To Do needs JavaScript and WebAssembly enabled in your browser.</noscript>
-  <script type="module" src="./main.js"></script>
+  <script type="module" src="./_app/__BUILD_VERSION__/bootstrap.js"></script>
 </body>
 </html>

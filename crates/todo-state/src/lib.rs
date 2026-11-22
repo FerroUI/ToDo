@@ -7,18 +7,20 @@ mod naming;
 mod navigation;
 mod persistence;
 mod presentation;
+mod scheduling;
 mod selection;
 mod services;
 
-pub use layout::{PaneLayout, COMPACT_WIDTH, DETAIL_WIDTH, MINIMUM_LIST_WIDTH, NAVIGATION_WIDTH};
+pub use layout::{COMPACT_WIDTH, DETAIL_WIDTH, MINIMUM_LIST_WIDTH, NAVIGATION_WIDTH, PaneLayout};
 pub use naming::{RenameSession, RenameTarget};
-pub use navigation::{view_title, Panel};
+pub use navigation::{Panel, view_title};
+pub use scheduling::{parse_reminder_time, reminder_in_one_hour};
 pub use services::{HostRequest, HostServices, SaveCallback};
 
 use ferroui_dynamic_data::SourceCache;
-use ferroui_reactive::concurrency::ImmediateScheduler;
 use ferroui_reactive::ObservableExt;
-use ferroui_reactiveui::{reactive_object, IReactiveObjectExt, ReactiveCommand, ReactiveObject};
+use ferroui_reactive::concurrency::ImmediateScheduler;
+use ferroui_reactiveui::{IReactiveObjectExt, ReactiveCommand, ReactiveObject, reactive_object};
 use std::cell::{Cell, Ref, RefCell};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::rc::Rc;
@@ -48,6 +50,7 @@ pub struct AppViewModel {
     cloud_label: RefCell<String>,
     completed_expanded: Cell<bool>,
     sort: Cell<SortOrder>,
+    sort_reversed: Cell<bool>,
     status: RefCell<String>,
     undo: RefCell<VecDeque<history::HistoryEntry>>,
     redo: RefCell<Vec<history::HistoryEntry>>,
@@ -92,6 +95,7 @@ impl AppViewModel {
                 cloud_label: RefCell::new(String::new()),
                 completed_expanded: Cell::new(true),
                 sort: Cell::new(SortOrder::Manual),
+                sort_reversed: Cell::new(false),
                 status: RefCell::new(String::new()),
                 undo: RefCell::new(VecDeque::new()),
                 redo: RefCell::new(Vec::new()),
@@ -201,8 +205,10 @@ impl AppViewModel {
         if let View::List(id) = &view {
             if let Some(list) = self.document.borrow().list(*id) {
                 self.sort.set(list.sort);
+                self.sort_reversed.set(list.sort_reversed);
             }
         } else {
+            self.sort_reversed.set(false);
             self.sort.set(if view == View::Planned {
                 SortOrder::DueDate
             } else {

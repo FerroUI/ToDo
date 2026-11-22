@@ -9,11 +9,15 @@ pub(super) struct ReturnFocus {
     previous: Option<WeakRef<InputElement>>,
     anchor: WeakRef<Control>,
     root: Option<WeakRef<Control>>,
+    step_origin: bool,
 }
 
 impl ReturnFocus {
     pub fn capture(anchor: &Ref<Control>) -> Self {
         Self {
+            step_origin: anchor
+                .name()
+                .is_some_and(|name| name.starts_with("StepOptions")),
             previous: KeyboardDevice::instance()
                 .and_then(|keyboard| keyboard.focused_element())
                 .map(|input| input.downgrade()),
@@ -62,6 +66,16 @@ impl ReturnFocus {
                     }
                 }
                 if let Some(root) = self.root.and_then(|weak| weak.upgrade()) {
+                    if self.step_origin
+                        && root
+                            .find_descendant_of_type_where::<TextBox>(false, |input| {
+                                input.name().as_deref() == Some("NewStep")
+                                    && FocusManager::can_focus(input)
+                            })
+                            .is_some_and(|input| input.focus())
+                    {
+                        return;
+                    }
                     if !root
                         .find_descendant_of_type_where::<TextBox>(false, |input| {
                             input.name().as_deref() == Some("NewTask")

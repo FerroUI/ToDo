@@ -1,4 +1,4 @@
-use super::input::{focus_later, Drafts};
+use super::input::{Drafts, focus_later};
 use ferroui_base::input::{Key, KeyEventArgs, KeyModifiers};
 use ferroui_controls::TextBox;
 use todo_domain::{Action, View};
@@ -14,6 +14,8 @@ pub(super) fn handle(vm: &AppViewModel, drafts: &Drafts, event: &KeyEventArgs) {
             vm.select(None);
         } else if vm.selection_mode() {
             vm.end_selection();
+        } else if matches!(vm.view(), View::Search(_)) {
+            drafts.cancel_search(vm);
         } else if vm.is_narrow() && vm.sidebar_visible() {
             vm.toggle_sidebar();
         }

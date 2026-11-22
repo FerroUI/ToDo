@@ -3,31 +3,39 @@ use ferroui_base::media::FontWeight;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
 use todo_controls::Icon;
-use todo_domain::{View, TASKS_LIST};
+use todo_domain::{TASKS_LIST, View};
 use todo_state::{AppViewModel, Panel, RenameTarget};
-pub(super) fn view(vm: Rc<AppViewModel>, foreground: &str, inset: f64) -> Element {
+pub(super) fn view(
+    vm: Rc<AppViewModel>,
+    foreground: &str,
+    inset: f64,
+    drafts: Rc<crate::shell::Drafts>,
+) -> Element {
     let my_day = matches!(vm.view(), View::MyDay);
     let menu = vm.clone();
     let suggest = vm.clone();
     let sort = vm.clone();
     let show_nav = vm.clone();
-    let select = vm.clone();
     let mut header = grid()
         .column_definitions("*,Auto")
+        .row_definitions("Auto,Auto,Auto")
         .margin((inset, 20.0, inset, 22.0));
     let title = stack_panel()
+        .grid_row(1)
+        .grid_column_span(2)
+        .margin((0.0, 8.0, 0.0, 0.0))
         .spacing(5.0)
         .child(title(vm.clone(), foreground))
         .child(
             text_block()
                 .text(vm.subtitle())
                 .font_size(13.0)
+                .text_trimming(<dyn ferroui_base::media::TextTrimming>::character_ellipsis())
                 .foreground(foreground)
                 .opacity(0.92),
         );
-    header = header.child(
-        stack_panel()
-            .spacing(8.0)
+    header =
+        header
             .child(border().horizontal_alignment(H::Left).child(
                 todo_controls::colored_icon_button(
                     Icon::Menu,
@@ -40,8 +48,7 @@ pub(super) fn view(vm: Rc<AppViewModel>, foreground: &str, inset: f64) -> Elemen
                     move || show_nav.toggle_sidebar(),
                 ),
             ))
-            .child(title),
-    );
+            .child(title);
     let mut toolbar = stack_panel()
         .grid_column(1)
         .orientation(Orientation::Horizontal)
@@ -60,17 +67,25 @@ pub(super) fn view(vm: Rc<AppViewModel>, foreground: &str, inset: f64) -> Elemen
                 .with(move |button| crate::menus::header_sort(button, sort.clone())),
         );
     }
-    toolbar = toolbar.child(todo_controls::colored_icon_button(
-        Icon::CheckCircle,
-        "Select tasks",
-        foreground,
-        move || select.begin_selection(),
-    ));
+    if matches!(vm.view(), View::Search(_)) {
+        let cancel = vm.clone();
+        toolbar = toolbar.child(todo_controls::colored_icon_button(
+            Icon::Close,
+            "Close search",
+            foreground,
+            move || drafts.cancel_search(&cancel),
+        ));
+    }
     toolbar = toolbar.child(
         todo_controls::toolbar_button(Icon::More, "List options", foreground)
             .with(move |button| crate::menus::header_options(button, menu.clone())),
     );
-    header = header.child(toolbar);
+    header = header.child(toolbar).child(
+        border()
+            .grid_row(2)
+            .grid_column_span(2)
+            .child(super::sort_status::view(vm, foreground)),
+    );
     header.into()
 }
 

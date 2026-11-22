@@ -1,7 +1,7 @@
 use ferroui_base::input::{FocusManager, InputElement, KeyboardDevice};
 use ferroui_base::threading::{Dispatcher, DispatcherPriority};
 use ferroui_base::{Ref, WeakRef};
-use ferroui_controls::{Border, Control, TextBox};
+use ferroui_controls::{Border, Calendar, Control, TextBox};
 use ferroui_view::on_cleanup;
 use std::{cell::RefCell, rc::Rc};
 
@@ -49,7 +49,11 @@ pub(super) fn activate(surface: &Ref<Border>) {
                 .filter_map(|visual| visual.cast::<Control>())
                 .find(|control| control.name().as_deref() == Some("TodoApp"))
                 .map(|root| root.downgrade());
-            if let Some(input) =
+            if let Some(calendar) = surface
+                .find_descendant_of_type_where::<Calendar>(false, |calendar| available(calendar))
+            {
+                calendar.focus();
+            } else if let Some(input) =
                 surface.find_descendant_of_type_where::<TextBox>(false, |input| available(input))
             {
                 input.focus();

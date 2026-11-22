@@ -1,134 +1,102 @@
 use super::edit_field;
 use crate::palette;
-use ferroui_base::input::Key;
-use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
-use ferroui_controls::TextBox;
+use ferroui_base::layout::VerticalAlignment;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{task_check, Icon};
+use todo_controls::{Icon, inherited_icon};
 use todo_domain::{Action, Task};
-use todo_state::{AppViewModel, Panel};
+use todo_state::AppViewModel;
 
 pub(super) fn steps(vm: Rc<AppViewModel>, task: &Task) -> Element {
     let p = palette(&vm);
     let id = task.id;
-    let mut items = stack_panel().spacing(1.0);
+    let mut items = stack_panel()
+        .spacing(1.0)
+        .automation_properties_name("Steps")
+        .automation_properties_help_text(format!(
+            "{} of {} steps completed",
+            task.completed_steps(),
+            task.steps.len()
+        ));
     for step in &task.steps {
         let step_id = step.id;
         let toggle = vm.clone();
         let options = vm.clone();
-        let context = vm.clone();
         let rename = vm.clone();
+        let label = format!(
+            "Mark {} as {}",
+            step.title,
+            if step.completed {
+                "not completed"
+            } else {
+                "completed"
+            }
+        );
         items = items.child(
             grid()
                 .key(step_id.to_string())
                 .column_definitions("40,*,32")
-                .min_height(36.0)
-                .child(border().vertical_alignment(V::Center).child(task_check(
-                    step.completed,
-                    p.accent,
-                    move || {
-                        toggle.dispatch(Action::ToggleStep {
-                            task_id: id,
-                            step_id,
-                        })
-                    },
-                )))
-                .child(border().grid_column(1).child(edit_field(
-                    &format!("Step{step_id}"),
-                    step.title.clone(),
-                    "Step",
-                    false,
-                    move |title| {
-                        if !title.trim().is_empty() {
-                            rename.dispatch(Action::RenameStep {
-                                task_id: id,
-                                step_id,
-                                title,
-                            });
-                        }
-                    },
-                )))
+                .min_height(40.0)
                 .child(
-                    button()
-                        .grid_column(2)
-                        .vertical_alignment(V::Center)
-                        .name(format!("StepOptions{step_id}"))
-                        .class("todo-toolbar")
-                        .width(32.0)
-                        .height(32.0)
-                        .padding(6.0)
-                        .automation_properties_name(format!("Options for {}", step.title))
-                        .tool_tip_tip("Step options")
+                    check_box()
+                        .class("todo-completion")
+                        .is_checked(Some(step.completed))
+                        .width(40.0)
+                        .height(40.0)
+                        .padding(9.0)
+                        .foreground(p.accent)
+                        .automation_properties_name(label.clone())
+                        .tool_tip_tip(label)
                         .on_click(move |event| {
-                            event.set_handled(true);
-                            options.show_panel(Panel::StepMenu {
+                            toggle.dispatch(Action::ToggleStep {
                                 task_id: id,
                                 step_id,
                             });
-                        })
-                        .on_context_requested(move |event| {
                             event.set_handled(true);
-                            context.show_panel(Panel::StepMenu {
-                                task_id: id,
-                                step_id,
-                            });
                         })
-                        .child(todo_controls::icon(Icon::More, 18.0, p.secondary)),
+                        .child(inherited_icon(
+                            if step.completed {
+                                Icon::CheckCircle
+                            } else {
+                                Icon::Circle
+                            },
+                            20.0,
+                        )),
+                )
+                .child(
+                    border().grid_column(1).child(
+                        edit_field(
+                            &format!("Step{step_id}"),
+                            step.title.clone(),
+                            "Step",
+                            false,
+                            move |title| {
+                                rename.dispatch(Action::RenameStep {
+                                    task_id: id,
+                                    step_id,
+                                    title,
+                                })
+                            },
+                        )
+                        .foreground(if step.completed { p.secondary } else { p.text })
+                        .automation_properties_name(format!("Step: {}", step.title)),
+                    ),
+                )
+                .child(
+                    todo_controls::toolbar_button(
+                        Icon::More,
+                        &format!("Options for {}", step.title),
+                        p.secondary,
+                    )
+                    .grid_column(2)
+                    .vertical_alignment(VerticalAlignment::Center)
+                    .name(format!("StepOptions{step_id}"))
+                    .tool_tip_tip("Step options")
+                    .with(move |button| {
+                        super::step_menu::attach(button, options.clone(), id, step_id)
+                    }),
                 ),
         );
     }
-    let add = vm.clone();
-    let draft = vm.clone();
-    items
-        .child(
-            grid()
-                .column_definitions("40,*")
-                .margin((0.0, 2.0))
-                .child(
-                    border()
-                        .horizontal_alignment(H::Center)
-                        .vertical_alignment(V::Center)
-                        .child(todo_controls::icon(Icon::Add, 16.0, p.accent)),
-                )
-                .child(
-                    text_box()
-                        .grid_column(1)
-                        .name("NewStep")
-                        .text(vm.step_draft(id))
-                        .class("todo-input")
-                        .placeholder_text("Add step")
-                        .font_size(13.0)
-                        .foreground(p.accent)
-                        .background("Transparent")
-                        .border_thickness(0.0)
-                        .on_changed(TextBox::text_property(), move |text| {
-                            draft.set_step_draft(id, text.clone().unwrap_or_default());
-                        })
-                        .on_key_down(move |event| {
-                            if event.key == Key::Return {
-                                if let Some(field) =
-                                    event.source().and_then(|source| source.cast::<TextBox>())
-                                {
-                                    let title = field.text().unwrap_or_default();
-                                    if !title.trim().is_empty() {
-                                        let before =
-                                            add.state().task(id).map_or(0, |task| task.steps.len());
-                                        add.dispatch(Action::AddStep { task_id: id, title });
-                                        if add
-                                            .state()
-                                            .task(id)
-                                            .is_some_and(|task| task.steps.len() > before)
-                                        {
-                                            add.set_step_draft(id, String::new());
-                                            field.set_text(Some(""));
-                                        }
-                                    }
-                                }
-                                event.set_handled(true);
-                            }
-                        }),
-                ),
-        )
-        .into()
+    items.child(super::new_step::view(vm, id)).into()
 }

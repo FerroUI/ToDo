@@ -51,7 +51,9 @@ export function recoverCommit() {
 }
 
 export function commit(runtime, expected, draft, key, metadata) {
-  const after = JSON.stringify(draft);
+  // The Rust model fills serde defaults, repairs navigation order, and retains
+  // delivered reminders. Journal its exact prospective bytes, not the JS draft.
+  const after = runtime.prepareCloudData(JSON.stringify(draft));
   const serialized = JSON.stringify(metadata);
   localStorage.setItem(JOURNAL, JSON.stringify({ key, before: expected, after, metadata: serialized }));
   try {

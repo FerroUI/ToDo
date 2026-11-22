@@ -9,6 +9,8 @@ mod model;
 mod persistence;
 mod query;
 mod sample;
+mod sidebar;
+mod sidebar_drop;
 mod steps;
 mod task_actions;
 mod task_creation;
@@ -19,6 +21,8 @@ pub use calendar::*;
 pub use chrono::NaiveDate as Date;
 pub use model::*;
 pub use query::*;
+pub use sidebar::SidebarItem;
+pub use sidebar_drop::SidebarDrop;
 pub use task_entry::TaskEntry;
 
 /// Entity identifiers are monotonic and local to one persisted database.

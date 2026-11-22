@@ -26,6 +26,7 @@ export function fixture(tasks = []) {
   const persist = () => localStorage.setItem("ferroui.todo.v1", JSON.stringify(state));
   const runtime = {
     exportData: () => JSON.stringify(state),
+    prepareCloudData: json => json,
     replaceFromCloud(json, expected) {
       if (JSON.stringify(state) !== expected) throw new Error("Local compare-and-swap failed");
       state = JSON.parse(json); persist();

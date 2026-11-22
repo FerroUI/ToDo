@@ -116,6 +116,10 @@ pub enum Action {
         id: Id,
         sort: SortOrder,
     },
+    SetListSortDirection {
+        id: Id,
+        reversed: bool,
+    },
     SetListShowCompleted {
         id: Id,
         show: bool,
@@ -136,6 +140,11 @@ pub enum Action {
         name: String,
     },
     ReorderGroup {
+        id: Id,
+        before: Option<Id>,
+    },
+    /// Reorder a root list or group in the shared navigation sequence.
+    ReorderSidebar {
         id: Id,
         before: Option<Id>,
     },

@@ -4,7 +4,7 @@ use todo_domain::{Action, AppState, Changes, Id, ListGroup, Settings, Task, Task
 
 pub(crate) struct HistoryEntry {
     tasks: HashMap<Id, Option<Task>>,
-    topology: Option<(Vec<TaskList>, Vec<ListGroup>)>,
+    topology: Option<(Vec<TaskList>, Vec<ListGroup>, Vec<Id>)>,
     settings: Option<Settings>,
     next_id: Id,
 }
@@ -20,7 +20,13 @@ impl HistoryEntry {
                 .into_iter()
                 .map(|id| (id, state.task(id).cloned()))
                 .collect(),
-            topology: topology.then(|| (state.lists.clone(), state.groups.clone())),
+            topology: topology.then(|| {
+                (
+                    state.lists.clone(),
+                    state.groups.clone(),
+                    state.sidebar_order.clone(),
+                )
+            }),
             settings: settings.then(|| state.settings.clone()),
             next_id: state.next_id,
         }
@@ -33,7 +39,11 @@ impl HistoryEntry {
                 .iter()
                 .map(|task| (task.id, Some(task.clone())))
                 .collect(),
-            topology: Some((state.lists.clone(), state.groups.clone())),
+            topology: Some((
+                state.lists.clone(),
+                state.groups.clone(),
+                state.sidebar_order.clone(),
+            )),
             settings: Some(state.settings.clone()),
             next_id: state.next_id,
         }
@@ -95,10 +105,11 @@ impl HistoryEntry {
                 changes.changed_tasks.push(id);
             }
         }
-        if let Some((lists, groups)) = self.topology {
+        if let Some((lists, groups, sidebar_order)) = self.topology {
             inverse.topology = Some((
                 std::mem::replace(&mut state.lists, lists),
                 std::mem::replace(&mut state.groups, groups),
+                std::mem::replace(&mut state.sidebar_order, sidebar_order),
             ));
             changes.lists_changed = true;
         }
@@ -132,16 +143,20 @@ impl HistoryEntry {
                         .sum::<usize>()
             })
             .sum::<usize>();
-        let topology = self.topology.as_ref().map_or(0, |(lists, groups)| {
-            lists
-                .iter()
-                .map(|list| list.name.len() + 128)
-                .sum::<usize>()
-                + groups
+        let topology = self
+            .topology
+            .as_ref()
+            .map_or(0, |(lists, groups, sidebar_order)| {
+                lists
                     .iter()
-                    .map(|group| group.name.len() + 48)
+                    .map(|list| list.name.len() + 128)
                     .sum::<usize>()
-        });
+                    + groups
+                        .iter()
+                        .map(|group| group.name.len() + 48)
+                        .sum::<usize>()
+                    + sidebar_order.len() * std::mem::size_of::<Id>()
+            });
         tasks + topology + self.tasks.len() * 32 + 256
     }
 }

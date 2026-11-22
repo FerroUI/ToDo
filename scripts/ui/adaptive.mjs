@@ -68,8 +68,10 @@ async function verifyDrawer(ui, composer) {
 }
 
 async function verifyDialog(ui, width) {
-  const { page, clickText, control, snapshot, until } = ui;
-  await clickText("Add due date");
+  const { page, clickControl, control, snapshot, until } = ui;
+  await clickControl(element => element.name === "TaskDueDate", "due-date quick menu");
+  await clickControl(element => element.type.endsWith("MenuItem") && element.automationName === "Pick a date", "custom due date");
+  bounded(await control(element => element.name === "ScheduleCalendar", "native calendar"), width, "Calendar");
   for (const label of ["Close", "Previous month", "Next month"]) {
     bounded(await control(element => element.automationName === label, label), width, `${label} in the dialog`);
   }

@@ -2,7 +2,7 @@ use crate::palette;
 use ferroui_base::input::Key;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{icon_button, Icon};
+use todo_controls::{Icon, icon_button};
 use todo_state::AppViewModel;
 pub(super) fn view(
     vm: Rc<AppViewModel>,
@@ -14,8 +14,10 @@ pub(super) fn view(
     let typing = vm.clone();
     let changed = drafts.clone();
     let enter = drafts.clone();
+    let clear = drafts.clone();
+    let cancel = vm.clone();
     grid()
-        .column_definitions("*,30")
+        .column_definitions("*,Auto,32")
         .margin((16.0, 0.0, 16.0, 12.0))
         .child(
             text_box()
@@ -38,7 +40,18 @@ pub(super) fn view(
                     }
                 }),
         )
-        .child(border().grid_column(1).child(icon_button(
+        .child(border().grid_column(1).child(rerender(move || {
+            if search.get().is_empty() {
+                Element::Empty
+            } else {
+                let clear = clear.clone();
+                let cancel = cancel.clone();
+                icon_button(Icon::Close, "Clear search", move || {
+                    clear.cancel_search(&cancel)
+                })
+            }
+        })))
+        .child(border().grid_column(2).child(icon_button(
             Icon::Search,
             "Search tasks",
             move || drafts.submit_search(&vm),

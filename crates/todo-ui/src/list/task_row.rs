@@ -130,6 +130,8 @@ pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
                                     text_block()
                                         .text(metadata)
                                         .font_size(11.0)
+                                        .text_trimming(<dyn ferroui_base::media::TextTrimming>::character_ellipsis())
+                                        .max_lines(1)
                                         .foreground(if overdue {
                                             if dark {
                                                 "#F18787"

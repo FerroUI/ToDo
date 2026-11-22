@@ -18,8 +18,20 @@ impl AppViewModel {
         self.replace_document(json, false, "Synced with Microsoft")
     }
 
-    fn replace_document(&self, json: &str, record_undo: bool, message: &str) -> Result<(), String> {
+    /// Pure preflight for the host journal: returns exactly what a cloud replacement will save.
+    pub fn prepare_cloud_json(&self, json: &str) -> Result<String, String> {
+        self.prepare_document(json, false)?
+            .to_json()
+            .map_err(|error| error.to_string())
+    }
+
+    fn prepare_document(&self, json: &str, record_undo: bool) -> Result<AppState, String> {
         let mut document = AppState::from_json(json).map_err(|error| error.to_string())?;
+        if !record_undo {
+            // Root navigation order is local-only even when an older Graph adapter omits it.
+            document.sidebar_order = self.document.borrow().sidebar_order.clone();
+            document.repair_sidebar_order();
+        }
         {
             let delivered = self.delivered_reminders.borrow();
             for task in &mut document.tasks {
@@ -34,6 +46,11 @@ impl AppViewModel {
                 }
             }
         }
+        Ok(document)
+    }
+
+    fn replace_document(&self, json: &str, record_undo: bool, message: &str) -> Result<(), String> {
+        let document = self.prepare_document(json, record_undo)?;
         if *self.document.borrow() == document {
             if self.dirty.get() {
                 self.persist()?;

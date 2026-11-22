@@ -107,6 +107,25 @@ pub enum PlannedGroup {
 }
 
 impl AppState {
+    /// Reverse each completion section independently, retaining the completed section last.
+    /// The saved manual positions are never rewritten when a sort is applied or removed.
+    pub fn visible_tasks_with_direction(
+        &self,
+        view: &View,
+        sort: SortOrder,
+        reversed: bool,
+        show_completed: bool,
+        today: Date,
+    ) -> Vec<&Task> {
+        let mut tasks = self.visible_tasks(view, sort, show_completed, today);
+        if reversed && sort != SortOrder::Manual {
+            let completed = tasks.partition_point(|task| !task.completed);
+            tasks[..completed].reverse();
+            tasks[completed..].reverse();
+        }
+        tasks
+    }
+
     /// Filtering returns references and sorting never copies notes, steps, or attachments.
     pub fn visible_tasks(
         &self,
@@ -241,7 +260,7 @@ pub fn planned_group(task: &Task, today: Date) -> PlannedGroup {
 fn matches_search(task: &Task, query: &str) -> bool {
     let query = query.trim().to_lowercase();
     if query.is_empty() {
-        return true;
+        return false;
     }
     let haystack = format!(
         "{} {} {} {}",

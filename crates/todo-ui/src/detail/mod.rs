@@ -1,9 +1,14 @@
+mod action_row;
 mod attachments;
 mod fields;
+mod new_step;
+mod schedule_menu;
+mod scheduling;
+mod step_menu;
 mod steps;
 
 use self::attachments::attachments;
-use self::fields::{scheduling, section};
+use self::fields::section;
 use self::steps::steps;
 use crate::palette;
 use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
@@ -11,7 +16,7 @@ use ferroui_controls::primitives::ScrollBarVisibility;
 use ferroui_view::prelude::*;
 pub(crate) use fields::edit_field;
 use std::rc::Rc;
-use todo_controls::{action_button, icon_button, star_button, task_check, Icon};
+use todo_controls::{Icon, action_button, icon_button, star_button, task_check};
 use todo_domain::{Action, Id};
 use todo_state::{AppViewModel, Panel};
 
@@ -45,17 +50,25 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
                                     p.accent,
                                     move || completed.dispatch(Action::ToggleCompleted(id)),
                                 )))
-                                .child(border().grid_column(1).child(edit_field(
-                                    "TaskTitle",
-                                    task.title.clone(),
-                                    "Task name",
-                                    true,
-                                    move |title| {
-                                        if !title.trim().is_empty() {
-                                            rename.dispatch(Action::RenameTask { id, title });
-                                        }
-                                    },
-                                )))
+                                .child(
+                                    border().grid_column(1).child(
+                                        edit_field(
+                                            "TaskTitle",
+                                            task.title.clone(),
+                                            "Task name",
+                                            true,
+                                            move |title| {
+                                                if !title.trim().is_empty() {
+                                                    rename
+                                                        .dispatch(Action::RenameTask { id, title });
+                                                }
+                                            },
+                                        )
+                                        .foreground(
+                                            if task.completed { p.secondary } else { p.text },
+                                        ),
+                                    ),
+                                )
                                 .child(border().grid_column(2).vertical_alignment(V::Top).child(
                                     star_button(task.important, p.accent, move || {
                                         starred.dispatch(Action::ToggleImportant(id))
@@ -66,25 +79,35 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
                 ),
         );
     let day = vm.clone();
+    let remove_day = vm.clone();
     let included = task.is_my_day(vm.today());
     content = content.child(section(
         vm.clone(),
-        action_button(
-            Icon::Sun,
-            if included {
-                "Added to My Day"
-            } else {
-                "Add to My Day"
-            },
-            move || {
+        action_row::row(
+            action_row::action(
+                Icon::Sun,
+                if included {
+                    "Added to My Day"
+                } else {
+                    "Add to My Day"
+                },
+                if included { p.accent } else { p.secondary },
+            )
+            .on_click(move |event| {
                 day.dispatch(Action::SetMyDay {
                     id,
                     day: if included { None } else { Some(day.today()) },
                 });
-            },
+                event.set_handled(true);
+            }),
+            included.then(|| {
+                icon_button(Icon::Close, "Remove from My Day", move || {
+                    remove_day.dispatch(Action::SetMyDay { id, day: None });
+                })
+            }),
         ),
     ));
-    content = content.child(scheduling(vm.clone(), &task));
+    content = content.child(scheduling::view(vm.clone(), &task));
     if task.assigned_to.is_some() {
         let assignee = task.assigned_to.clone().unwrap_or_default();
         content = content.child(section(

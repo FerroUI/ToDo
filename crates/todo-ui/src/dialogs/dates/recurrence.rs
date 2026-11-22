@@ -1,91 +1,98 @@
 use crate::palette;
+use ferroui_base::input::Key;
 use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
+use ferroui_base::media::TextWrapping;
+use ferroui_controls::TextBox;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{action_button, primary_button, Icon};
-use todo_domain::{Action, Id, Recurrence, RepeatUnit};
-use todo_state::{AppViewModel, Panel};
+use todo_controls::primary_button;
+use todo_domain::{Id, RepeatUnit};
+use todo_state::AppViewModel;
+
+const UNITS: [RepeatUnit; 5] = [
+    RepeatUnit::Day,
+    RepeatUnit::Weekday,
+    RepeatUnit::Week,
+    RepeatUnit::Month,
+    RepeatUnit::Year,
+];
 
 pub fn repeat(vm: Rc<AppViewModel>, id: Id) -> Element {
     rerender(move || {
         let p = palette(&vm);
-        let mut content = stack_panel().spacing(2.0);
-        for recurrence in [
-            Recurrence::daily(),
-            Recurrence::weekdays(),
-            Recurrence::weekly(),
-            Recurrence::monthly(),
-            Recurrence::yearly(),
-        ] {
-            let choose = vm.clone();
-            content = content.child(action_button(
-                Icon::Repeat,
-                &recurrence.label(),
-                move || {
-                    choose.dispatch(Action::SetRecurrence {
-                        id,
-                        recurrence: Some(recurrence.clone()),
-                    });
-                    choose.show_panel(Panel::None);
-                },
-            ));
-        }
+        let existing = vm.state().task(id).and_then(|task| task.recurrence.clone());
         let interval = use_signal(|| {
-            vm.state()
-                .task(id)
-                .and_then(|task| task.recurrence.as_ref())
-                .map(|rule| rule.every.to_string())
-                .unwrap_or_else(|| "2".into())
+            existing
+                .as_ref()
+                .map_or_else(|| "1".into(), |rule| rule.every.to_string())
         });
         let unit = use_signal(|| {
-            vm.state()
-                .task(id)
-                .and_then(|task| task.recurrence.as_ref())
-                .map(|rule| match rule.unit {
-                    RepeatUnit::Day => 0,
-                    RepeatUnit::Weekday => 1,
-                    RepeatUnit::Week => 2,
-                    RepeatUnit::Month => 3,
-                    RepeatUnit::Year => 4,
-                })
-                .unwrap_or(0i32)
+            existing
+                .as_ref()
+                .and_then(|rule| UNITS.iter().position(|candidate| *candidate == rule.unit))
+                .unwrap_or(0) as i32
         });
+        let error = use_signal(String::new);
+        let field = use_signal(NodeRef::<TextBox>::new).get_untracked();
         let custom = vm.clone();
-        let remove = vm.clone();
-        content
-            .child(
-                border()
-                    .height(1.0)
-                    .background(p.border)
-                    .margin((8.0, 10.0)),
-            )
+        let submit: Rc<dyn Fn()> = Rc::new(move || {
+            let chosen = UNITS
+                .get(unit.get().max(0) as usize)
+                .copied()
+                .unwrap_or(RepeatUnit::Day);
+            if let Err(message) = custom.save_custom_repeat(id, &interval.get(), chosen) {
+                error.set(message);
+                if let Some(field) = field.get_untracked() {
+                    field.focus();
+                    field.select_all();
+                }
+            }
+        });
+        let enter = submit.clone();
+        stack_panel()
+            .spacing(16.0)
+            .margin((4.0, 4.0))
             .child(
                 text_block()
-                    .text("Custom")
+                    .text("Choose how often this task repeats.")
                     .font_size(13.0)
                     .foreground(p.secondary)
-                    .margin((10.0, 4.0)),
+                    .text_wrapping(TextWrapping::Wrap),
             )
             .child(
                 grid()
-                    .column_definitions("Auto,60,*")
+                    .column_definitions("Auto,68,*")
                     .column_spacing(8.0)
-                    .margin(8.0)
                     .child(
                         text_block()
                             .text("Every")
                             .font_size(13.0)
+                            .foreground(p.text)
                             .vertical_alignment(V::Center),
                     )
                     .child(
                         text_box()
+                            .name("RepeatInterval")
+                            .node_ref(field)
                             .grid_column(1)
+                            .automation_properties_name("Repeat interval")
+                            .automation_properties_help_text("A positive whole number")
                             .text(interval.two_way())
-                            .max_length(3),
+                            .max_length(5)
+                            .on_changed(TextBox::text_property(), move |_| error.set(String::new()))
+                            .on_key_down(move |event| {
+                                if event.key == Key::Return {
+                                    enter();
+                                    event.set_handled(true);
+                                }
+                            }),
                     )
                     .child(
                         combo_box()
+                            .name("RepeatUnit")
                             .grid_column(2)
+                            .min_width(0.0)
+                            .automation_properties_name("Repeat unit")
                             .items_source(ferroui_controls::ItemsSource::from_strs([
                                 "days", "weekdays", "weeks", "months", "years",
                             ]))
@@ -93,37 +100,8 @@ pub fn repeat(vm: Rc<AppViewModel>, id: Id) -> Element {
                             .horizontal_alignment(H::Stretch),
                     ),
             )
-            .child(
-                border()
-                    .margin(8.0)
-                    .child(primary_button("Save custom repeat", move || {
-                        if let Ok(every) = interval.get().parse::<u16>() {
-                            if every > 0 {
-                                let repeat_unit = match unit.get() {
-                                    1 => RepeatUnit::Weekday,
-                                    2 => RepeatUnit::Week,
-                                    3 => RepeatUnit::Month,
-                                    4 => RepeatUnit::Year,
-                                    _ => RepeatUnit::Day,
-                                };
-                                custom.dispatch(Action::SetRecurrence {
-                                    id,
-                                    recurrence: Some(Recurrence::new(repeat_unit, every)),
-                                });
-                                custom.show_panel(Panel::None);
-                                return;
-                            }
-                        }
-                        custom.report_error("Repeat interval must be a positive number".into());
-                    })),
-            )
-            .child(action_button(Icon::Close, "Never repeat", move || {
-                remove.dispatch(Action::SetRecurrence {
-                    id,
-                    recurrence: None,
-                });
-                remove.show_panel(Panel::None);
-            }))
+            .child(super::validation::message(error.get(), vm.is_dark()))
+            .child(primary_button("Save custom repeat", move || submit()))
             .into_element()
     })
 }

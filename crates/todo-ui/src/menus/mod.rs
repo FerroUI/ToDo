@@ -10,13 +10,25 @@ mod task;
 mod task_action;
 mod task_dates;
 
-use ferroui_base::input::ContextRequestedEventArgs;
 use ferroui_base::Ref;
+use ferroui_base::input::ContextRequestedEventArgs;
 use ferroui_controls::{Button, Control, Grid};
 use ferroui_view::on_cleanup;
 use std::rc::Rc;
 use todo_domain::Id;
 use todo_state::AppViewModel;
+
+pub(crate) use item::{command, command_detail, destructive};
+
+/// Attach a feature's live command factory to an ordinary menu button.
+pub(crate) fn attach_actions(
+    button: &Ref<Button>,
+    vm: Rc<AppViewModel>,
+    factory: impl Fn() -> Vec<ferroui_view::Element> + 'static,
+) {
+    lifetime::attach(&button.clone().upcast(), vm, move |_| factory());
+    open_on_click(button);
+}
 
 /// The identity reader runs on opening, after a virtualized row's tag is patched.
 pub(crate) fn attach_task(

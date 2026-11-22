@@ -1,10 +1,10 @@
-use ferroui_base::interactivity::RoutedEventArgs;
 use ferroui_base::StyledElement;
+use ferroui_base::interactivity::RoutedEventArgs;
 use ferroui_controls::{ContextMenu, MenuItem};
 use ferroui_view::prelude::*;
-use todo_controls::{inherited_icon, Icon};
+use todo_controls::{Icon, inherited_icon};
 
-pub(super) fn command(
+pub(crate) fn command(
     label: impl Into<String>,
     symbol: Icon,
     action: impl Fn() + 'static,
@@ -18,7 +18,7 @@ pub(super) fn command(
         .into()
 }
 
-pub(super) fn destructive(
+pub(crate) fn destructive(
     label: impl Into<String>,
     symbol: Icon,
     dark: bool,
@@ -26,6 +26,29 @@ pub(super) fn destructive(
 ) -> Element {
     base(label, symbol)
         .foreground(if dark { "#F1707B" } else { "#D13438" })
+        .on_click(move |event| {
+            close(event);
+            action();
+            event.set_handled(true);
+        })
+        .into()
+}
+
+pub(crate) fn command_detail(
+    label: &str,
+    description: &str,
+    symbol: Icon,
+    action: impl Fn() + 'static,
+) -> Element {
+    base(label, symbol)
+        .automation_properties_name(format!("{label}, {description}"))
+        .header(
+            grid()
+                .column_definitions("*,Auto")
+                .column_spacing(20.0)
+                .child(text_block().text(label))
+                .child(text_block().grid_column(1).text(description).opacity(0.65)),
+        )
         .on_click(move |event| {
             close(event);
             action();

@@ -37,7 +37,8 @@ export async function verifyNativeMenus(ui) {
   console.log("ok: immediate list creation, transient inline draft, Escape cancellation, and Enter commit");
 
   for (const title of ["Menu alpha", "Menu beta", "Menu untouched"]) await edit("NewTask", title, true);
-  await clickControl(button("Select tasks"), "Select tasks");
+  await clickControl(button("List options"), "List options");
+  await choose("Select tasks");
   await clickControl(button("Menu alpha"), "first selected task");
   await clickControl(button("Menu beta"), "second selected task");
   // Alpha's visual data did not change when Beta joined selection: menu construction must read live MVVM state.

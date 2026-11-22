@@ -1,6 +1,6 @@
-use super::{feedback, list_id, move_to, payload, reorder, Identity};
-use ferroui_base::input::{DragDrop, DragDropEffects, DragEventArgs};
+use super::{Identity, feedback, list_id, move_to, reorder, task_payload};
 use ferroui_base::Ref;
+use ferroui_base::input::{DragDrop, DragDropEffects, DragEventArgs};
 use ferroui_controls::primitives::TemplatedControl;
 use ferroui_controls::{Button, Control, Grid};
 use ferroui_view::{on_cleanup, style};
@@ -56,8 +56,10 @@ fn attach(control: &Ref<Control>, vm: Rc<AppViewModel>, target: Target) {
         let Some(control) = weak.upgrade() else {
             return;
         };
-        let planned = payload(event, &hover_vm)
-            .and_then(|drag| plan(&control, &hover_vm, target, drag.task_id, event));
+        let Some((_, id)) = task_payload(event, &hover_vm) else {
+            return;
+        };
+        let planned = plan(&control, &hover_vm, target, id, event);
         event.set_drag_effects(if planned.is_some() {
             DragDropEffects::MOVE
         } else {
@@ -88,13 +90,13 @@ fn attach(control: &Ref<Control>, vm: Rc<AppViewModel>, target: Target) {
         let Some(control) = weak.upgrade() else {
             return;
         };
+        let Some((drag, id)) = task_payload(event, &vm) else {
+            return;
+        };
         feedback::show(&control, false, false);
         event.set_drag_effects(DragDropEffects::NONE);
         event.set_handled(true);
-        let Some(drag) = payload(event, &vm) else {
-            return;
-        };
-        let Some((action, _)) = plan(&control, &vm, target, drag.task_id, event) else {
+        let Some((action, _)) = plan(&control, &vm, target, id, event) else {
             return;
         };
         if drag.active.replace(false) {

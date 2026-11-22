@@ -2,7 +2,7 @@ use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
 use ferroui_base::media::{FontWeight, TextWrapping};
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{icon, Icon};
+use todo_controls::{Icon, icon};
 use todo_domain::View;
 use todo_state::AppViewModel;
 pub(super) fn view(vm: Rc<AppViewModel>, color: &str) -> Element {
@@ -22,6 +22,11 @@ pub(super) fn view(vm: Rc<AppViewModel>, color: &str) -> Element {
             "Plan your next steps",
             "Tasks with a due date or reminder appear here.",
         ),
+        View::Search(query) if query.trim().is_empty() => (
+            Icon::Search,
+            "Search your tasks",
+            "Find a task by its name, steps, notes, or tags.",
+        ),
         View::Search(_) => (
             Icon::Search,
             "No results found",
@@ -31,6 +36,16 @@ pub(super) fn view(vm: Rc<AppViewModel>, color: &str) -> Element {
             Icon::Check,
             "A fresh start",
             "Your completed tasks will appear here.",
+        ),
+        View::AssignedToMe if vm.cloud_connected() => (
+            Icon::Person,
+            "No tasks assigned to you",
+            "Tasks assigned to you will appear here when available to this app.",
+        ),
+        View::FlaggedEmail if vm.cloud_connected() => (
+            Icon::Flag,
+            "No flagged email",
+            "Sync your account to check for flagged email tasks.",
         ),
         View::AssignedToMe | View::FlaggedEmail => (
             Icon::Person,

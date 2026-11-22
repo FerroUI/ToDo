@@ -4,8 +4,8 @@ use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
 use ferroui_base::media::FontWeight;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{icon, Icon};
-use todo_domain::View;
+use todo_controls::{Icon, icon};
+use todo_domain::{TASKS_LIST, View};
 use todo_state::AppViewModel;
 pub(super) fn view(
     vm: Rc<AppViewModel>,
@@ -21,18 +21,24 @@ pub(super) fn view(
     let go = vm.clone();
     let drop_target = vm.clone();
     let context = vm.clone();
+    let drag = vm.clone();
     let list_id = match target {
         View::List(id) => Some(id),
         _ => None,
     };
     button()
         .key(format!("nav-{target:?}"))
+        .name(format!("Navigate{target:?}"))
         .automation_properties_name(title.clone())
         .tag(crate::drag::list_tag(&target))
         .with(move |button| {
             crate::drag::attach_list_target(button, drop_target.clone());
             if let Some(id) = list_id {
                 crate::menus::attach_list(button, context.clone(), id);
+                if id != TASKS_LIST {
+                    crate::drag::attach_sidebar_source(button, drag.clone());
+                    crate::drag::attach_sidebar_target(button, drag.clone(), crate::drag::SidebarTarget::Row);
+                }
             }
         })
         .class(if selected {
@@ -43,14 +49,20 @@ pub(super) fn view(
         .height(44.0)
         .padding((12.0, 0.0))
         .horizontal_content_alignment(H::Stretch)
-        .on_click(move |_| go.navigate(target.clone()))
+        .vertical_content_alignment(V::Stretch)
+        .on_click(move |event| {
+            if crate::drag::ignore_click(event) { event.set_handled(true); return; }
+            go.navigate(target.clone());
+        })
         .child(
             grid()
                 .column_definitions("28,*,Auto")
                 .child(
                     border()
                         .vertical_alignment(V::Center)
-                        .child(icon(symbol, 20.0, color)),
+                        .child(if list_id.is_some_and(|id| id != TASKS_LIST) {
+                            super::list_icon::view(&title, color)
+                        } else { icon(symbol, 20.0, color) }),
                 )
                 .child(
                     text_block()
@@ -77,7 +89,9 @@ pub(super) fn view(
                         .font_size(12.0)
                         .foreground(p.secondary)
                         .vertical_alignment(V::Center),
-                ),
+                )
+                .child(crate::drag::sidebar_marker(p.accent, false))
+                .child(crate::drag::sidebar_marker(p.accent, true)),
         )
         .into()
 }

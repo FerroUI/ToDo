@@ -1,8 +1,7 @@
+mod groups;
 mod order;
 
-use crate::{
-    action::nonempty, Action, AppState, Changes, Date, DomainError, ListGroup, TaskList, TASKS_LIST,
-};
+use crate::{Action, AppState, Changes, Date, DomainError, TASKS_LIST, TaskList, action::nonempty};
 
 impl AppState {
     pub(crate) fn apply_list(
@@ -18,6 +17,7 @@ impl AppState {
                 let mut list = TaskList::new(id, name);
                 list.position = position;
                 self.lists.push(list);
+                self.append_sidebar(id);
                 Ok(Changes {
                     created_list: Some(id),
                     ..Changes::lists()
@@ -48,6 +48,7 @@ impl AppState {
                     .collect();
                 self.tasks.retain(|task| task.list_id != id);
                 self.lists.remove(index);
+                self.sidebar_order.retain(|candidate| *candidate != id);
                 Ok(Changes {
                     deleted_tasks,
                     ..Changes::lists()
@@ -62,6 +63,12 @@ impl AppState {
                 list.name.push_str(" (copy)");
                 list.position = position;
                 self.lists.push(list);
+                if self
+                    .list(list_id)
+                    .is_some_and(|list| list.group_id.is_none())
+                {
+                    self.append_sidebar(list_id);
+                }
                 let tasks: Vec<_> = self
                     .tasks
                     .iter()
@@ -104,6 +111,16 @@ impl AppState {
             Action::SetListSort { id, sort } => {
                 let index = self.list_index(id)?;
                 self.lists[index].sort = sort;
+                self.lists[index].sort_reversed = false;
+                Ok(Changes::lists())
+            }
+            Action::SetListSortDirection { id, reversed } => {
+                let index = self.list_index(id)?;
+                let reversed = reversed && self.lists[index].sort != crate::SortOrder::Manual;
+                if self.lists[index].sort_reversed == reversed {
+                    return Ok(Changes::default());
+                }
+                self.lists[index].sort_reversed = reversed;
                 Ok(Changes::lists())
             }
             Action::SetListShowCompleted { id, show } => {
@@ -114,63 +131,11 @@ impl AppState {
             Action::MoveList { id, group_id } => self.move_list(id, group_id),
             Action::ReorderList { id, before } => self.reorder_list(id, before),
             Action::ReorderGroup { id, before } => self.reorder_group(id, before),
-            Action::AddGroup { name } => {
-                let name = nonempty(name)?;
-                let position = self
-                    .groups
-                    .iter()
-                    .map(|group| group.position)
-                    .max()
-                    .unwrap_or(-1)
-                    .checked_add(1)
-                    .ok_or_else(|| {
-                        DomainError::InvalidValue("The group order is out of range".into())
-                    })?;
-                let id = self.allocate_id();
-                self.groups.push(ListGroup {
-                    id,
-                    name,
-                    collapsed: false,
-                    position,
-                });
-                Ok(Changes {
-                    created_group: Some(id),
-                    ..Changes::lists()
-                })
-            }
-            Action::RenameGroup { id, name } => {
-                let name = nonempty(name)?;
-                let group = self
-                    .groups
-                    .iter_mut()
-                    .find(|group| group.id == id)
-                    .ok_or(DomainError::NotFound("Group", id))?;
-                group.name = name;
-                Ok(Changes::lists())
-            }
-            Action::DeleteGroup(id) => {
-                let index = self
-                    .groups
-                    .iter()
-                    .position(|group| group.id == id)
-                    .ok_or(DomainError::NotFound("Group", id))?;
-                self.groups.remove(index);
-                for list in &mut self.lists {
-                    if list.group_id == Some(id) {
-                        list.group_id = None;
-                    }
-                }
-                Ok(Changes::lists())
-            }
-            Action::ToggleGroup(id) => {
-                let group = self
-                    .groups
-                    .iter_mut()
-                    .find(|group| group.id == id)
-                    .ok_or(DomainError::NotFound("Group", id))?;
-                group.collapsed = !group.collapsed;
-                Ok(Changes::lists())
-            }
+            Action::ReorderSidebar { id, before } => self.reorder_sidebar(id, before),
+            Action::AddGroup { .. }
+            | Action::RenameGroup { .. }
+            | Action::DeleteGroup(_)
+            | Action::ToggleGroup(_) => self.apply_group(action),
             _ => Err(DomainError::InvalidValue("Unsupported list command".into())),
         }
     }

@@ -29,6 +29,16 @@ pub(super) fn items(vm: Rc<AppViewModel>, id: Id) -> Vec<Element> {
         Icon::Folder,
         destinations(vm.clone(), id),
     ));
+    if vm
+        .state()
+        .list(id)
+        .is_some_and(|list| list.group_id.is_some())
+    {
+        let remove = vm.clone();
+        items.push(command("Remove from group", Icon::List, move || {
+            remove.dispatch(Action::MoveList { id, group_id: None });
+        }));
+    }
     let up = vm.clone();
     let down = vm.clone();
     items.push(command("Move up", Icon::ArrowUp, move || {

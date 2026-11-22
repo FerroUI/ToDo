@@ -2,10 +2,11 @@ import { FerroExports } from "./ferroui.js";
 import { loadModule } from "./ferroui-loader.js";
 import { attachRuntime, today, width, reportError } from "./host.js";
 import { prepareMicrosoft, attachMicrosoft } from "./graph.js";
+import { registerOffline } from "./offline.js";
 
 try {
   await prepareMicrosoft();
-  const loaded = await loadModule({ script: "./todo-browser.js", element: document.getElementById("out") });
+  const loaded = await loadModule({ script: new URL("./todo-browser.js", import.meta.url).href, element: document.getElementById("out") });
   if (loaded) {
     const runtime = await loaded.createRuntime();
     FerroExports.attach(runtime);
@@ -29,12 +30,10 @@ try {
     window.addEventListener("focus", tick);
     window.addEventListener("pagehide", flush);
     window.addEventListener("beforeunload", flush);
-    if ("serviceWorker" in navigator && !new URLSearchParams(location.search).has("nooffline")) {
-      navigator.serviceWorker.register("./app-sw.js").catch(error => {
-        // Local storage still works when the browser disallows offline app installation.
-        console.info("Offline installation is unavailable:", error.message);
-      });
-    }
+    registerOffline(navigator.serviceWorker, location.href).catch(error => {
+      // Local storage still works when the browser disallows offline app installation.
+      console.info("Offline installation is unavailable:", error.message);
+    });
   }
 } catch (error) {
   document.getElementById("loading-status").textContent = `To Do could not start. ${error.message || error}`;

@@ -27,6 +27,9 @@ impl AppState {
         if state.schema_version != SCHEMA_VERSION {
             return Err(DomainError::InvalidData("Unsupported backup format".into()));
         }
+        // Navigation preference may retain IDs deleted by an older or remote client.
+        // Repair only this optional projection; foreign keys and entity data stay strict.
+        state.repair_sidebar_order();
         state.validate()?;
         let maximum = state.all_ids().max().unwrap_or(TASKS_LIST);
         // Older saves may have a stale allocation cursor. Repair the cursor, never entity data.
@@ -80,6 +83,7 @@ impl AppState {
                 return Err(invalid("The default Tasks list cannot belong to a group"));
             }
         }
+        self.validate_sidebar_order()?;
         for task in &self.tasks {
             if task.title.trim().is_empty() {
                 return Err(invalid("A task title is empty"));

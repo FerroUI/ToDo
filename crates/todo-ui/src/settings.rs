@@ -4,7 +4,7 @@ use ferroui_base::media::{FontWeight, TextWrapping};
 use ferroui_controls::TextBox;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{action_button, icon_button, primary_button, Icon};
+use todo_controls::{Icon, action_button, icon_button, primary_button};
 use todo_domain::{Action, Settings, Theme};
 use todo_state::{AppViewModel, HostRequest, Panel};
 
@@ -196,7 +196,14 @@ fn toggle(
     update: fn(&mut Settings, bool),
 ) -> Element {
     check_box()
-        .content(label)
+        .child(
+            text_block()
+                .text(label)
+                .font_size(13.0)
+                .text_wrapping(TextWrapping::Wrap),
+        )
+        .horizontal_alignment(ferroui_base::layout::HorizontalAlignment::Stretch)
+        .horizontal_content_alignment(ferroui_base::layout::HorizontalAlignment::Stretch)
         .is_checked(Some(checked))
         .font_size(13.0)
         .min_height(34.0)

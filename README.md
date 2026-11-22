@@ -13,7 +13,9 @@ The application includes the main personal task workflows and optional Microsoft
 - English date/time recognition in new task titles, a live schedule preview, and configurable title retention.
 - Search across task names, notes, steps, and tags; suggestions; sorting; drag tasks to reorder or move between lists; task and list duplication.
 - Multiple selection with modifier-click and ranges, select-all, and bulk completion, move, and deletion.
-- Native anchored task/list/group menus, selection-aware task commands, and inline list/group naming.
+- Native anchored task/list/group/scheduling menus, selection-aware task commands, and inline list/group naming.
+- Mixed list/group navigation ordering, list-to-group dragging, keyboard tree navigation, and leading-emoji list icons.
+- Visible sort direction with reverse/reset controls, search cancellation, and native keyboard-accessible calendar selection.
 - Calendar-aware daily, weekday, weekly, monthly, yearly, and custom interval recurrence.
 - Undo/redo, JSON backup and restore, print view, and browser file attachments.
 - Light, dark, and system themes; per-list colors; original vector icons and My Day landscape.
@@ -88,11 +90,11 @@ The Rust suites cover domain behavior, conservative date/time recognition, atomi
 | `todo-browser` | FerroUI browser startup, persistence, offline assets, files, notifications, and Graph bridge |
 | `todo-desktop` | Native startup, application-data persistence, file dialogs, and platform services |
 
-Read [Architecture](docs/architecture.md) for state flow, performance decisions, and extension points. [Reference behavior](docs/reference-behavior.md) records the Microsoft documentation used for interaction decisions and distinguishes verified workflows from inferred adaptive thresholds.
+Read [Architecture](docs/architecture.md) for state flow, performance decisions, and extension points. [Reference behavior](docs/reference-behavior.md) records the Microsoft documentation used for interaction decisions and distinguishes verified workflows from inferred adaptive thresholds. The [UI, UX, and feature review](docs/ui-ux-review.md) records the full review, this polishing round, and remaining fidelity gaps.
 
 ## FerroUI submodule
 
-`FerroUI/` is a real Git submodule pinned to [`0cdbd6f730ce618f9731b27b39366c80a3f0fafc`](https://github.com/wieslawsoltes/FerroUI/commit/0cdbd6f730ce618f9731b27b39366c80a3f0fafc), the upstream `main` revision verified on 22 November 2026. All framework crates resolve through paths into that checkout.
+`FerroUI/` is a real Git submodule pinned to [`062b29a537a7eef132ea9038df9d3fafb6ced6e3`](https://github.com/wieslawsoltes/FerroUI/commit/062b29a537a7eef132ea9038df9d3fafb6ced6e3), the upstream `main` revision verified on 22 November 2026. All framework crates resolve through paths into that checkout.
 
 To recover a missing checkout:
 

@@ -1,8 +1,8 @@
 use super::cancellation::Cancellation;
-use super::{feedback, format, Identity, TaskDrag};
+use super::{DragItem, Identity, ItemDrag, feedback, format, sidebar_feedback, sidebar_identity};
 use ferroui_base::input::{
-    DataTransfer, DataTransferItem, DragDrop, DragDropEffects, InputElement, Key, KeyModifiers,
-    PointerPressedEventArgs, PointerType,
+    DataTransfer, DataTransferItem, DragDrop, DragDropEffects, FocusManager, InputElement, Key,
+    KeyModifiers, PointerPressedEventArgs, PointerType,
 };
 use ferroui_base::interactivity::{RoutedEventArgs, RoutingStrategies};
 use ferroui_base::threading::{Dispatcher, DispatcherPriority};
@@ -11,14 +11,36 @@ use ferroui_controls::{Button, TopLevel};
 use ferroui_view::on_cleanup;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use todo_domain::Id;
 use todo_state::{AppViewModel, Panel};
 
 const DRAGGED: &str = "todo-suppress-drag-click";
-type Press = (Id, Point, PointerPressedEventArgs);
+type Press = (DragItem, Point, PointerPressedEventArgs);
+
+#[derive(Clone, Copy)]
+enum Source {
+    Task(Identity),
+    Sidebar,
+}
+
+impl Source {
+    fn identity(self, button: &Button) -> Option<DragItem> {
+        match self {
+            Self::Task(identity) => identity(button).map(DragItem::Task),
+            Self::Sidebar => sidebar_identity(button).map(DragItem::Sidebar),
+        }
+    }
+}
 
 /// Observe the normal Button press without taking its pointer until the threshold is crossed.
 pub(crate) fn attach_source(button: &Ref<Button>, vm: Rc<AppViewModel>, identity: Identity) {
+    attach(button, vm, Source::Task(identity));
+}
+
+pub(crate) fn attach_sidebar_source(button: &Ref<Button>, vm: Rc<AppViewModel>) {
+    attach(button, vm, Source::Sidebar);
+}
+
+fn attach(button: &Ref<Button>, vm: Rc<AppViewModel>, source: Source) {
     let pending = Rc::new(RefCell::<Option<Press>>::new(None));
     let epoch = Rc::new(Cell::new(0u64));
     let arm = pending.clone();
@@ -40,11 +62,12 @@ pub(crate) fn attach_source(button: &Ref<Button>, vm: Rc<AppViewModel>, identity
                 )
                 || arm_vm.selection_mode()
                 || arm_vm.panel() != Panel::None
+                || arm_vm.rename_session().is_some()
             {
                 return;
             }
-            if let Some(id) = identity(&button) {
-                *arm.borrow_mut() = Some((id, event.get_position(None), event.clone()));
+            if let Some(item) = source.identity(&button).filter(|item| item.exists(&arm_vm)) {
+                *arm.borrow_mut() = Some((item, event.get_position(None), event.clone()));
             }
         },
         RoutingStrategies::TUNNEL,
@@ -57,10 +80,11 @@ pub(crate) fn attach_source(button: &Ref<Button>, vm: Rc<AppViewModel>, identity
         move |_, event| {
             let Some(button) = weak.upgrade() else { return };
             let mut press = moving.borrow_mut();
-            let Some((id, start, _)) = press.as_ref() else {
+            let Some((item, start, _)) = press.as_ref() else {
                 return;
             };
-            if !event.properties().is_left_button_pressed || identity(&button) != Some(*id) {
+            if !event.properties().is_left_button_pressed || source.identity(&button) != Some(*item)
+            {
                 press.take();
                 return;
             }
@@ -68,9 +92,13 @@ pub(crate) fn attach_source(button: &Ref<Button>, vm: Rc<AppViewModel>, identity
             if (position.x - start.x).hypot(position.y - start.y) < 6.0 {
                 return;
             }
-            let (id, _, trigger) = press.take().expect("the pending press was checked");
+            let (item, _, trigger) = press.take().expect("the pending press was checked");
             drop(press); // Starting DragDrop releases capture and can re-enter the cleanup handler.
-            if vm.selection_mode() || vm.panel() != Panel::None || vm.state().task(id).is_none() {
+            if vm.selection_mode()
+                || vm.panel() != Panel::None
+                || vm.rename_session().is_some()
+                || !item.exists(&vm)
+            {
                 return;
             }
             event.set_handled(true);
@@ -81,8 +109,8 @@ pub(crate) fn attach_source(button: &Ref<Button>, vm: Rc<AppViewModel>, identity
             let data = DataTransfer::new();
             data.add(DataTransferItem::create(
                 &format(),
-                Some(TaskDrag {
-                    task_id: id,
+                Some(ItemDrag {
+                    item,
                     owner: Rc::downgrade(&vm),
                     active: active.clone(),
                 }),
@@ -97,15 +125,30 @@ pub(crate) fn attach_source(button: &Ref<Button>, vm: Rc<AppViewModel>, identity
             Dispatcher::ui_thread().spawn_local(async move {
                 let _ = operation.await;
                 drop(cancellation);
-                if let Some(root) = root.and_then(|root| root.upgrade()) {
+                let root = root.and_then(|root| root.upgrade());
+                if let Some(root) = &root {
                     feedback::clear_root(&root);
+                    sidebar_feedback::clear_root(&root);
                 }
+                let root = root.map(|root| root.downgrade());
                 // Protect the current release, then let accessibility Invoke work without a new press.
                 Dispatcher::ui_thread().post_local(
                     move || {
                         if finished_epoch.get() == current_epoch {
                             if let Some(button) = finished_button.upgrade() {
                                 button.classes().set(DRAGGED, false);
+                            }
+                            if let (DragItem::Sidebar(item), Some(root)) =
+                                (item, root.and_then(|root| root.upgrade()))
+                            {
+                                if let Some(button) =
+                                    root.find_descendant_of_type_where::<Button>(false, |button| {
+                                        sidebar_identity(button) == Some(item)
+                                            && FocusManager::can_focus(button)
+                                    })
+                                {
+                                    button.focus();
+                                }
                             }
                         }
                     },

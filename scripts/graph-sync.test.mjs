@@ -48,6 +48,20 @@ test("imports remote tasks and merges different fields while preserving My Day",
   assert.equal(api.cloud[0].tasks[0].importance, "high");
 });
 
+test("cloud synchronization preserves the local-only sidebar order", async () => {
+  const api = fixture([task()]);
+  const order = [5, 4];
+  api.runtime.mutate(state => {
+    state.lists.push({ ...state.lists[0], id: 4, name: "Projects" });
+    state.groups.push({ id: 5, name: "Work", position: 0, collapsed: false });
+    state.sidebar_order = [...order]; state.next_id = 6;
+  });
+  await sync(api);
+  api.cloud[0].tasks[0].title = "Remote update";
+  await sync(api);
+  assert.deepEqual(api.runtime.state.sidebar_order, order);
+});
+
 test("same-field conflicts stop before any remote mutation", async () => {
   const api = fixture([task()]); await sync(api);
   api.runtime.mutate(state => state.tasks[0].title = "Local edit");

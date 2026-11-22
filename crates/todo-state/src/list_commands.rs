@@ -1,48 +1,38 @@
-use super::{view_title, AppViewModel};
-use todo_domain::{Action, Id, SortOrder, View, TASKS_LIST};
+use super::{AppViewModel, view_title};
+use todo_domain::{Action, Id, SortOrder, TASKS_LIST, View};
 
 impl AppViewModel {
-    /// Reorder the named list among its siblings without changing the active view.
+    /// Root lists and groups share a navigation sequence; grouped lists use their siblings.
     pub fn move_list_by(&self, id: Id, delta: i32) {
         if id == TASKS_LIST || delta == 0 {
             return;
         }
-        let before = {
+        let (group_id, before) = {
             let state = self.state();
             let Some(list) = state.list(id) else {
                 return;
             };
-            let siblings = state
-                .lists
-                .iter()
-                .filter(|candidate| {
-                    candidate.id != TASKS_LIST && candidate.group_id == list.group_id
-                })
-                .map(|candidate| (candidate.position, candidate.id))
-                .collect();
-            before_at_delta(siblings, id, delta)
+            (
+                list.group_id,
+                before_at_delta(state.sidebar_siblings(list.group_id), id, delta),
+            )
         };
         if let Some(before) = before {
-            self.dispatch(Action::ReorderList { id, before });
+            self.dispatch(if group_id.is_some() {
+                Action::ReorderList { id, before }
+            } else {
+                Action::ReorderSidebar { id, before }
+            });
         }
     }
 
-    /// Groups are siblings of other groups; this does not reorder root lists.
     pub fn move_group_by(&self, id: Id, delta: i32) {
-        if delta == 0 {
+        if delta == 0 || self.state().group(id).is_none() {
             return;
         }
-        let before = {
-            let state = self.state();
-            let siblings = state
-                .groups
-                .iter()
-                .map(|group| (group.position, group.id))
-                .collect();
-            before_at_delta(siblings, id, delta)
-        };
+        let before = before_at_delta(self.state().sidebar_ids(), id, delta);
         if let Some(before) = before {
-            self.dispatch(Action::ReorderGroup { id, before });
+            self.dispatch(Action::ReorderSidebar { id, before });
         }
     }
 
@@ -116,9 +106,7 @@ impl AppViewModel {
     }
 }
 
-fn before_at_delta(mut siblings: Vec<(i64, Id)>, id: Id, delta: i32) -> Option<Option<Id>> {
-    siblings.sort_unstable();
-    let mut ids: Vec<_> = siblings.into_iter().map(|(_, id)| id).collect();
+fn before_at_delta(mut ids: Vec<Id>, id: Id, delta: i32) -> Option<Option<Id>> {
     let index = ids.iter().position(|candidate| *candidate == id)?;
     let destination = index
         .saturating_add_signed(delta as isize)

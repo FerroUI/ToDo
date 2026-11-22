@@ -46,6 +46,14 @@ pub fn replace_from_cloud(json: &str, expected: &str) -> Result<(), JsValue> {
         .map_err(|error| JsValue::from_str(&error))
 }
 
+#[wasm_bindgen(js_name = prepareCloudData)]
+pub fn prepare_cloud_data(json: &str) -> Result<String, JsValue> {
+    crate::app::view_model()
+        .ok_or_else(|| JsValue::from_str("The app is starting"))?
+        .prepare_cloud_json(json)
+        .map_err(|error| JsValue::from_str(&error))
+}
+
 #[wasm_bindgen(js_name = cloudState)]
 pub fn cloud_state(connected: bool, label: &str) {
     if let Some(vm) = crate::app::view_model() {
@@ -72,8 +80,24 @@ pub fn attach_file(
     let task_id = task_id
         .parse()
         .map_err(|_| JsValue::from_str("Invalid task identifier"))?;
-    if !size.is_finite() || size < 0.0 || size > (25 * 1024 * 1024) as f64 {
-        return Err(JsValue::from_str("Attachments must be 25 MB or smaller"));
+    let limit = 25 * 1024 * 1024;
+    if !size.is_finite() || size < 0.0 || size.fract() != 0.0 || size > limit as f64 {
+        return Err(JsValue::from_str("This attachment has an invalid size"));
+    }
+    let total = vm
+        .state()
+        .task(task_id)
+        .ok_or_else(|| JsValue::from_str("This task no longer exists"))?
+        .attachments
+        .iter()
+        .try_fold(0_u64, |total, file| total.checked_add(file.size));
+    if total
+        .and_then(|total| total.checked_add(size as u64))
+        .is_none_or(|total| total > limit)
+    {
+        return Err(JsValue::from_str(
+            "Attachments for a task must total 25 MB or less",
+        ));
     }
     vm.dispatch(Action::AddAttachment {
         task_id,

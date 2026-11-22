@@ -7,6 +7,9 @@ import { sleep } from "../FerroUI/scripts/browser/harness.mjs";
 import { createHarness } from "./ui/harness.mjs";
 import { verifyAdaptive } from "./ui/adaptive.mjs";
 import { verifyNativeMenus } from "./ui/native-menus.mjs";
+import { verifyListPresentation } from "./ui/list-presentation.mjs";
+import { verifySidebar } from "./ui/sidebar.mjs";
+import { verifyScheduling } from "./ui/scheduling.mjs";
 
 const [site, output = "test-results/ui", ...extra] = process.argv.slice(2);
 if (!site || extra.length) throw new Error("usage: ui-smoke.mjs <built-site> [output-directory]");
@@ -39,7 +42,7 @@ try {
   await edit("TaskTitle", "Edited task", true);
   await until(async () => (await currentTask()).title === "Edited task", "the retained title editor commits");
   await clickControl(element => element.name === `StepOptions${step.id}`, "step options");
-  await control(element => element.type.endsWith("TextBlock") && element.text === "Promote to task", "step menu");
+  await control(element => element.type.endsWith("MenuItem") && element.automationName === "Promote to task", "step menu");
   await page.press("Escape");
   await control(element => element.name === `StepOptions${step.id}` && element.focused, "restored step-options focus");
   // No pointer input between dismissal and submission: shortcuts must retain their route.
@@ -127,6 +130,9 @@ try {
 
   await verifyAdaptive(ui, { taskId: task.id });
   await verifyNativeMenus(ui);
+  await verifyScheduling(ui, task.id);
+  await verifyListPresentation(ui);
+  await verifySidebar(ui);
 
   const demo = new URL(page.url);
   demo.search = "?demo=1&nooffline=1";

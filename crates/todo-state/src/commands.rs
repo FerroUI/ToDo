@@ -1,6 +1,6 @@
-use super::{history::HistoryEntry, AppViewModel, HostRequest, Panel};
+use super::{AppViewModel, HostRequest, Panel, history::HistoryEntry};
 use ferroui_reactive::ObservableExt;
-use todo_domain::{Action, Changes, Id, SortOrder, View, TASKS_LIST};
+use todo_domain::{Action, Changes, Id, SortOrder, TASKS_LIST, View};
 
 type Applied = Box<dyn FnOnce(&AppViewModel, &Changes)>;
 
@@ -121,6 +121,7 @@ impl AppViewModel {
                 if let View::List(id) = self.view() {
                     if let Some(list) = document.list(id) {
                         self.sort.set(list.sort);
+                        self.sort_reversed.set(list.sort_reversed);
                     }
                 }
                 changes
@@ -173,6 +174,7 @@ impl AppViewModel {
 
     pub fn set_sort(&self, sort: SortOrder) {
         self.sort.set(sort);
+        self.sort_reversed.set(false);
         if let View::List(id) = self.view() {
             self.dispatch(Action::SetListSort { id, sort });
         }
@@ -181,6 +183,23 @@ impl AppViewModel {
 
     pub fn sort(&self) -> SortOrder {
         self.sort.get()
+    }
+
+    pub fn sort_reversed(&self) -> bool {
+        self.sort.get() != SortOrder::Manual && self.sort_reversed.get()
+    }
+
+    pub fn reverse_sort(&self) {
+        if self.sort() == SortOrder::Manual {
+            return;
+        }
+        let reversed = !self.sort_reversed();
+        self.sort_reversed.set(reversed);
+        if let View::List(id) = self.view() {
+            self.dispatch(Action::SetListSortDirection { id, reversed });
+        } else {
+            self.notify();
+        }
     }
 
     pub fn complete_selection(&self) {

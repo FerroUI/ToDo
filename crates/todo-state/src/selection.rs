@@ -95,7 +95,13 @@ impl AppViewModel {
             _ => state.settings.show_completed,
         };
         let today = self.today();
-        let mut tasks = state.visible_tasks(&view, self.sort(), show, today);
+        let mut tasks = state.visible_tasks_with_direction(
+            &view,
+            self.sort(),
+            self.sort_reversed(),
+            show,
+            today,
+        );
         if view == View::Planned {
             tasks.sort_by_key(|task| {
                 let date = task

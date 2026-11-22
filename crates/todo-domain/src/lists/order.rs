@@ -33,6 +33,14 @@ impl AppState {
         let position = self.next_list_position(group_id)?;
         self.lists[index].group_id = group_id;
         self.lists[index].position = position;
+        if let Some(group_id) = group_id {
+            self.sidebar_order.retain(|candidate| *candidate != id);
+            if let Some(group) = self.groups.iter_mut().find(|group| group.id == group_id) {
+                group.collapsed = false;
+            }
+        } else {
+            self.append_sidebar(id);
+        }
         Ok(Changes::lists())
     }
 
@@ -68,6 +76,9 @@ impl AppState {
                 list.position = *position;
             }
         }
+        if group_id.is_none() {
+            self.refresh_sidebar_slots(false);
+        }
         Ok(Changes::lists())
     }
 
@@ -94,6 +105,7 @@ impl AppState {
                 group.position = *position;
             }
         }
+        self.refresh_sidebar_slots(true);
         Ok(Changes::lists())
     }
 }

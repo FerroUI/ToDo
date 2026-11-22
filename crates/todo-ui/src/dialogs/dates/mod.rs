@@ -1,160 +1,105 @@
 mod calendar;
+mod calendar_accessibility;
 mod recurrence;
-mod reminder;
+mod validation;
 
 use crate::palette;
-use chrono::{Datelike, Duration, Months};
-use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
-use ferroui_base::media::FontWeight;
+use ferroui_base::input::Key;
+use ferroui_base::layout::VerticalAlignment;
+use ferroui_controls::TextBox;
 use ferroui_view::prelude::*;
 pub use recurrence::repeat;
-use reminder::apply_date;
 use std::rc::Rc;
-use todo_controls::{action_button, icon_button, primary_button, Icon};
-use todo_domain::{Action, Id};
-use todo_state::{AppViewModel, Panel};
+use todo_controls::primary_button;
+use todo_domain::Id;
+use todo_state::{AppViewModel, reminder_in_one_hour};
 
 pub fn date_picker(vm: Rc<AppViewModel>, id: Id, reminder: bool) -> Element {
     rerender(move || {
         let p = palette(&vm);
-        let existing = vm.state().task(id).and_then(|task| {
-            if reminder {
-                task.reminder.as_ref().map(|r| r.date)
-            } else {
-                task.due_date
-            }
-        });
-        let later = vm.current_minutes() + 60;
-        let later_date = vm
-            .today()
-            .checked_add_signed(Duration::days((later / 1440) as i64))
-            .unwrap_or(vm.today());
-        let later_time = format!("{:02}:{:02}", (later % 1440) / 60, later % 60);
-        let selected =
-            use_signal(|| existing.unwrap_or(if reminder { later_date } else { vm.today() }));
-        let month = use_signal(|| selected.get().with_day(1).unwrap());
-        let time = use_signal(|| {
+        let later = reminder_in_one_hour(vm.today(), vm.current_minutes());
+        let selected = use_signal(|| {
             vm.state()
                 .task(id)
-                .and_then(|task| task.reminder.as_ref())
-                .map(|r| {
-                    format!(
-                        "{:02}:{:02}",
-                        r.minutes_after_midnight / 60,
-                        r.minutes_after_midnight % 60
-                    )
+                .and_then(|task| {
+                    if reminder {
+                        task.reminder.as_ref().map(|value| value.date)
+                    } else {
+                        task.due_date
+                    }
                 })
-                .unwrap_or_else(|| later_time.clone())
+                .unwrap_or_else(|| {
+                    if reminder {
+                        later.as_ref().map_or(vm.today(), |value| value.date)
+                    } else {
+                        vm.today()
+                    }
+                })
         });
-        let mut content = stack_panel().spacing(2.0);
-        let first_label = if !reminder {
-            "Today"
-        } else if later < 1440 {
-            "Later today"
-        } else {
-            "In one hour"
-        };
-        for (label, delta) in [(first_label, 0), ("Tomorrow", 1), ("Next week", 7)] {
-            let choose = vm.clone();
-            let quick_time = if reminder && delta == 0 {
-                later_time.clone()
-            } else {
-                "09:00".into()
-            };
-            let delta = if reminder && delta == 0 {
-                (later / 1440) as i64
-            } else {
-                delta
-            };
-            content = content.child(action_button(Icon::Calendar, label, move || {
-                if let Some(date) = choose.today().checked_add_signed(Duration::days(delta)) {
-                    apply_date(&choose, id, date, reminder, &quick_time);
+        let time = use_signal(|| {
+            let minutes = vm
+                .state()
+                .task(id)
+                .and_then(|task| task.reminder.as_ref())
+                .map(|value| value.minutes_after_midnight)
+                .or_else(|| later.as_ref().map(|value| value.minutes_after_midnight))
+                .unwrap_or(540);
+            format!("{:02}:{:02}", minutes / 60, minutes % 60)
+        });
+        let error = use_signal(String::new);
+        let field = use_signal(NodeRef::<TextBox>::new).get_untracked();
+        let save = vm.clone();
+        let submit: Rc<dyn Fn()> = Rc::new(move || {
+            let text = time.get();
+            if let Err(message) =
+                save.save_task_date(id, selected.get(), reminder.then_some(text.as_str()))
+            {
+                error.set(message);
+                if let Some(field) = field.get_untracked() {
+                    field.focus();
+                    field.select_all();
                 }
-            }));
-        }
-        content = content
-            .child(border().height(1.0).background(p.border).margin((8.0, 8.0)))
-            .child(
-                grid()
-                    .column_definitions("*,Auto,Auto")
-                    .margin((10.0, 8.0))
-                    .child(
-                        text_block()
-                            .text(month.get().format("%B %Y").to_string())
-                            .font_size(15.0)
-                            .font_weight(FontWeight::SemiBold)
-                            .foreground(p.text)
-                            .vertical_alignment(V::Center),
-                    )
-                    .child(border().grid_column(1).child(icon_button(
-                        Icon::ChevronLeft,
-                        "Previous month",
-                        move || {
-                            if let Some(date) = month.get().checked_sub_months(Months::new(1)) {
-                                month.set(date);
-                            }
-                        },
-                    )))
-                    .child(border().grid_column(2).child(icon_button(
-                        Icon::ChevronRight,
-                        "Next month",
-                        move || {
-                            if let Some(date) = month.get().checked_add_months(Months::new(1)) {
-                                month.set(date);
-                            }
-                        },
-                    ))),
-            );
-        content = content.child(calendar::view(&vm, month, selected));
+            }
+        });
+        let mut content = stack_panel()
+            .spacing(12.0)
+            .child(calendar::view(&vm, selected));
         if reminder {
+            let enter = submit.clone();
             content = content.child(
                 grid()
-                    .column_definitions("*,120")
-                    .margin((8.0, 8.0))
+                    .column_definitions("*,116")
+                    .column_spacing(12.0)
                     .child(
                         text_block()
                             .text("Time")
                             .font_size(14.0)
                             .foreground(p.text)
-                            .vertical_alignment(V::Center),
+                            .vertical_alignment(VerticalAlignment::Center),
                     )
                     .child(
                         text_box()
                             .name("ReminderTime")
+                            .node_ref(field)
                             .grid_column(1)
+                            .automation_properties_name("Reminder time")
+                            .automation_properties_help_text("24-hour time, for example 09:30")
                             .text(time.two_way())
-                            .placeholder_text("HH:MM"),
+                            .placeholder_text("HH:MM")
+                            .max_length(5)
+                            .on_changed(TextBox::text_property(), move |_| error.set(String::new()))
+                            .on_key_down(move |event| {
+                                if event.key == Key::Return {
+                                    enter();
+                                    event.set_handled(true);
+                                }
+                            }),
                     ),
             );
         }
-        let save = vm.clone();
-        let remove = vm.clone();
-        content = content.child(
-            border()
-                .horizontal_alignment(H::Stretch)
-                .margin((8.0, 8.0))
-                .child(primary_button("Save", move || {
-                    apply_date(&save, id, selected.get(), reminder, &time.get())
-                })),
-        );
-        if existing.is_some() {
-            content = content.child(action_button(
-                Icon::Close,
-                if reminder {
-                    "Remove reminder"
-                } else {
-                    "Remove due date"
-                },
-                move || {
-                    remove.dispatch(if reminder {
-                        Action::SetReminder { id, reminder: None }
-                    } else {
-                        Action::SetDueDate { id, date: None }
-                    });
-                    remove.show_panel(Panel::None);
-                },
-            ));
-        }
-        content.into_element()
+        content
+            .child(validation::message(error.get(), vm.is_dark()))
+            .child(primary_button("Save", move || submit()))
+            .into_element()
     })
 }

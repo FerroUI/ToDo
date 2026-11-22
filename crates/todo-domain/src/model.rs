@@ -126,6 +126,8 @@ pub struct TaskList {
     pub position: i64,
     #[serde(default)]
     pub sort: crate::SortOrder,
+    #[serde(default)]
+    pub sort_reversed: bool,
     #[serde(default = "default_true")]
     pub show_completed: bool,
 }
@@ -140,6 +142,7 @@ impl TaskList {
             group_id: None,
             position: id as i64,
             sort: crate::SortOrder::Manual,
+            sort_reversed: false,
             show_completed: true,
         }
     }
@@ -212,6 +215,9 @@ pub struct AppState {
     pub lists: Vec<TaskList>,
     #[serde(default)]
     pub groups: Vec<ListGroup>,
+    /// Local-only mixed root list/group order. Missing entries retain their legacy order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sidebar_order: Vec<Id>,
     #[serde(default)]
     pub settings: Settings,
     #[serde(default = "initial_id")]
@@ -231,6 +237,7 @@ impl AppState {
             tasks: Vec::new(),
             lists: vec![TaskList::new(TASKS_LIST, "Tasks".into())],
             groups: Vec::new(),
+            sidebar_order: Vec::new(),
             settings: Settings::default(),
             next_id: initial_id(),
         }
