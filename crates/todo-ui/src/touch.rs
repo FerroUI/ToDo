@@ -3,6 +3,7 @@ mod actions;
 mod contacts;
 mod drag_session;
 mod hub;
+mod refresh_feedback;
 mod shell;
 mod shell_input;
 mod shell_lifetime;

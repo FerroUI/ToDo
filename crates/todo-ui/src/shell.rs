@@ -89,7 +89,7 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
         );
     }
     root = root.child(body);
-    root = root.child(crate::touch::shell_feedback(vm.is_dark()));
+    root = root.child(crate::touch::shell_feedback(&vm));
     if !vm.status().is_empty() {
         root = root.child(status::view(vm.clone()));
     }

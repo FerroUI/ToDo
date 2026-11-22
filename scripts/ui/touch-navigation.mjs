@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { button, center, named, noDetails, noRail } from "./touch-input.mjs";
+import { verifyDrawerEditor } from "./touch-editors.mjs";
 
 async function browserBack(page) {
   const history = await page.send("Page.getNavigationHistory");
@@ -47,6 +48,7 @@ export async function verifyCompactNavigation(ctx) {
   assert.equal(await page.evaluate("location.href"), url, "rename cancellation retains the URL");
   await touch.tapControl(button("Show navigation"), "open compact navigation by touch");
   await control(named("SearchTasks"), "open navigation drawer");
+  await verifyDrawerEditor(ctx);
   await touch.swipe({ x: 240, y: 400 }, { x: 110, y: 400 });
   await until(async () => !(await snapshot()).elements.some(named("SearchTasks")), "left swipe dismisses the drawer");
   await control(named("NewTask"), "the underlying composer remains available");

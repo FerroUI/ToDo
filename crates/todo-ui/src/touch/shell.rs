@@ -71,28 +71,35 @@ pub(crate) fn attach_shell(
     super::shell_lifetime::attach(root, recognizer, vm);
 }
 
-pub(crate) fn shell_feedback(dark: bool) -> Element {
-    let palette = todo_controls::Palette::for_dark(dark);
-    border()
-        .name("TouchGestureFeedback")
+pub(crate) fn shell_feedback(vm: &AppViewModel) -> Element {
+    let palette = todo_controls::Palette::for_dark(vm.is_dark());
+    stack_panel()
+        .name("TouchFeedbackArea")
         .grid_row_span(2)
         .z_index(80)
         .is_hit_test_visible(false)
-        .is_visible(false)
         .horizontal_alignment(H::Center)
         .vertical_alignment(V::Top)
         .margin((12.0, 52.0, 12.0, 0.0))
-        .padding((18.0, 12.0))
-        .corner_radius(22.0)
-        .background(palette.surface)
-        .border_brush(palette.border)
-        .border_thickness(1.0)
+        .spacing(8.0)
         .child(
-            text_block()
-                .name("TouchGestureMessage")
-                .font_size(13.0)
-                .foreground(palette.text),
+            border()
+                .name("TouchGestureFeedback")
+                .is_visible(false)
+                .horizontal_alignment(H::Center)
+                .padding((18.0, 12.0))
+                .corner_radius(22.0)
+                .background(palette.surface)
+                .border_brush(palette.border)
+                .border_thickness(1.0)
+                .child(
+                    text_block()
+                        .name("TouchGestureMessage")
+                        .font_size(13.0)
+                        .foreground(palette.text),
+                ),
         )
+        .child(super::refresh_feedback::view(vm))
         .into()
 }
 

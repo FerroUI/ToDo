@@ -24,6 +24,7 @@ fn main() {
             "MenuItem",
             "Separator",
             "Calendar",
+            "ProgressRing",
         ])
         .run();
 }
