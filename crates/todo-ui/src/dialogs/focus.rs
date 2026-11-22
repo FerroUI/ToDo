@@ -1,4 +1,5 @@
-use ferroui_base::input::{FocusManager, InputElement, KeyboardDevice};
+use crate::focus_origin::FocusOrigin;
+use ferroui_base::input::{FocusManager, KeyboardDevice};
 use ferroui_base::threading::{Dispatcher, DispatcherPriority};
 use ferroui_base::{Ref, WeakRef};
 use ferroui_controls::{Border, Calendar, Control, TextBox};
@@ -9,7 +10,7 @@ use std::{cell::RefCell, rc::Rc};
 struct ModalSurface;
 
 struct ReturnFocus {
-    previous: Option<WeakRef<InputElement>>,
+    previous: Option<FocusOrigin>,
     root: RefCell<Option<WeakRef<Control>>>,
     step_origin: bool,
 }
@@ -22,7 +23,7 @@ pub(super) fn activate(surface: &Ref<Border>) {
             .as_ref()
             .and_then(|control| control.name())
             .is_some_and(|name| name.starts_with("StepOptions")),
-        previous: previous.as_ref().map(Ref::downgrade),
+        previous: previous.as_ref().map(|input| FocusOrigin::capture(input)),
         root: RefCell::new(None),
     });
     // Mark pending modals before their deferred activation. A closing modal
@@ -91,13 +92,7 @@ fn restore_focus(state: &ReturnFocus) {
     {
         return;
     }
-    if state
-        .previous
-        .as_ref()
-        .and_then(WeakRef::upgrade)
-        .filter(|previous| FocusManager::can_focus(previous))
-        .is_some_and(|previous| previous.focus())
-    {
+    if state.previous.as_ref().is_some_and(FocusOrigin::restore) {
         return;
     }
     // A promoted/deleted step removes its menu button. Keep editing in the

@@ -2,6 +2,7 @@ mod detail;
 mod dialogs;
 mod drag;
 mod editing;
+mod focus_origin;
 mod inline_name;
 mod list;
 mod menus;

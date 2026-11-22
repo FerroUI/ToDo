@@ -1,8 +1,7 @@
 use super::{focus_target, Drafts};
-use crate::rows::Rows;
-use ferroui_base::input::{InputElement, KeyboardDevice};
+use crate::{focus_origin::FocusOrigin, rows::Rows};
+use ferroui_base::input::KeyboardDevice;
 use ferroui_base::threading::{Dispatcher, DispatcherPriority};
-use ferroui_base::{Ref, WeakRef};
 use ferroui_controls::{Grid, TextBox};
 use ferroui_view::NodeRef;
 use std::{
@@ -42,9 +41,9 @@ struct Presentation {
 #[derive(Default)]
 pub(super) struct PaneFocus {
     previous: RefCell<Option<Presentation>>,
-    detail_return: RefCell<Option<WeakRef<InputElement>>>,
-    panel_return: RefCell<Option<WeakRef<InputElement>>>,
-    navigation_return: RefCell<Option<WeakRef<InputElement>>>,
+    detail_return: RefCell<Option<FocusOrigin>>,
+    panel_return: RefCell<Option<FocusOrigin>>,
+    navigation_return: RefCell<Option<FocusOrigin>>,
     generation: Cell<u64>,
 }
 
@@ -69,18 +68,18 @@ impl PaneFocus {
             return;
         }
         let focused = KeyboardDevice::instance().and_then(|keyboard| keyboard.focused_element());
-        let weak_focus = focused.as_ref().map(Ref::downgrade);
+        let focus_origin = focused.as_ref().map(|input| FocusOrigin::capture(input));
         let opening_navigation = !previous.layout.navigation_overlay && layout.navigation_overlay;
         let opening_pane = (next.pane.side_panel() && next.pane != previous.pane)
             || (matches!(next.pane, Pane::Task(_)) && previous.pane == Pane::List);
         if opening_navigation {
-            *self.navigation_return.borrow_mut() = weak_focus.clone();
+            *self.navigation_return.borrow_mut() = focus_origin.clone();
         }
         if next.pane.side_panel() && next.pane != previous.pane {
-            *self.panel_return.borrow_mut() = weak_focus.clone();
+            *self.panel_return.borrow_mut() = focus_origin.clone();
         }
         if matches!(next.pane, Pane::Task(_)) && previous.pane == Pane::List {
-            *self.detail_return.borrow_mut() = weak_focus;
+            *self.detail_return.borrow_mut() = focus_origin;
         }
         let return_to = if previous.layout.navigation_overlay && !layout.navigation_overlay {
             self.navigation_return.borrow_mut().take()

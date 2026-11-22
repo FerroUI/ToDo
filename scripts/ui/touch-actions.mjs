@@ -16,6 +16,8 @@ export async function verifyTouchActions(ctx) {
   await control(named("SwipeDelete"), "revealed Delete action");
   assert.deepEqual(await saved(), original, "swiping only reveals an action; it cannot delete a task");
   await capture("touch-delete-rail");
+  assert(!(await ctx.snapshot()).elements.some(element => element.type === "TextBlock" && element.text === "Rename list"),
+    "the stale hover tooltip cannot reopen over the revealed touch action rail");
   await touch.tapControl(named("SwipeDelete"), "open swipe deletion confirmation");
   await control(button("Cancel"), "deletion cancellation");
   assert.deepEqual(await saved(), original, "the destructive swipe requires confirmation");
@@ -27,6 +29,8 @@ export async function verifyTouchActions(ctx) {
   await until(async () => !(await saved()).tasks.some(task => task.id === deleted.id), "confirmed touch deletion is saved");
   assert.deepEqual((await saved()).tasks, original.tasks.filter(task => task.id !== deleted.id),
     "confirmed deletion preserves every other task");
+  await ctx.row("Touch 02");
+  await capture("touch-after-delete");
   await ctx.dismissStatus();
 
   const title = "Touch 02";

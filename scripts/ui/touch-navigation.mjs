@@ -13,6 +13,8 @@ export async function verifyCompactNavigation(ctx) {
   const { page, touch, control, saved, snapshot, edit, until } = ctx;
   await touch.tapControl(button("Touch 01"), "ordinary finger tap on a task");
   assert.equal((await control(named("TaskTitle"), "touch-opened details")).text, "Touch 01");
+  assert(!(await snapshot()).elements.some(element => element.type === "TextBlock" && element.text === "Rename list"),
+    "real touch dismisses the preceding mouse tooltip");
   const beforeNote = await saved();
   await edit("TaskNotes", "Touch browser Back draft");
   const url = await page.evaluate("location.href");

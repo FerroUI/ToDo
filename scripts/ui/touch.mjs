@@ -29,11 +29,17 @@ export async function verifyTouch(ui) {
       }
     },
   };
+  await resize(390, 844);
+  // Prime a real mouse tooltip before switching input devices. Touch must close
+  // the open popup and prevent its native timer from resurfacing over task rows.
+  const title = await control(named("RenameList"), "tooltip owner before touch");
+  await page.mouseMove(title.x + title.width / 2, title.y + title.height / 2);
+  await until(async () => (await snapshot()).elements.some(element =>
+    element.type === "TextBlock" && element.text === "Rename list"), "native mouse tooltip opens");
   const enabled = await page.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 2 });
   assert(!enabled.error, enabled.error?.message);
   try {
     await ctx.dismissStatus();
-    await resize(390, 844);
     await verifyCompactNavigation(ctx);
     await verifyTouchActions(ctx);
     await verifyTouchDrag(ctx);

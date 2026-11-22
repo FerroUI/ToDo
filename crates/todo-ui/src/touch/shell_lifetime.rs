@@ -32,6 +32,7 @@ pub(super) fn attach(root: &Ref<Grid>, recognizer: Ref<ShellRecognizer>, vm: Rc<
     let raw = FerroLocator::current()
         .get_service::<dyn IInputManager>()
         .map(|manager| {
+            let tooltips = super::tooltips::HoverTooltips::default();
             manager.pre_process().subscribe_fn_guard(move |event| {
                 let Some(recognizer) = weak.upgrade() else {
                     return;
@@ -47,6 +48,7 @@ pub(super) fn attach(root: &Ref<Grid>, recognizer: Ref<ShellRecognizer>, vm: Rc<
                     if !pointer.root().root_element().is_visual_ancestor_of(&root) {
                         return;
                     }
+                    tooltips.pointer(&root, pointer);
                     super::contacts::process(&recognizer, pointer);
                     if matches!(
                         pointer.type_(),
@@ -58,10 +60,13 @@ pub(super) fn attach(root: &Ref<Grid>, recognizer: Ref<ShellRecognizer>, vm: Rc<
                         recognizer.cancel();
                     }
                 } else if let Some(key) = event.downcast_ref::<RawKeyEventArgs>() {
-                    if key.type_() != RawKeyEventType::KeyDown
-                        || key.key() != Key::Escape
-                        || !key.root().root_element().is_visual_ancestor_of(&root)
-                    {
+                    if !key.root().root_element().is_visual_ancestor_of(&root) {
+                        return;
+                    }
+                    if key.type_() == RawKeyEventType::KeyDown {
+                        tooltips.resume();
+                    }
+                    if key.type_() != RawKeyEventType::KeyDown || key.key() != Key::Escape {
                         return;
                     }
                     let task = recognizer.hub.cancel();

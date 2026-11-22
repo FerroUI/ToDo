@@ -1,7 +1,6 @@
 use super::Drafts;
-use crate::rows::Rows;
-use ferroui_base::input::{FocusManager, InputElement, KeyboardDevice};
-use ferroui_base::WeakRef;
+use crate::{focus_origin::FocusOrigin, rows::Rows};
+use ferroui_base::input::{FocusManager, KeyboardDevice};
 use ferroui_controls::{automation::AutomationProperties, Control};
 use todo_state::{AppViewModel, Panel};
 
@@ -10,7 +9,7 @@ pub(super) fn restore(
     vm: &AppViewModel,
     rows: &Rows,
     drafts: &Drafts,
-    previous: Option<WeakRef<InputElement>>,
+    previous: Option<FocusOrigin>,
     opening_navigation: bool,
     opening_pane: bool,
     search_selection: Option<(i32, i32)>,
@@ -41,11 +40,7 @@ pub(super) fn restore(
             return;
         }
     }
-    if previous
-        .and_then(|previous| previous.upgrade())
-        .filter(|previous| FocusManager::can_focus(previous))
-        .is_some_and(|previous| previous.focus())
-    {
+    if previous.as_ref().is_some_and(FocusOrigin::restore) {
         return;
     }
     if vm.navigation_overlay_open() && focus_navigation(root) {

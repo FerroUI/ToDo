@@ -1,4 +1,5 @@
-use ferroui_base::input::{FocusManager, InputElement, KeyboardDevice};
+use crate::focus_origin::FocusOrigin;
+use ferroui_base::input::{FocusManager, KeyboardDevice};
 use ferroui_base::threading::{Dispatcher, DispatcherPriority};
 use ferroui_base::{Ref, WeakRef};
 use ferroui_controls::{Control, TextBox};
@@ -6,8 +7,8 @@ use std::rc::Rc;
 use todo_state::{AppViewModel, Panel};
 
 pub(super) struct ReturnFocus {
-    previous: Option<WeakRef<InputElement>>,
-    anchor: WeakRef<Control>,
+    previous: Option<FocusOrigin>,
+    anchor: FocusOrigin,
     root: Option<WeakRef<Control>>,
     step_origin: bool,
 }
@@ -20,8 +21,8 @@ impl ReturnFocus {
                 .is_some_and(|name| name.starts_with("StepOptions")),
             previous: KeyboardDevice::instance()
                 .and_then(|keyboard| keyboard.focused_element())
-                .map(|input| input.downgrade()),
-            anchor: anchor.downgrade(),
+                .map(|input| FocusOrigin::capture(&input)),
+            anchor: FocusOrigin::capture(anchor),
             root: anchor
                 .get_visual_ancestors()
                 .filter_map(|visual| visual.cast::<Control>())
@@ -44,15 +45,14 @@ impl ReturnFocus {
                 {
                     return;
                 }
-                if self
-                    .previous
-                    .and_then(|weak| weak.upgrade())
-                    .filter(|input| FocusManager::can_focus(input))
-                    .is_some_and(|input| input.focus())
-                {
+                if self.previous.as_ref().is_some_and(FocusOrigin::restore) {
                     return;
                 }
-                if let Some(anchor) = self.anchor.upgrade() {
+                if let Some(anchor) = self
+                    .anchor
+                    .resolve()
+                    .and_then(|anchor| anchor.cast::<Control>())
+                {
                     if FocusManager::can_focus(&anchor) && anchor.focus() {
                         return;
                     }

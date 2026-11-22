@@ -11,6 +11,7 @@ mod sidebar_input;
 mod surface;
 mod task;
 mod task_input;
+mod tooltips;
 
 pub(crate) use shell::{attach_shell, shell_feedback};
 pub(crate) use sidebar::attach_sidebar_source;

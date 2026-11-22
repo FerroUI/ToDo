@@ -26,13 +26,22 @@ pub enum Row {
     },
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) enum Key {
+    Task(Id),
+    Header(&'static str),
+}
+
 impl Row {
-    pub(super) fn same_key(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Task { id: a, .. }, Self::Task { id: b, .. }) => a == b,
-            (Self::Header { key: a, .. }, Self::Header { key: b, .. }) => a == b,
-            _ => false,
+    pub(super) fn key(&self) -> Key {
+        match self {
+            Self::Task { id, .. } => Key::Task(*id),
+            Self::Header { key, .. } => Key::Header(key),
         }
+    }
+
+    pub(super) fn same_key(&self, other: &Self) -> bool {
+        self.key() == other.key()
     }
     pub(super) fn boxed(&self) -> Option<BoxedValue> {
         Some(Rc::new(self.clone()))
