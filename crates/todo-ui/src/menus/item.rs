@@ -47,7 +47,9 @@ fn base(label: impl Into<String>, symbol: Icon) -> El<MenuItem> {
     menu_item()
         .header(label.clone())
         .automation_properties_name(label)
-        .icon(inherited_icon(symbol, 16.0))
+        // WinUI's MenuItem uses an unscaled PathIcon inside its own 16px Viewbox.
+        // Automatic dimensions preserve the full geometry before that scale is applied.
+        .icon(inherited_icon(symbol, f64::NAN))
         .on_key_down(super::keys::isolate)
 }
 
