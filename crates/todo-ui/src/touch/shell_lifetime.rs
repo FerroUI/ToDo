@@ -103,10 +103,19 @@ pub(super) fn attach(root: &Ref<Grid>, recognizer: Ref<ShellRecognizer>, vm: Rc<
             return;
         };
         let next = super::context::Context::capture(&vm);
-        let held = recognizer.hub.held() || recognizer.drag.borrow().is_some();
+        let (held_drag, invalid_drag) = {
+            let drag = recognizer.drag.borrow();
+            (
+                drag.is_some(),
+                drag.as_ref().is_some_and(|drag| !drag.valid(&vm)),
+            )
+        };
+        let held = recognizer.hub.held() || held_drag;
         let cancel = previous.borrow().invalidates(&next, held);
         previous.replace(next);
-        if cancel {
+        // Source moves/completion/sort changes can invalidate a drag without changing
+        // navigation. Release the drag borrow before interruption disposes capture.
+        if cancel || invalid_drag {
             recognizer.interrupt();
         }
     });

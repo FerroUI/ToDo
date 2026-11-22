@@ -4,7 +4,7 @@ use ferroui_base::{input::IPointer, Point, Ref, WeakRef};
 use ferroui_controls::Button;
 use std::rc::{Rc, Weak};
 use todo_domain::{Id, SidebarItem};
-use todo_state::gestures::TouchTrack;
+use todo_state::{gestures::TouchTrack, AppViewModel};
 
 /// A virtualized row can leave the tree during edge scrolling. The mounted shell owns
 /// the operation and capture; its source visual is only a weak, optional decoration.
@@ -45,6 +45,18 @@ impl Source {
 }
 
 impl DragSession {
+    pub fn valid(&self, vm: &AppViewModel) -> bool {
+        if let Some(operation) = &self.operation {
+            return operation.valid(vm);
+        }
+        // A smart/sorted-view hold owns capture for selection without a reorder
+        // operation. Removing its task must still interrupt that held contact.
+        match &self.source {
+            Source::Task(_, id) => vm.state().task(*id).is_some(),
+            Source::Sidebar(_, _, _) => false,
+        }
+    }
+
     pub fn update(&mut self, point: Point) -> Option<&'static str> {
         if let Some((start, track)) = &mut self.pending {
             track.update(point.x - start.x, point.y - start.y);
@@ -53,9 +65,11 @@ impl DragSession {
             }
             self.pending.take();
             if let Some(operation) = &mut self.operation {
-                operation.activate(point);
-                self.source.dim(true);
-                return Some(operation.label());
+                if operation.activate(point) {
+                    self.source.dim(true);
+                    return Some(operation.label());
+                }
+                return None;
             }
         }
         if let Some(operation) = &self.operation {

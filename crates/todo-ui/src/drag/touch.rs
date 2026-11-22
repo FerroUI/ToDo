@@ -61,8 +61,7 @@ impl TouchDrag {
         point: Point,
     ) -> Option<Self> {
         let mut operation = Self::prepare(control, vm, DragItem::Sidebar(item), point)?;
-        operation.activate(point);
-        Some(operation)
+        operation.activate(point).then_some(operation)
     }
 
     fn prepare(
@@ -98,9 +97,16 @@ impl TouchDrag {
         })
     }
 
-    pub fn activate(&mut self, point: Point) {
-        if self.timer.is_some() || !self.state.origin.active() {
-            return;
+    pub fn valid(&self, vm: &AppViewModel) -> bool {
+        self.state.origin.valid(vm)
+    }
+
+    pub fn activate(&mut self, point: Point) -> bool {
+        if !self.state.vm.upgrade().is_some_and(|vm| self.valid(&vm)) {
+            return false;
+        }
+        if self.timer.is_some() {
+            return true;
         }
         self.state.point.set(point);
         let weak = Rc::downgrade(&self.state);
@@ -117,6 +123,7 @@ impl TouchDrag {
         );
         self.timer = Some(timer);
         self.state.hover(false);
+        self.state.origin.active()
     }
 
     pub fn update(&self, point: Point) {
