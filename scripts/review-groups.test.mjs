@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { runReviewGroups } from "./ui/review-groups.mjs";
+import { boundPage } from "./ui/deadline.mjs";
 
 async function harness(t) {
   t.mock.method(console, "log", () => {});
@@ -105,4 +106,27 @@ test("nested gesture reviews retain failures and use only their own recovery and
   assert.deepEqual(report.map(result => result.status), ["failed", "blocked", "passed"]);
   assert.deepEqual(report.at(-1).precedingFailures, ["touch-drag", "touch-refresh"]);
   assert.equal(await readFile(path.join(h.output, "failure-touch-drag.txt"), "utf8"), original.stack);
+});
+
+test("a stalled diagnostic cannot hide the primary failure or prevent an incrementally reported recovery", async t => {
+  const h = await harness(t);
+  const original = new Error("gesture assertion failed");
+  h.ui.page = boundPage({
+    screenshot: () => new Promise(() => {}),
+    evaluate: () => new Promise(() => {}),
+  }, 10);
+  h.ui.snapshot = () => h.ui.page.evaluate("snapshot");
+  const failures = await runReviewGroups(h.ui, h.output, [
+    { name: "touch", run: async () => { throw original; } },
+    { name: "sidebar", run: async () => {
+      const progress = await h.report();
+      assert.deepEqual(progress.map(result => result.status), ["failed", "running"]);
+      assert.equal(progress[0].stack, original.stack);
+      assert.equal(progress[0].diagnostics.length, 2);
+      assert(progress[0].diagnostics.every(diagnostic => diagnostic.error.includes("timed out")));
+    } },
+  ]);
+  assert.deepEqual(failures.map(failure => failure.error), [original]);
+  assert.deepEqual((await h.report()).map(result => result.status), ["failed", "passed"]);
+  assert.equal(await readFile(path.join(h.output, "failure-touch.txt"), "utf8"), original.stack);
 });

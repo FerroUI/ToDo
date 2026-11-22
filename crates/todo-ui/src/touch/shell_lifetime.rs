@@ -65,7 +65,10 @@ pub(super) fn attach(root: &Ref<Grid>, recognizer: Ref<ShellRecognizer>, vm: Rc<
                     }
                     super::contacts::process(&recognizer, pointer);
                     if pointer.type_() == RawPointerEventType::CancelCapture {
-                        crate::cancel_gestures(&root);
+                        recognizer.interrupt();
+                        if !crate::drag::capture_handoff_active(&root) {
+                            crate::drag::cancel_active(&root);
+                        }
                     } else if matches!(
                         pointer.type_(),
                         RawPointerEventType::Wheel | RawPointerEventType::TouchCancel

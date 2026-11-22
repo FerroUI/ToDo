@@ -19,6 +19,7 @@ pub(super) struct NativeDrag {
     pub pointer: Rc<dyn IPointer>,
     ended: Cell<bool>,
     dragging: Cell<bool>,
+    capture_handoff: Cell<bool>,
     cancellation: RefCell<Option<Cancellation>>,
 }
 
@@ -42,6 +43,7 @@ impl NativeDrag {
             pointer,
             ended: Cell::new(false),
             dragging: Cell::new(false),
+            capture_handoff: Cell::new(false),
             cancellation: RefCell::new(None),
         });
         registry::register(&session);
@@ -75,6 +77,21 @@ impl NativeDrag {
         self.dragging.set(true);
         self.synchronize();
         true
+    }
+
+    pub fn capture_handoff_active(&self) -> bool {
+        self.capture_handoff.get()
+    }
+
+    pub fn release_capture_for_drag(&self) {
+        // Win32 ReleaseCapture synchronously sends WM_CAPTURECHANGED, which FerroUI
+        // reports as raw CancelCapture. Exempt only this intentional release; the
+        // OLE drag constructor runs a nested message loop and must remain unguarded.
+        let _handoff = CaptureHandoff {
+            previous: self.capture_handoff.replace(true),
+            active: &self.capture_handoff,
+        };
+        self.pointer.capture(None);
     }
 
     pub fn cancel(&self) -> bool {
@@ -125,5 +142,16 @@ impl NativeDrag {
 impl Drop for NativeDrag {
     fn drop(&mut self) {
         self.end(false);
+    }
+}
+
+struct CaptureHandoff<'a> {
+    active: &'a Cell<bool>,
+    previous: bool,
+}
+
+impl Drop for CaptureHandoff<'_> {
+    fn drop(&mut self) {
+        self.active.set(self.previous);
     }
 }

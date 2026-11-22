@@ -12,7 +12,7 @@ mod touch;
 mod touch_plan;
 
 pub(crate) use feedback::marker;
-pub(crate) use registry::{cancel_active, has_active};
+pub(crate) use registry::{cancel_active, capture_handoff_active, has_active};
 pub(crate) use sidebar::{attach_sidebar_target, sidebar_marker, SidebarTarget};
 pub(crate) use source::attach_sidebar_source;
 pub(crate) use source::{attach_source, ignore_click};

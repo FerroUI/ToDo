@@ -136,7 +136,7 @@ fn attach(button: &Ref<Button>, vm: Rc<AppViewModel>, source: Source) {
                 }),
             ));
             // Clear Button.IsPressed even when no platform drag source is available.
-            trigger.pointer().capture(None);
+            session.release_capture_for_drag();
             let operation = DragDrop::do_drag_drop_async(&trigger, data, DragDropEffects::MOVE);
             super::completion::observe(
                 operation,

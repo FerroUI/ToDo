@@ -43,7 +43,7 @@ jobs:
           path: ${{ steps.toolchain.outputs.build-cache-paths }}
           key: ${{ steps.toolchain.outputs.build-cache-key }}
       - name: Check browser editing and rendering
-        run: node scripts/ui-smoke.mjs target/browser/todo-browser target/browser/todo-browser/qa
+        run: timeout --signal=TERM --kill-after=10s 8m node scripts/ui-smoke.mjs target/browser/todo-browser target/browser/todo-browser/qa
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         if: ${{ !cancelled() && steps.browser_build.outcome == 'success' }}
         with:

@@ -41,7 +41,9 @@ impl Cancellation {
                             key.set_handled(true);
                         }
                     } else if let Some(pointer) = event.downcast_ref::<RawPointerEventArgs>() {
-                        if cancels(pointer) {
+                        let handoff = pointer.type_() == RawPointerEventType::CancelCapture
+                            && session.capture_handoff_active();
+                        if !handoff && cancels(pointer) {
                             session.cancel();
                         }
                     }

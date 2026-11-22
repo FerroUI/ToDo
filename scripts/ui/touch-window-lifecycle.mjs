@@ -16,12 +16,21 @@ export async function verifyWindowInterruption(ctx) {
     for (const releaseWhileHidden of [false, true]) {
       const tasks = await topTasks(ctx), baseline = await saved();
       const drop = await heldDrag(ctx, tasks[1], tasks[0]);
+      console.log(`lifecycle: deactivate with ${releaseWhileHidden ? "hidden" : "delayed"} release`);
       await activate(other.targetId);
       await until(() => page.evaluate("document.hidden || !document.hasFocus()"), "the browser actually deactivates the app tab");
-      // Hidden documents throttle animation frames. Issue the real release without
-      // awaiting a render; whether its native End is delivered is browser-dependent.
-      if (releaseWhileHidden) await touch.end({ settle: false });
+      // Chromium may defer an input acknowledgement while its target is hidden.
+      // Issue the real End now, observe rejection immediately, and use the separate
+      // browser channel to reactivate before requiring its successful acknowledgement.
+      const release = releaseWhileHidden ? touch.end({ settle: false }).then(
+        () => ({ error: null }), error => ({ error })) : null;
+      console.log("lifecycle: reactivate original target");
       await activate(original.targetInfo.targetId);
+      if (release) {
+        const result = await release;
+        if (result.error) throw result.error;
+        console.log("lifecycle: hidden release acknowledged");
+      }
       await until(() => page.evaluate("!document.hidden && document.hasFocus()"), "the original browser tab is active again");
       await noTransient(ctx, "tab deactivation cancels native gesture feedback");
       if (!releaseWhileHidden) {
@@ -35,6 +44,7 @@ export async function verifyWindowInterruption(ctx) {
       await endSelection(ctx);
       await recoverTap(ctx, tasks[0]);
       assert.deepEqual(await saved(), baseline, "fresh input after tab return preserves the document");
+      console.log("lifecycle: first fresh contact and ordinary tap recovered");
     }
   } catch (error) {
     failure = error;

@@ -32,6 +32,12 @@ pub(crate) fn has_active(root: &Control) -> bool {
     !sessions(root).is_empty()
 }
 
+pub(crate) fn capture_handoff_active(root: &Control) -> bool {
+    sessions(root)
+        .iter()
+        .any(|session| session.capture_handoff_active())
+}
+
 pub(crate) fn cancel_active(root: &Control) -> bool {
     // Do not retain the registry borrow while capture loss or host history can re-enter.
     let sessions = sessions(root);

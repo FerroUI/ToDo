@@ -3,11 +3,12 @@ import path from "node:path";
 import assert from "node:assert/strict";
 import { open, sleep, colours } from "../../FerroUI/scripts/browser/harness.mjs";
 import { typeText } from "./text-input.mjs";
+import { boundPage, withDeadline } from "./deadline.mjs";
 
 // Shared driver over the actual compiled controls. No application commands bypass input handling.
 export async function createHarness(site, output) {
   await mkdir(output, { recursive: true });
-  const page = await open(site, { query: "?nooffline=1", width: 1280, height: 800, network: true, navigate: false });
+  const page = boundPage(await open(site, { query: "?nooffline=1", width: 1280, height: 800, network: true, navigate: false }));
   const failures = [], requests = new Map();
   page.on("Network.requestWillBeSent", event => requests.set(event.requestId, event.request.url));
   page.on("Network.responseReceived", event => {
@@ -29,7 +30,7 @@ export async function createHarness(site, output) {
     let lastError;
     while (Date.now() < end) {
       healthy();
-      try { const value = await check(); if (value) return value; }
+      try { const value = await withDeadline(check, `condition: ${label}`, Math.max(1, end - Date.now())); if (value) return value; }
       catch (error) { lastError = error; }
       await sleep(75);
     }
