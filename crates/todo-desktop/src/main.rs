@@ -22,6 +22,9 @@ fn main() {
     if args.first().is_some_and(|arg| arg == "--prepare-pst") {
         std::process::exit(native::pst_child());
     }
+    if args.first().is_some_and(|arg| arg == "--credential-vault") {
+        std::process::exit(native::credential_child());
+    }
     let demo = args.iter().any(|arg| arg == "--demo");
     let directory = persistence::data_directory();
     let _instance = if demo {

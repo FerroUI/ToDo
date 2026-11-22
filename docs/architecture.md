@@ -2,7 +2,7 @@
 
 ## Boundaries
 
-The application is an eight-crate Rust workspace. Domain behavior does not depend on the renderer or host. Shared views depend on portable state and controls; browser and desktop crates provide the platform boundary. PST parsing has a reusable Rust library and a separate browser-worker bridge.
+The application is a nine-crate Rust workspace. Domain behavior does not depend on the renderer or host. Shared views depend on portable state and controls; browser and desktop crates provide the platform boundary. PST parsing has a reusable Rust library and a separate browser-worker bridge. Native credential storage has a separate bounded protocol and platform adapter.
 
 | Layer | Crate | Owns |
 | --- | --- | --- |
@@ -14,6 +14,7 @@ The application is an eight-crate Rust workspace. Domain behavior does not depen
 | Desktop host | `todo-desktop` | Native startup, persistence, file pickers, tray/notifications, and isolated Node service transport |
 | Data interoperability | `todo-interop` | Bounded PST reading, named-property resolution, task/attachment projection, source-field retention |
 | PST browser bridge | `todo-interop-wasm` | Dedicated WASM worker API for the shared PST reader |
+| Credential storage | `todo-credentials` | Validated, bounded helper requests and OS-backed storage of native cache-encryption keys |
 
 The `FerroUI/` submodule is pinned by Git. Application dependencies resolve to that checkout, with the framework's dependency versions and build profiles synchronized into the root workspace manifest. This keeps the framework source and application build reproducible without waiting for a published crate version.
 
@@ -95,7 +96,7 @@ The browser and desktop tick reminders while the process is running. Desktop can
 
 ## Optional Microsoft synchronization
 
-Browser authentication uses bundled MSAL Browser for authorization-code flow with PKCE and session-storage tokens. Native authentication uses bundled MSAL Node, the system browser, a public-client loopback redirect, and worker-memory tokens. Public configuration comes from the deployment/native environment or a client-ID override; no client secret or service backend is embedded. Fixed cloud descriptors select a matching identity authority, Graph resource, supported services, and handoff URLs. China-operated To Do connections fail explicitly; caller-supplied identity/resource hosts are not accepted.
+Browser authentication uses bundled MSAL Browser for authorization-code flow with PKCE and session-storage tokens. Native authentication uses bundled MSAL Node, the system browser, a public-client loopback redirect, and an encrypted persistent cache protected by the OS credential store. Public configuration comes from the deployment/native environment or a client-ID override; no client secret or service backend is embedded. Fixed cloud descriptors select a matching identity authority, Graph resource, supported services, and handoff URLs. China-operated To Do connections fail explicitly; caller-supplied identity/resource hosts are not accepted.
 
 Base requests use delegated `Tasks.ReadWrite` and `User.Read` against public v1.0 endpoints. Optional catalogue/presentation requests retain their own scope through token acquisition, pagination, and retry. The transport rejects foreign-cloud URLs before adding a token, refreshes a rejected token once, bounds binary response streams, and avoids blind replay of ambiguous creations. Account keys isolate national clouds. Runtime/build configuration use the same validation; the owner-run Azure CLI registration helper discovers scope IDs instead of hardcoding directory-specific objects.
 
@@ -125,7 +126,7 @@ Projection, merge/schema validation, network storage, and orchestration are sepa
 
 The desktop interface remains a FerroUI Rust/MVVM application. Service I/O runs in a Node.js 22+ child with vendored MSAL Node and HTML parsing code. An import loader replaces browser authentication/file adapters while reusing the production Graph, Planner, optional-connector, archive, and PST-export modules. No web UI or local HTTP control server is embedded. Authentication briefly binds a loopback callback; service requests/replies use private process pipes.
 
-The Rust bridge queues operations off the UI thread and services document/file/dialog callbacks on the application thread. Snapshot comparison guards replacement, and generation tokens reject late results after cancellation or disconnect. Worker crashes make the service unavailable visibly while retaining the Rust task document. Tokens are memory-only and disappear on process exit; persistent sidecars contain mappings/checkpoints, not credentials.
+The Rust bridge queues operations off the UI thread and services document/file/dialog callbacks on the application thread. Snapshot comparison guards replacement, and generation tokens reject late results after cancellation or disconnect. Worker crashes make the service unavailable visibly while retaining the Rust task document. Plaintext tokens remain in the worker; mappings/checkpoints stay separate from an authenticated encrypted cache. The cache key lives in the OS credential store through `todo-credentials`. Only the explicitly selected account can resume under the same app-data profile, client, tenant, and cloud. A durable resume-disabled marker precedes disconnect/restore cleanup, and stale cache writes cannot re-enable it. An unavailable vault uses session-only authentication without plaintext persistence.
 
 Native background mode is a host capability and explicit persisted preference. Close hides the window only when a usable tray is installed; Open, Sync, and Quit remain reachable. Linux additionally requires a registered StatusNotifier host and restores the window if the host disappears. OS/application Quit still terminates the worker/session. The timer can continue syncing and checking reminders while that process remains alive. Runtime configuration, notification/tray support gates, and unverified platform behavior are documented in [the native service guide](NATIVE-MICROSOFT.md).
 

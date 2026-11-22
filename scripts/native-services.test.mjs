@@ -1,11 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, readFileSync, readdirSync } from "node:fs";
+import { writeFileSync, readFileSync, readdirSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { callbackResult, nativeRedirect, receiveAuthorization } from "../crates/todo-desktop/native/loopback.mjs";
 import { nativeHost } from "./tests/native-host-fixture.mjs";
 import { task } from "./tests/graph-fixture.mjs";
 import { NativeDOMParser } from "../crates/todo-desktop/native/html.mjs";
+import { cacheScope } from "../crates/todo-desktop/native/cache-format.mjs";
+import { keyName } from "../crates/todo-desktop/native/storage.mjs";
 
 const document=()=>({schema_version:1,tasks:[task(2)],lists:[{id:1,name:"Tasks"}],groups:[],sidebar_order:[],next_id:10,settings:{auto_sync:true,planner_enabled:false}});
 
@@ -61,6 +63,45 @@ test("native restore rejects a changed UI revision and removes staged attachment
   };
   await assert.rejects(host.request({kind:"import",path:archive,expected:JSON.stringify(host.state.document)}),/compare-and-swap/);
   assert.equal(host.state.document.tasks[0].title,"Keep the newer local edit");assert.deepEqual(readdirSync(join(host.data,"files")).sort(),before);
+});
+
+test("native restore cannot commit when durable sign-in revocation fails and rolls back staged files",async t=>{
+  const configuration={clientId:"12345678-1234-1234-1234-123456789abc",tenant:"common",cloud:"global",redirectUri:"http://localhost/"};
+  const host=await nativeHost(document(),{prepare:({data})=>{
+    const key="ferroui.todo.native.public-configuration",sidecars=join(data,"service-state");
+    mkdirSync(sidecars);
+    writeFileSync(join(sidecars,`${keyName(key)}.json`),JSON.stringify({key,value:JSON.stringify(configuration)}));
+  }});
+  t.after(()=>host.close());
+  const source=join(host.root,"source.txt"),archive=join(host.root,"backup.json");
+  writeFileSync(source,"Preserve this existing attachment");
+  await host.request({kind:"attach",task_id:2,path:source,name:"source.txt"});
+  await host.request({kind:"exportArchive",path:archive});
+  const backup=JSON.parse(readFileSync(archive));
+  backup.document.tasks[0].title="This import must never replace the document";
+  writeFileSync(archive,JSON.stringify(backup));
+  const expected=JSON.stringify(host.state.document),folder=join(host.data,"files");
+  const before=readdirSync(folder).sort();
+  const beforeContents=before.map(name=>readFileSync(join(folder,name)));
+  const beforeImports=host.state.callbacks.filter(value=>value==="importData").length;
+  const marker=join(host.data,"secure-signin",`${cacheScope(host.data,configuration).id}.json`);
+  let observedStagedFiles=false;
+  host.state.beforeCallback=message=>{
+    if(!observedStagedFiles&&message.method==="exportData"&&readdirSync(folder).length>before.length){
+      observedStagedFiles=true;
+      // A directory at the atomic-write destination reliably refuses rename,
+      // including when tests run as root. The real worker must revoke its
+      // saved sign-in before sending the final importData callback.
+      mkdirSync(marker);
+    }
+  };
+  await assert.rejects(host.request({kind:"import",path:archive,expected}),/rename|directory|access/i);
+  assert.equal(observedStagedFiles,true,"the real portable pipeline must stage file bytes before this failure");
+  assert.equal(host.state.callbacks.filter(value=>value==="importData").length,beforeImports);
+  assert.equal(JSON.stringify(host.state.document),expected);
+  assert.equal(readFileSync(join(host.data,"tasks.json"),"utf8"),expected);
+  assert.deepEqual(readdirSync(folder).sort(),before);
+  assert.deepEqual(before.map(name=>readFileSync(join(folder,name))),beforeContents);
 });
 
 test("native local attachments remain recoverable for undo and missing accounts never invent sessions",async t=>{

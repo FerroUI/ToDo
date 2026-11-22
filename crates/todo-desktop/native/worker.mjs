@@ -5,6 +5,7 @@ import { receive, send, ui } from "./bridge.mjs";
 import { runtime, beginImport, endImport } from "./runtime.mjs";
 import * as files from "./files.mjs";
 import { NativeDOMParser } from "./html.mjs";
+import { configureCredentials } from "./credentials.mjs";
 
 if (Number(process.versions.node.split(".")[0]) < 22) throw new Error("Native Microsoft services require Node.js 22 or newer.");
 const parentPid = process.ppid;
@@ -22,6 +23,7 @@ if (!globalThis.crypto) Object.defineProperty(globalThis, "crypto", { value: web
 const initial = receive();
 if (initial?.type !== "initialize" || typeof initial.directory !== "string") throw new Error("Invalid native initialization.");
 installStorage(initial.directory);
+configureCredentials(initial.nativeExecutable, initial.demo);
 const auth = await import("./auth.mjs");
 const client = await import("../web/cloud/client.js");
 const metadata = await import("../web/cloud/metadata.js");
@@ -34,11 +36,23 @@ const { requiresSyncReview } = await import("../web/cloud/automatic.js");
 const connected = await import("../web/cloud/connected.js");
 let plannerPaused = false;
 let lastPreferences = "";
+let restored = false;
 
 async function state() {
   const configuration = await auth.configuration();
   runtime.cloudCapabilities(true, configuration.configured, auth.isWorkAccount());
-  runtime.cloudHint("Native Microsoft services use a private Node.js worker. Sign-in stays in your system browser; tokens stay in this app session.");
+  runtime.cloudHint(auth.persistenceHint());
+}
+
+async function restoreSession(preferences) {
+  if (restored || initial.demo) return;
+  restored = true;
+  const account = await auth.restore();
+  if (account) {
+    runtime.cloudState(true, account.name || account.username || "Microsoft account");
+    connected.restoreConnectedApps(runtime, auth.accountKey(), preferences);
+  }
+  await state();
 }
 
 async function disconnect(restore = false) {
@@ -54,6 +68,7 @@ const loadFile = key => materializeCloudAttachment(key, auth.accountKey());
 
 async function perform(action) {
   const preferences = JSON.parse(runtime.exportData()).settings || {};
+  if (!["disconnectMicrosoft", "signOutMicrosoft", "import", "importMicrosoft", "importPstReport", "importPortableJson"].includes(action.kind)) await restoreSession(preferences);
   const preferenceKey = JSON.stringify([preferences.planner_enabled, preferences.outlook_categories_enabled, preferences.presentation_sync_enabled]);
   if (preferenceKey !== lastPreferences) { connected.connectedPreferencesChanged(); plannerPaused = false; lastPreferences = preferenceKey; }
   if (initial.demo && ["connectMicrosoft", "reconnectMicrosoft", "syncMicrosoft", "exportMicrosoft", "enableOutlookCategories", "enablePresentationSync"].includes(action.kind)) throw new Error("Demo mode does not connect or synchronize Microsoft accounts.");
@@ -133,7 +148,7 @@ async function perform(action) {
     case "importPortableJson": {
       const expected = action.expected || runtime.exportData();
       if (runtime.exportData() !== expected) throw new Error("Tasks changed while the import was prepared. Choose the archive again.");
-      beginImport(expected);
+      beginImport(expected, () => auth.revokeResume());
       try {
         let report;
         if (action.kind === "importPstReport") {
@@ -159,9 +174,11 @@ while (true) {
   if (request.type !== "command") throw new Error("Invalid native command.");
   try {
     const value = await perform(request.action);
+    runtime.cloudHint(auth.persistenceHint());
     send({ type: "result", id: request.id, value, connected: !!auth.account(), needsInteraction: auth.sessionStatus().needsInteraction });
   } catch (error) {
+    runtime.cloudHint(auth.persistenceHint());
     send({ type: "result", id: request.id, error: error?.message || "The native operation failed.", review: requiresSyncReview(error), connected: !!auth.account(), needsInteraction: auth.sessionStatus().needsInteraction });
   }
 }
-await auth.disconnect();
+auth.disposeSession();

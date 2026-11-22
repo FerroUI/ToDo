@@ -1,12 +1,12 @@
 import { ui } from "./bridge.mjs";
 
-let expectedImport;
+let expectedImport, beforeImportCommit;
 export const runtime = {
   exportData: () => ui("exportData"),
   prepareCloudData: json => ui("prepareCloudData", { json }),
   replaceFromCloud: (json, expected) => ui("replaceFromCloud", { json, expected }),
   validateImportData: json => ui("validateImportData", { json }),
-  importData: json => ui("importData", { json, expected: expectedImport }),
+  importData: json => { beforeImportCommit?.(); return ui("importData", { json, expected: expectedImport }); },
   cloudState: (connected, label) => ui("cloudState", { connected, label }),
   cloudCapabilities: (supported, configured, workAccount) => ui("cloudCapabilities", { supported, configured, workAccount }),
   cloudHint: message => ui("cloudHint", { message }),
@@ -16,5 +16,5 @@ export const runtime = {
   setIntegrationPreference: (feature, enabled) => ui("setIntegrationPreference", { feature, enabled }),
   flushEdits: () => ui("flushEdits"),
 };
-export function beginImport(expected) { expectedImport = expected; }
-export function endImport() { expectedImport = undefined; }
+export function beginImport(expected, prepareCommit) { expectedImport = expected; beforeImportCommit = prepareCommit; }
+export function endImport() { expectedImport = undefined; beforeImportCommit = undefined; }

@@ -6,7 +6,7 @@ import { spawn } from "node:child_process";
 
 const repository = fileURLToPath(new URL("../../", import.meta.url));
 
-export async function nativeHost(document) {
+export async function nativeHost(document, { prepare } = {}) {
   const root = mkdtempSync(join(tmpdir(), "ferroui-native-test-"));
   const code = join(root, "runtime"), data = join(root, "data");
   mkdirSync(code); mkdirSync(data);
@@ -16,6 +16,7 @@ export async function nativeHost(document) {
   const state = { document: structuredClone(document), statuses: [], callbacks: [], beforeCallback: null };
   const persist = () => writeFileSync(join(data,"tasks.json"), JSON.stringify(state.document));
   persist();
+  await prepare?.({ root, code, data });
   const environment = { ...process.env };
   for (const key of Object.keys(environment)) if (key.startsWith("TODO_MICROSOFT_") || ["NODE_OPTIONS","NODE_PATH"].includes(key)) delete environment[key];
   const processHandle = spawn(process.execPath, [join(code,"native/worker.mjs")], { stdio: ["pipe","pipe","pipe"], env: environment });

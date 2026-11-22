@@ -1,6 +1,8 @@
 pub mod audio;
 mod background;
 mod callbacks;
+mod credentials;
+pub use credentials::child_main as credential_child;
 pub mod notifications;
 mod process;
 mod pst;

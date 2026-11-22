@@ -123,7 +123,8 @@ impl Transport {
                         };
                         write_frame(
                             &mut input,
-                            &json!({"type":"initialize", "directory":directory,"demo":demo}),
+                            &json!({"type":"initialize", "directory":directory,"demo":demo,
+                                "nativeExecutable":std::env::current_exe().map_err(|_| "The native executable is unavailable")?}),
                         )?;
                         let ready = read_frame(&mut output)?;
                         if ready["type"] != "ready" {

@@ -31,7 +31,7 @@ jobs:
         id: toolchain
       - name: Check task state and synchronization
         run: |
-          cargo test --locked -p todo-domain -p todo-state -p todo-interop
+          cargo test --locked -p todo-domain -p todo-state -p todo-interop -p todo-credentials
           node --test scripts/*.test.mjs
       - name: Build browser app
         id: browser_build
