@@ -3,7 +3,7 @@ mod services;
 
 use chrono::{Local, Timelike};
 use ferroui_base::threading::{DispatcherPriority, DispatcherTimer};
-use ferroui_controls::{AppBuilder, Application, Control, Window};
+use ferroui_controls::{AppBuilder, Application, Control, TopLevel, Window};
 use ferroui_desktop::AppBuilderDesktopExtensions;
 use ferroui_fonts_inter::AppBuilderExtension;
 use std::cell::RefCell;
@@ -61,6 +61,15 @@ fn main() {
                     vm.report_error(error);
                 }
                 window.set_content(Some(Control::boxed(&todo_ui::create_view(vm.clone()))));
+                let back_window = window.downgrade();
+                let back = window.back_requested(move |_, event| {
+                    if back_window
+                        .upgrade()
+                        .is_some_and(|window| todo_ui::navigate_back(&window))
+                    {
+                        event.set_handled(true);
+                    }
+                });
                 let layout_vm = Rc::downgrade(&vm);
                 let layout_window = window.downgrade();
                 window
@@ -97,8 +106,12 @@ fn main() {
                     DispatcherPriority::BACKGROUND,
                 );
                 let timer = RefCell::new(Some(timer));
+                let closed_window = window.downgrade();
                 window
                     .closed(move || {
+                        if let Some(window) = closed_window.upgrade() {
+                            window.remove_handler(TopLevel::back_requested_event(), back);
+                        }
                         let stopped = timer.borrow_mut().take();
                         if let Some(timer) = stopped {
                             timer.dispose();

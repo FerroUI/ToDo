@@ -26,11 +26,15 @@ FerroUI provides declarative builders for both controls and WinUI-derived templa
   Its `RefreshRequested` event supports a completion deferral, suitable for keeping feedback
   active until the app's asynchronous refresh finishes.
 
-Browser input reaches these same Rust controls. The browser host forwards DOM pointer events,
-including cancellation, through the native input bridge
+Browser input reaches these same Rust controls. The browser host forwards DOM pointer events
+and touch cancellation through the native input bridge
 ([TypeScript routing](https://github.com/wieslawsoltes/FerroUI/blob/062b29a537a7eef132ea9038df9d3fafb6ced6e3/src/Browser/FerroUI.Browser/webapp/modules/ferroui/input.ts#L660-L719),
 [Rust cancellation](https://github.com/wieslawsoltes/FerroUI/blob/062b29a537a7eef132ea9038df9d3fafb6ced6e3/src/Browser/FerroUI.Browser/browser_input_handler.rs#L429-L464)).
 There is no separate browser-control implementation to enable.
+
+The bridge's cancellation path at this pin handles `pointer_type == "touch"` only. Although
+the app recognizers accept both touch and pen, the browser gate exercises touch contacts;
+pen cancellation and mixed pen/finger arbitration are not established by that evidence.
 
 ## SwipeControl integration gaps
 
