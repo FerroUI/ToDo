@@ -88,7 +88,12 @@ fn update(calendar: &Calendar) {
                 let date =
                     Date::from_ymd_opt(value.year(), value.month() as u32, value.day() as u32)?;
                 if button.is::<CalendarDayButton>() {
-                    button.set_name(Some(format!("ScheduleDate{date}")));
+                    // StyledElement.Name is immutable after styling; automation IDs
+                    // remain mutable as Calendar reuses each cell for another date.
+                    AutomationProperties::set_automation_id(
+                        &button,
+                        Some(&format!("ScheduleDate{date}")),
+                    );
                     Some(date.format("%A, %-d %B %Y").to_string())
                 } else if button.is::<CalendarButton>() {
                     Some(

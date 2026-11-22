@@ -12,6 +12,19 @@ The `FerroUI/` Git submodule is distributed under its [MIT license](FerroUI/LICE
 
 FerroUI's WinUI theme is based on the MIT-licensed Microsoft WinUI sources; see [its component notice](FerroUI/src/FerroUI.Themes.WinUI/NOTICE.md). The bundled Inter font is covered by [its component notice](FerroUI/src/FerroUI.Fonts.Inter/NOTICE.md). Fonts and renderer dependencies retain their upstream licenses. This application's MIT license does not replace any dependency license.
 
+## Noto Color Emoji
+
+`crates/todo-controls/assets/fonts/Noto-COLRv1.ttf` is the complete Noto Color Emoji
+v2.057 vector font from [googlefonts/noto-emoji](https://github.com/googlefonts/noto-emoji),
+pinned to commit `99701e07d3d1fe1bdbcdb14964547f0fd592966f`. It is distributed under
+the SIL Open Font License 1.1, included in
+[OFL.txt](crates/todo-controls/assets/fonts/OFL.txt). Its source and integrity are
+recorded in the [font provenance](crates/todo-controls/assets/fonts/README.md).
+Font copyright: Copyright 2022 Google Inc.
+The browser distributes the font and license as separate offline-capable assets;
+the desktop application embeds the same font. The application's MIT license does
+not replace the font license.
+
 ## Microsoft Authentication Library
 
 `crates/todo-browser/wwwroot/vendor/msal-browser-5.30.0.min.js` is the bundled Microsoft Authentication Library for JavaScript browser package. It is used only for optional Microsoft account authentication.

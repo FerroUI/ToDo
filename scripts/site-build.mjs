@@ -22,7 +22,7 @@ async function files(root, directory = root) {
 export async function prepareSite(root, workerTemplate) {
   const names = (await files(root)).sort();
   const contents = new Map(await Promise.all(names.map(async name => [name, await readFile(path.join(root, name))])));
-  for (const required of ["bootstrap.js", "offline.js", "main.js", "todo-browser.js", "todo_browser.wasm", "ferroui.js", "ferroui-loader.js", "app.css"]) {
+  for (const required of ["bootstrap.js", "offline.js", "main.js", "todo-browser.js", "todo_browser.wasm", "ferroui.js", "ferroui-loader.js", "app.css", "fonts.js", "fonts/Noto-COLRv1.ttf", "fonts/OFL.txt"]) {
     if (!contents.has(required)) throw new Error(`The built site is missing ${required}.`);
   }
   let index = contents.get("index.html")?.toString();

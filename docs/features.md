@@ -33,7 +33,7 @@ This document distinguishes implemented behavior from reference-app parity. The 
 | Artwork | Original vector icons and My Day landscape; not Microsoft's proprietary wallpaper catalog |
 | Responsive layout | Below 760px: list or right pane with navigation drawer. With a right pane at 760–979px: list/details and temporary navigation. From 980px: 280px navigation + at least 360px list + 340px details. Sidebar preference survives resize; exact thresholds are implementation choices |
 | Accessibility | Named controls and enabled FerroUI browser accessibility bridge; full assistive-technology certification remains unverified |
-| Typography | Bundled Inter through FerroUI; therefore not identical to every platform's Microsoft To Do font rendering |
+| Typography | Bundled Inter plus complete licensed Noto COLRv1 emoji fallback through FerroUI; the browser loads the emoji font as a separate integrity-pinned offline asset. Platform font rendering still differs from Microsoft To Do |
 | Editing | Transient inline naming commits once on Enter/blur and cancels on Escape; step drafts survive pane changes; focused account/title/note/step/name edits flush before host departure; desktop search debounce rechecks compact mode; panes and menus restore focus |
 | Task-list navigation | Arrow keys, Home/End, and Page Up/Down move the task cursor and scroll it into view; Shift extends selection; controls expose action names |
 | Sidebar navigation | Up/Down/Home/End traverse visible entries, Left/Right operate the group hierarchy, Space expands/collapses, F2 renames, and menus provide keyboard alternatives to dragging |

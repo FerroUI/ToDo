@@ -2,7 +2,6 @@ mod persistence;
 mod services;
 
 use chrono::{Local, Timelike};
-use ferroui_base::media::FontManagerOptions;
 use ferroui_base::threading::{DispatcherPriority, DispatcherTimer};
 use ferroui_controls::{AppBuilder, Application, Control, Window};
 use ferroui_desktop::AppBuilderDesktopExtensions;
@@ -19,10 +18,14 @@ fn main() {
     AppBuilder::configure::<Application>()
         .use_platform_detect()
         .with_inter_font()
-        .with(Rc::new(FontManagerOptions {
-            default_family_name: Some("fonts:Inter#Inter".into()),
-            ..Default::default()
-        }))
+        .with(Rc::new(todo_controls::font_options()))
+        .configure_fonts(|manager| {
+            todo_controls::install_emoji_font(
+                manager,
+                include_bytes!("../../todo-controls/assets/fonts/Noto-COLRv1.ttf"),
+            )
+            .expect("the bundled Noto emoji font loads");
+        })
         .start(
             move |app, _| {
                 todo_controls::install_theme(app);

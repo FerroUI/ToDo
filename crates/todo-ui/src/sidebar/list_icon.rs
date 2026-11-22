@@ -2,16 +2,30 @@ use ferroui_base::media::text_formatting::unicode::{Codepoint, GraphemeEnumerato
 use ferroui_view::prelude::*;
 use todo_controls::{Icon, icon};
 
-pub(super) fn view(name: &str, color: &str) -> Element {
-    if let Some(emoji) = leading_emoji(name) {
+pub(super) fn view(name: &str, color: &str) -> (Element, String) {
+    let (emoji, label) = split_name(name);
+    let icon = if let Some(emoji) = emoji {
         text_block()
             .text(emoji)
+            .font_family(ferroui_base::media::FontFamily::new(
+                todo_controls::EMOJI_FONT_FAMILY,
+            ))
             .font_size(20.0)
             .foreground(color)
             .into()
     } else {
         icon(Icon::List, 20.0, color)
-    }
+    };
+    (icon, label.to_owned())
+}
+
+/// The leading emoji occupies the icon column; retain the original name in the model and AX label.
+fn split_name(name: &str) -> (Option<String>, &str) {
+    let Some(emoji) = leading_emoji(name) else {
+        return (None, name);
+    };
+    let label = name[emoji.len()..].trim_start();
+    (Some(emoji), label)
 }
 
 /// Reuse the framework's Unicode tables and grapheme rules; never split a flag or ZWJ family.
@@ -35,7 +49,7 @@ fn leading_emoji(name: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::leading_emoji;
+    use super::{leading_emoji, split_name};
     #[test]
     fn whole_emoji_clusters_and_text_fallback() {
         for emoji in ["🧑🏽‍💻", "🇵🇱", "👨‍👩‍👧‍👦", "1️⃣", "❤️"]
@@ -44,6 +58,30 @@ mod tests {
         }
         for name in ["Tasks", "2026 plans", "#todo", "* Inbox", "❤︎ Text", ""] {
             assert_eq!(leading_emoji(name), None);
+        }
+    }
+
+    #[test]
+    fn sidebar_label_omits_only_the_icon_and_its_separator() {
+        for (name, emoji, label) in [
+            ("🧑🏽‍💻 \t Development", "🧑🏽‍💻", "Development"),
+            ("🇵🇱Poland", "🇵🇱", "Poland"),
+            ("📚\u{a0} Books", "📚", "Books"),
+            ("🌿 🍃 Garden ", "🌿", "🍃 Garden "),
+            ("📚", "📚", ""),
+        ] {
+            assert_eq!(split_name(name), (Some(emoji.into()), label));
+        }
+        for name in [
+            "Tasks",
+            "2026 plans",
+            "#todo",
+            "* Inbox",
+            "❤︎ Text",
+            " plain ",
+            "",
+        ] {
+            assert_eq!(split_name(name), (None, name));
         }
     }
 }

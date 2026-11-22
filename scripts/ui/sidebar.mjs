@@ -19,7 +19,7 @@ export async function verifySidebar(ui) {
     await edit("GroupName", name, true);
     return until(async () => (await saved()).groups.find(group => group.name === name), `saved ${name}`);
   };
-  const first = await createList("Sidebar A");
+  const first = await createList("📚 Sidebar A");
   await edit("NewTask", "Sidebar retained task", true);
   const task = await until(async () => (await saved()).tasks.find(task => task.title === "Sidebar retained task"), "a task for navigation durability");
   const second = await createList("Sidebar B");
@@ -51,6 +51,14 @@ export async function verifySidebar(ui) {
     const a = lists.find(list => list.id === first.id), b = lists.find(list => list.id === second.id);
     return b.group_id === group.id && b.position < a.position;
   }, "a list can move into a group before an existing member");
+  const emojiRow = await control(listButton(first.id), "emoji list row");
+  assert.equal(emojiRow.automationName, "📚 Sidebar A", "the accessible name preserves the full list title");
+  const rowLabels = (await snapshot()).elements.filter(element => element.type.endsWith("TextBlock")
+    && element.x >= emojiRow.x && element.x + element.width <= emojiRow.x + emojiRow.width + 1
+    && element.y >= emojiRow.y && element.y + element.height <= emojiRow.y + emojiRow.height + 1);
+  assert(rowLabels.some(element => element.text === "Sidebar A"), "the sidebar label omits the leading emoji and separator");
+  assert(rowLabels.some(element => element.text === "📚"), "the leading emoji occupies the icon column");
+  assert(!rowLabels.some(element => element.text === "📚 Sidebar A"), "the emoji is not duplicated in the visible label");
   await capture("sidebar-groups");
 
   await ui.focusControl(groupButton(group.id), "group keyboard focus");
@@ -83,5 +91,5 @@ export async function verifySidebar(ui) {
   await resize(1280, 800);
   await navigate("Page.reload", { ignoreCache: true });
   assert.deepEqual((await saved()).sidebar_order, expected, "mixed root order survives reload");
-  console.log("ok: typed sidebar drag/drop, mixed root order, cancellation, group keyboard navigation, direct removal, ordered ungroup, and reload persistence");
+  console.log("ok: typed sidebar drag/drop, mixed root order, cancellation, emoji icon and label, group keyboard navigation, direct removal, ordered ungroup, and reload persistence");
 }

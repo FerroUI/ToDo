@@ -26,6 +26,11 @@ pub(super) fn view(
         View::List(id) => Some(id),
         _ => None,
     };
+    let (row_icon, display_title) = if list_id.is_some_and(|id| id != TASKS_LIST) {
+        super::list_icon::view(&title, color)
+    } else {
+        (icon(symbol, 20.0, color), title.clone())
+    };
     button()
         .key(format!("nav-{target:?}"))
         .name(format!("Navigate{target:?}"))
@@ -60,14 +65,12 @@ pub(super) fn view(
                 .child(
                     border()
                         .vertical_alignment(V::Center)
-                        .child(if list_id.is_some_and(|id| id != TASKS_LIST) {
-                            super::list_icon::view(&title, color)
-                        } else { icon(symbol, 20.0, color) }),
+                        .child(row_icon),
                 )
                 .child(
                     text_block()
                         .grid_column(1)
-                        .text(title)
+                        .text(display_title)
                         .font_size(14.0)
                         .foreground(if selected { p.accent } else { p.text })
                         .text_trimming(<dyn ferroui_base::media::TextTrimming>::character_ellipsis())

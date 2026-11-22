@@ -4,26 +4,31 @@ mod app;
 mod exports;
 mod host;
 
-use ferroui_base::media::FontManagerOptions;
 use ferroui_browser::{BrowserAccessibilityMode, BrowserAppBuilder, BrowserPlatformOptions};
 use ferroui_controls::AppBuilder;
 use ferroui_fonts_inter::AppBuilderExtension;
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(js_name = runMain)]
-pub fn run_main(query: &str) {
+pub fn run_main(query: &str, emoji_font: Vec<u8>) -> Result<(), JsValue> {
     app::set_demo(
         query
             .split('&')
             .any(|part| part.trim_start_matches('?') == "demo=1"),
     );
+    let font_error = Rc::new(RefCell::new(None));
+    let font_result = font_error.clone();
+    let font_bytes = RefCell::new(Some(emoji_font));
     AppBuilder::configure::<app::App>()
         .with_inter_font()
-        .with(Rc::new(FontManagerOptions {
-            default_family_name: Some("fonts:Inter#Inter".into()),
-            ..Default::default()
-        }))
+        .with(Rc::new(todo_controls::font_options()))
+        .configure_fonts(move |manager| {
+            if let Some(bytes) = font_bytes.borrow_mut().take() {
+                *font_result.borrow_mut() =
+                    todo_controls::install_emoji_font(manager, &bytes).err();
+            }
+        })
         .start_browser_app(
             "out",
             Some(BrowserPlatformOptions {
@@ -31,6 +36,11 @@ pub fn run_main(query: &str) {
                 ..Default::default()
             }),
         );
+    let error = font_error.borrow_mut().take();
+    match error {
+        Some(error) => Err(JsValue::from_str(&error)),
+        None => Ok(()),
+    }
 }
 
 #[cfg(not(target_os = "emscripten"))]

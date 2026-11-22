@@ -3,16 +3,20 @@ import { loadModule } from "./ferroui-loader.js";
 import { attachRuntime, today, width, reportError } from "./host.js";
 import { prepareMicrosoft, attachMicrosoft } from "./graph.js";
 import { registerOffline } from "./offline.js";
+import { loadEmojiFont } from "./fonts.js";
 
 try {
   await prepareMicrosoft();
-  const loaded = await loadModule({ script: new URL("./todo-browser.js", import.meta.url).href, element: document.getElementById("out") });
+  const [loaded, emojiFont] = await Promise.all([
+    loadModule({ script: new URL("./todo-browser.js", import.meta.url).href, element: document.getElementById("out") }),
+    loadEmojiFont(),
+  ]);
   if (loaded) {
     const runtime = await loaded.createRuntime();
     FerroExports.attach(runtime);
     attachRuntime(runtime);
     globalThis.todoApp = runtime;
-    runtime.runMain(globalThis.location.search);
+    runtime.runMain(globalThis.location.search, emojiFont);
     void attachMicrosoft(runtime);
     new ResizeObserver(() => runtime.resizeWindow(width())).observe(document.getElementById("out"));
     matchMedia("(prefers-color-scheme: dark)").addEventListener("change", event => runtime.updateTheme(event.matches));

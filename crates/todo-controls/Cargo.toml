@@ -12,6 +12,7 @@ ferroui-controls.workspace = true
 ferroui-view.workspace = true
 ferroui-themes-winui.workspace = true
 ferroui-markup-xaml.workspace = true
+url.workspace = true
 
 [build-dependencies]
 ferroui-build.workspace = true

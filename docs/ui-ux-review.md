@@ -15,7 +15,7 @@ The target remains the Windows To Do composition: navigation at the left, a them
 | List organization | Root lists and groups occupied separate ordering domains; drag-to-group was missing | Add a backward-compatible mixed root sequence and reuse the existing pointer gesture engine with typed task/list/group payloads |
 | Group behavior | Ungrouping could collide with unrelated list positions; empty groups provided no guidance | Replace a group in place with its ordered children, show an empty drop target, and expose explicit remove/membership actions |
 | Navigation access | Pointer menus existed but the sidebar lacked tree-style keyboard traversal | Add visible-entry traversal, group Left/Right behavior, F2 rename, focus return after relocation, and equivalent menu commands |
-| List identity | A leading emoji remained ordinary title text beside a generic icon | Use FerroUI's Unicode/grapheme support to render whole emoji sequences as the list icon without changing stored names |
+| List identity | A leading emoji remained ordinary title text beside a generic icon; the browser lacked an emoji font | Render one complete emoji cluster in the icon column, preserve the full stored/accessibility name, and register the complete licensed Noto COLRv1 fallback in both hosts |
 | Due dates/reminders | Common choices opened full dialogs; active values had no direct removal affordance | Native anchored Today/Tomorrow/Next week/custom menus, reminder equivalents, state-aware colors, and direct remove buttons |
 | Calendar | A hand-built grid exposed many day-only tab stops without the native navigation contract | Compile and use the WinUI Calendar template, including day/month/year modes, named date automation, roving focus, and keyboard navigation |
 | Custom schedules | Errors appeared behind a modal in the global status surface | Validate inside the custom form, retain the draft, and focus/select the offending field |
@@ -36,6 +36,8 @@ The list still uses one recycling data template over a stable observable source.
 
 New implementation areas are separated into focused files: sidebar projection/drop planning, sidebar keyboard and emoji handling, scheduling commands, schedule/step menus, custom form validation, sort status, offline bootstrap/manifest generation, and focused regression scenarios. The compiled WinUI theme adds Calendar and its dependencies rather than copying its template into the app.
 
+The complete 5,038,236-byte Noto emoji font is a separate integrity-pinned browser asset downloaded in parallel with the runtime and included in the same versioned offline cache. It does not increase the WebAssembly binary. Desktop embeds the same font, while a small shared registration helper keeps networking and host paths out of the reusable controls crate. [Font provenance and license](../crates/todo-controls/assets/fonts/README.md) are recorded with the canonical asset.
+
 CI remains a single build job and dependent Pages deployment job. Small Rust and Node suites validate state/data boundaries; one real-browser gate checks the shipped WebAssembly. There is no platform matrix, duplicate browser build, broad framework test suite, or additional deployment workflow.
 
 ## Adaptive and interaction review
@@ -48,7 +50,7 @@ The browser gate exercises these widths, list and group pointer movement, keyboa
 
 | Area | Current boundary | What complete parity still requires |
 | --- | --- | --- |
-| Typography and artwork | Bundled Inter, original vector icons/landscape, palette-based themes | Exact platform typography/rendering and the full reference wallpaper/theme catalog |
+| Typography and artwork | Bundled Inter and complete Noto COLRv1 emoji fallback, original vector icons/landscape, palette-based themes | Exact platform typography/rendering and the full reference wallpaper/theme catalog |
 | Notes | Reliable plain text and multiline editing | Full web rich-text formatting, links, lists, and lossless rich HTML round trips |
 | Tags/categories | Search and model/Graph fields exist | Inline clickable hashtag navigation and a complete Outlook category-editing surface |
 | Recurrence | Daily/weekday/weekly/monthly/yearly/custom intervals | Arbitrary weekday sets, ending dates/counts, and every server recurrence/time-zone combination |
