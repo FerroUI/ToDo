@@ -75,6 +75,8 @@ As reviewed on 2026-11-22, Microsoft says its To Do applications will retire **J
 
 Planner task restrictions apply to native menus, detail actions, swipe rails, mouse and held-touch drag, keyboard deletion, and bulk operations. Planner swipes expose My Day only; flagged-email tasks cannot move into a personal list. Single-action rails use their actual width for drag limits and settling thresholds. Rejected protected operations preserve the current selection and cannot produce a false deletion-success message. These policies remain enforced by the Rust domain beneath every UI route.
 
+The combined-input browser review also exposed a framework lifetime bug: an already completed fallback drag could consume the next mouse press before its async cleanup ran. The FerroUI submodule includes a synchronous completed-result guard, with focused regressions for drop and Escape completion before future cleanup. App-level gesture ownership and cancellation policies remain in the existing coordinator.
+
 ## Verification and limits
 
 The browser suite exercises production modules with controlled MSAL, storage, timer, and Graph fixtures. Focused files include `microsoft-auth*.test.mjs`, `automatic-sync.test.mjs`, `graph-sync.test.mjs`, `graph-delta.test.mjs`, `planner-sync.test.mjs`, `portable-backup.test.mjs`, and `microsoft-archive.test.mjs`. They cover redirects, token renewal, origin validation, scheduling, deltas, files, interruption recovery, move conflicts, Planner revisions, malformed archives, checksums, concurrent edits, and account isolation. Rust tests cover model constraints and document validation.
