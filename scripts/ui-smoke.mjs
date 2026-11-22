@@ -119,7 +119,9 @@ try {
   await control(element => element.name === `StepOptions${step.id}` && element.focused, "restored step-options focus");
   // No pointer input between dismissal and submission: shortcuts must retain their route.
   const beforeShortcut = await currentTask();
-  await page.press("n", ["ctrl"]);
+  // Chrome reserves Ctrl+N before renderer dispatch when CDP supplies a native key code.
+  // The app also accepts Ctrl+Alt+N, which exercises the same route without that reservation.
+  await page.press("n", ["ctrl", "alt"]);
   await control(element => element.name === "NewTask" && element.focused, "keyboard-focused task composer");
   await page.type("Keyboard task tomorrow");
   assert.equal((await control(element => element.name === "RecognizedSchedule", "recognized due-date preview")).text, "Tomorrow");
@@ -134,7 +136,7 @@ try {
   assert.equal(keyboardTask.list_id, task.list_id);
   assert.equal(keyboardTask.due_date, tomorrow, "recognized due date uses the browser's local calendar");
   assert.deepEqual(await currentTask(), beforeShortcut, "shortcut input must not change the original task");
-  console.log("ok: Escape restores focus; Ctrl+N previews and saves tomorrow's task without pointer input");
+  console.log("ok: Escape restores focus; Ctrl+Alt+N previews and saves tomorrow's task without pointer input");
   await clickText("Edited task");
   // Leave the note focused; pagehide/beforeunload must save it without an export or blur helping.
   await edit("TaskNotes", "Saved note");

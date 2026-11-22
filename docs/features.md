@@ -36,12 +36,12 @@ This document distinguishes implemented behavior from reference-app parity. The 
 | Editing | Task title, notes, and steps commit on their implemented focus/keyboard paths; search is debounced on desktop; dialogs restore focus to their origin or a relevant editor |
 | Task-list navigation | Arrow keys, Home/End, and Page Up/Down move the task cursor and scroll it into view; Shift extends selection; controls expose action names |
 
-The application implements keyboard commands while the app has focus. Browser-reserved shortcuts can still be intercepted by the browser.
+The application implements keyboard commands while the app has focus. Browser-reserved shortcuts can still be intercepted by the browser; use Ctrl/Command + Alt + N to focus the task composer in a browser tab. Ctrl/Command + N remains available in the desktop app.
 
 | Shortcut | Action |
 | --- | --- |
 | Enter in the add field | Add task or step |
-| Ctrl/Command + N | Focus new task |
+| Ctrl/Command + N; Ctrl/Command + Alt + N in a browser tab | Focus new task |
 | Ctrl/Command + L | New list |
 | Ctrl/Command + F | Search |
 | Ctrl/Command + D | Complete selected tasks, or toggle the current task's completion |

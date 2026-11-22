@@ -91,7 +91,7 @@ Read [Architecture](docs/architecture.md) for state flow, performance decisions,
 
 ## FerroUI submodule
 
-`FerroUI/` is a real Git submodule pinned to [`ef88c554005a0c52aeeb0083a6d577cd62cffbfd`](https://github.com/wieslawsoltes/FerroUI/commit/ef88c554005a0c52aeeb0083a6d577cd62cffbfd), the upstream `main` revision selected when this application was created. All framework crates resolve through paths into that checkout.
+`FerroUI/` is a real Git submodule pinned to [`c5a3aadc230c6b830337525eeab79652b12f9cf0`](https://github.com/wieslawsoltes/FerroUI/commit/c5a3aadc230c6b830337525eeab79652b12f9cf0), the latest upstream `main` revision selected for this build. All framework crates resolve through paths into that checkout.
 
 To recover a missing checkout:
 
@@ -99,7 +99,16 @@ To recover a missing checkout:
 git submodule update --init --recursive
 ```
 
-When deliberately updating FerroUI, update its submodule commit, run `python3 FerroUI/scripts/apps/sync-workspace.py`, update the lockfile, and verify the browser build. The generated workspace dependencies and profiles should remain aligned with the selected framework revision.
+To move to the latest upstream `main`, update the gitlink and synchronize the generated workspace dependencies:
+
+```bash
+git submodule update --remote FerroUI
+python3 FerroUI/scripts/apps/sync-workspace.py
+cargo update --workspace
+bash scripts/build-browser.sh
+```
+
+Commit the updated submodule pointer, manifest, and lockfile together. CI checks out the recorded revision recursively, so each deployed build remains reproducible.
 
 ## Deployment
 

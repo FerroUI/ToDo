@@ -95,8 +95,5 @@ fn move_to(vm: &AppViewModel, id: Id, list_id: Id) -> Option<Action> {
     if document.task(id)?.list_id == list_id || document.list(list_id).is_none() {
         return None;
     }
-    Some(Action::Batch(vec![
-        Action::MoveTask { id, list_id },
-        Action::ReorderTask { id, before: None },
-    ]))
+    Some(Action::MoveTask { id, list_id })
 }

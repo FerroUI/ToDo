@@ -39,9 +39,11 @@ Task selection has a separate mode, range anchor, and keyboard cursor. Modifier 
 
 Keyboard navigation reveals and focuses the corresponding virtualized container. The UI is split into small modules for row actions, list keyboard handling, selection controls, sidebar sections, and shell input. A shared edit-flush helper collects pending title, note, and step changes before host close/export paths can unmount the controls, then dispatches after releasing control/document reads.
 
+Shell shortcuts attach once to the current `TopLevel` and detach with the root. They remain reachable when recycling removes the focused child, while respecting keys already handled by controls. Route ownership and command handling live in separate small modules.
+
 Focused row buttons own their Enter/Space activation; container shortcuts do not intercept their key-down and leave a mismatched key-up. Modal focus restoration uses weak references and defers until teardown. It yields to an attached replacement modal or existing live focus, then returns to the origin, a relevant editor, or the programmatically focusable app root.
 
-Task dragging uses FerroUI's in-process drag transport with a private typed payload and weak originating-view-model identity. Recycled row and sidebar controls resolve identities from their current tags. A mouse movement threshold separates clicks from drags. Hover adds feedback without editing the document; a validated drop dispatches one reorder or move transaction. Synchronous cancellation invalidates the payload before queued pointer events can produce a late drop. Detail surfaces are keyed by task identity so editor lifetimes do not cross between tasks.
+Task dragging uses FerroUI's in-process drag transport with a private typed payload and weak originating-view-model identity. Recycled row and sidebar controls resolve identities from their current tags. A mouse movement threshold separates clicks from drags. Hover adds feedback without editing the document; a validated drop dispatches one reorder or move command. Moving between lists appends to the destination order in the domain action, without a full-document batch clone. Synchronous cancellation invalidates the payload before queued pointer events can produce a late drop. Detail surfaces are keyed by task identity so editor lifetimes do not cross between tasks.
 
 ## History and persistence
 
@@ -59,9 +61,9 @@ Backups contain task data and attachment metadata, **not attachment blob content
 
 The host supplies the local civil date; domain logic never assumes UTC midnight is the user's day boundary. My Day includes explicit current-day membership and tasks due today, with a per-day exclusion for explicit removal.
 
-Recurrence keeps an original anchor so monthly schedules preserve their intended day after short months, and yearly schedules preserve leap-day intent. Completion retains the completed occurrence and creates the next future occurrence, resetting steps and per-day membership. Reopening and completing the original again does not create another successor.
+Recurrence keeps an original anchor so monthly schedules preserve their intended day after short months, and yearly schedules preserve leap-day intent. Completion retains the completed occurrence and creates the next future occurrence, resetting steps and per-day membership. Reopening and completing the original again does not create another successor. Saving the unchanged due date or repeat rule preserves the original anchor and occurrence marker; changing the rule or date deliberately reanchors the schedule.
 
-The browser and desktop tick reminders while the app is open. Delivery is recorded before calling host notification code, updated in the observable cache, and saved once per tick. Undo preserves delivery markers so an unrelated edit cannot cause the same reminder to fire again. There is no server push scheduler for a closed application.
+The browser and desktop tick reminders while the app is open. Delivery is recorded before calling host notification code, updated in the observable cache, and saved once per tick. Undo preserves delivery markers so an unrelated edit cannot cause the same reminder to fire again. Saving an unchanged reminder preserves its delivery marker, including after reload; changing its date or time arms the new schedule. There is no server push scheduler for a closed application.
 
 ## Optional Microsoft synchronization
 

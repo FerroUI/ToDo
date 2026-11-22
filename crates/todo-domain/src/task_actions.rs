@@ -42,12 +42,15 @@ impl AppState {
                 task.my_day_excluded = if day.is_none() { Some(today) } else { None };
             }),
             Action::SetDueDate { id, date } => self.edit_task(id, today, |task| {
+                if task.due_date == date {
+                    return;
+                }
                 task.due_date = date;
                 if let (Some(recurrence), Some(date)) = (&mut task.recurrence, date) {
                     recurrence.anchor = Some(date);
                 }
             }),
-            Action::SetReminder { id, reminder } => {
+            Action::SetReminder { id, mut reminder } => {
                 if reminder
                     .as_ref()
                     .is_some_and(|value| value.minutes_after_midnight >= 1440)
@@ -56,7 +59,18 @@ impl AppState {
                         "Reminder time must be within one day".into(),
                     ));
                 }
-                self.edit_task(id, today, |task| task.reminder = reminder)
+                self.edit_task(id, today, |task| {
+                    if let (Some(existing), Some(value)) = (&task.reminder, &mut reminder) {
+                        if existing.date == value.date
+                            && existing.minutes_after_midnight == value.minutes_after_midnight
+                        {
+                            // An unchanged dialog save must not rearm a delivered
+                            // reminder. Explicit delivery acknowledgement still wins.
+                            value.notified |= existing.notified;
+                        }
+                    }
+                    task.reminder = reminder;
+                })
             }
             Action::SetRecurrence { id, mut recurrence } => {
                 if recurrence.as_ref().is_some_and(|value| value.every == 0) {
@@ -66,9 +80,17 @@ impl AppState {
                 }
                 let index = self.task_index(id)?;
                 if let Some(value) = &mut recurrence {
-                    value
-                        .anchor
-                        .get_or_insert(self.tasks[index].due_date.unwrap_or(today));
+                    if value.anchor.is_none() {
+                        let task = &self.tasks[index];
+                        // Saving an unchanged rule must not shift a month-end
+                        // series from its original anchor to a clamped date.
+                        value.anchor = match task.recurrence.as_ref().filter(|existing| {
+                            existing.unit == value.unit && existing.every == value.every
+                        }) {
+                            Some(existing) => existing.anchor,
+                            None => Some(task.due_date.unwrap_or(today)),
+                        };
+                    }
                 }
                 self.edit_task(id, today, |task| {
                     task.recurrence = recurrence;
@@ -89,7 +111,24 @@ impl AppState {
             }),
             Action::MoveTask { id, list_id } => {
                 self.list_index(list_id)?;
-                self.edit_task(id, today, |task| task.list_id = list_id)
+                if self.tasks[self.task_index(id)?].list_id == list_id {
+                    return Ok(Changes::default());
+                }
+                let position = self
+                    .tasks
+                    .iter()
+                    .filter(|task| task.list_id == list_id)
+                    .map(|task| task.position)
+                    .max()
+                    .unwrap_or(-1)
+                    .checked_add(1)
+                    .ok_or_else(|| {
+                        DomainError::InvalidValue("The destination task order is out of range".into())
+                    })?;
+                self.edit_task(id, today, |task| {
+                    task.list_id = list_id;
+                    task.position = position;
+                })
             }
             Action::DuplicateTask(id) => {
                 let original = self.tasks[self.task_index(id)?].clone();

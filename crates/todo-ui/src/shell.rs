@@ -1,4 +1,5 @@
 mod input;
+mod key_route;
 mod keyboard;
 mod title_bar;
 
@@ -48,7 +49,7 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
         .is_tab_stop(false)
         .background(p.background)
         .row_definitions("36,*")
-        .with(move |root| keyboard::attach(root, keys.clone(), key_drafts.clone()))
+        .with(move |root| key_route::attach(root, keys.clone(), key_drafts.clone()))
         .child(title_bar::view(vm.clone()));
     let mut body = grid()
         .grid_row(1)
