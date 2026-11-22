@@ -72,6 +72,18 @@ fn content(vm: Rc<AppViewModel>) -> Element {
             settings.week_starts_monday,
             |s, v| s.week_starts_monday = v,
         ))
+        .child(toggle(
+            vm.clone(),
+            "Recognize dates and times (English)",
+            settings.recognize_dates,
+            |s, v| s.recognize_dates = v,
+        ))
+        .child(toggle(
+            vm.clone(),
+            "Remove recognized dates from titles",
+            settings.remove_recognized_dates,
+            |s, v| s.remove_recognized_dates = v,
+        ))
         .child(section_label("Smart lists", p.secondary))
         .child(toggle(vm.clone(), "All", settings.show_all, |s, v| {
             s.show_all = v

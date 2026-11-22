@@ -9,8 +9,9 @@ The application includes the main personal task workflows and optional Microsoft
 ## Features
 
 - My Day, Important, Planned, All, Completed, custom lists, and collapsible list groups.
-- Task details with steps, notes, importance, due dates, reminders, and repeat schedules.
-- Search across task names, notes, steps, and tags; suggestions; sorting; manual move commands; task and list duplication.
+- Task details with steps, step-to-task promotion, notes, importance, due dates, reminders, and repeat schedules.
+- English date/time recognition in new task titles, a live schedule preview, and configurable title retention.
+- Search across task names, notes, steps, and tags; suggestions; sorting; drag tasks to reorder or move between lists; task and list duplication.
 - Multiple selection with modifier-click and ranges, select-all, and bulk completion, move, and deletion.
 - Calendar-aware daily, weekday, weekly, monthly, yearly, and custom interval recurrence.
 - Undo/redo, JSON backup and restore, print view, and browser file attachments.
@@ -73,7 +74,7 @@ node --test scripts/*.test.mjs
 node scripts/ui-smoke.mjs target/browser/todo-browser
 ```
 
-The Rust suites cover domain behavior, state transitions, bulk-selection transactions, and callback reentrancy. The JavaScript suites exercise storage conflicts and retries, plus Graph creation, updates, imports, deletion, conflicts, interrupted requests, and account isolation with a simulated service. The browser gate uses the built app and Chromium to check task and list creation, retained title editing, steps, and saving a focused note on reload. It also captures desktop, detail, and narrow layouts. Other browser/device combinations need separate validation.
+The Rust suites cover domain behavior, conservative date/time recognition, atomic scheduled-task creation, state transitions, bulk-selection transactions, and callback reentrancy. The JavaScript suites exercise storage conflicts and retries, plus Graph creation, updates, imports, deletion, conflicts, interrupted requests, and account isolation with a simulated service. The browser gate uses the built app and Chromium to check task/list creation, keyboard activation and modal focus restoration, retained title editing, step promotion, and saving a focused note on reload. It also captures desktop, detail, and narrow layouts. Other browser/device combinations need separate validation.
 
 ## Architecture
 
@@ -102,7 +103,7 @@ When deliberately updating FerroUI, update its submodule commit, run `python3 Fe
 
 ## Deployment
 
-The repository uses one workflow with a cached browser build and a Pages deployment job. It runs on pushes to `main` and manual dispatch. There is no platform matrix, benchmark upload, or release-packaging pipeline. Configure repository Pages to use **GitHub Actions**; the workflow uploads the generated site and publishes it using GitHub's Pages actions.
+The repository uses one workflow with a cached browser build and a Pages deployment job. It runs on pushes to `main` and manual dispatch. The toolchain comes from FerroUI's setup script. An explicit compiler cache retains its submodule path dependencies, keyed by the pinned framework revision, toolchain, and build configuration; successful compilation is cached before the browser gate. There is no platform matrix or release-packaging pipeline. Configure repository Pages to use **GitHub Actions**; the workflow uploads the generated site and publishes it using GitHub's Pages actions.
 
 ## License
 

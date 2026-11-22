@@ -8,24 +8,9 @@ impl AppState {
     ) -> Result<Changes, DomainError> {
         match action {
             Action::AddTaskInView { title, view } => {
-                let title = nonempty(title)?;
-                let list_id = view.destination_list();
-                self.list_index(list_id)?;
-                let id = self.allocate_id();
-                let mut task = Task::new(id, list_id, title, today);
-                match view {
-                    crate::View::MyDay => task.my_day = Some(today),
-                    crate::View::Important => task.important = true,
-                    crate::View::Planned => task.due_date = Some(today),
-                    crate::View::AssignedToMe => task.assigned_to = Some("me".into()),
-                    _ => {}
-                }
-                self.tasks.push(task);
-                Ok(Changes {
-                    created_task: Some(id),
-                    ..Changes::task(id)
-                })
+                self.add_task_in_view(crate::TaskEntry::plain(title), view, today)
             }
+            Action::AddTaskEntry { entry, view } => self.add_task_in_view(entry, view, today),
             Action::AddTask { title, list_id } => {
                 let title = nonempty(title)?;
                 self.list_index(list_id)?;

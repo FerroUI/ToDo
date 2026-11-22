@@ -44,9 +44,11 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
     let key_drafts = drafts.clone();
     let mut root = grid()
         .name("TodoApp")
+        .focusable(true)
+        .is_tab_stop(false)
         .background(p.background)
         .row_definitions("36,*")
-        .on_key_down(move |event| keyboard::handle(&keys, &key_drafts, event))
+        .with(move |root| keyboard::attach(root, keys.clone(), key_drafts.clone()))
         .child(title_bar::view(vm.clone()));
     let mut body = grid()
         .grid_row(1)

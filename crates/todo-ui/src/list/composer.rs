@@ -6,6 +6,10 @@ use std::rc::Rc;
 use todo_controls::{icon, icon_button, Icon};
 use todo_state::AppViewModel;
 pub(super) fn view(vm: Rc<AppViewModel>, my_day: bool, drafts: Rc<Drafts>) -> Element {
+    rerender(move || content(vm.clone(), my_day, drafts.clone()))
+}
+
+fn content(vm: Rc<AppViewModel>, my_day: bool, drafts: Rc<Drafts>) -> Element {
     let p = palette(&vm);
     let draft = drafts.task;
     let add = vm.clone();
@@ -27,7 +31,8 @@ pub(super) fn view(vm: Rc<AppViewModel>, my_day: bool, drafts: Rc<Drafts>) -> El
         .padding((10.0, 4.0))
         .child(
             grid()
-                .column_definitions("36,*,36")
+                .column_definitions("36,*,Auto,36")
+                .row_definitions("Auto,Auto")
                 .child(border().vertical_alignment(V::Center).child(icon(
                     Icon::Add,
                     22.0,
@@ -56,7 +61,14 @@ pub(super) fn view(vm: Rc<AppViewModel>, my_day: bool, drafts: Rc<Drafts>) -> El
                 )
                 .child(
                     border()
-                        .grid_column(2)
+                        .grid_column(if vm.is_narrow() { 1 } else { 2 })
+                        .grid_row(if vm.is_narrow() { 1 } else { 0 })
+                        .vertical_alignment(V::Center)
+                        .child(super::entry_hint::view(&vm, &draft.get())),
+                )
+                .child(
+                    border()
+                        .grid_column(3)
                         .vertical_alignment(V::Center)
                         .child(icon_button(Icon::ArrowUp, "Add task", move || {
                             submit.submit_task(&add);

@@ -23,6 +23,8 @@ A view sends a typed `Action` to `AppViewModel::dispatch`. ReactiveUI executes t
 
 Reentrant commands are queued until the current command completes. Document and host-service borrows are released before subscriber or platform callbacks run. A task added to a smart view uses one `AddTaskInView` action, so creation and membership are atomic without guessing the next identifier or cloning the entire document. General batches retain transactional rollback semantics.
 
+The composer can recognize conservative English scheduling suffixes into a `TaskEntry`. Its live preview and submission use the same parser; `AddTaskEntry` creates the title, schedule, and smart-view membership in one command and one undo step. Recognition can be disabled, and original text is retained unless the user enables removal. Detail editing and direct view-model add calls remain literal.
+
 ## Views and templates
 
 Views are constructed with FerroUI's declarative Rust builders and reactive component lifecycle. They create real FerroUI controls, use the framework's property/layout/input/accessibility systems, and render through its browser or desktop backend. HTML provides the browser mount, loading surface, installation metadata, and host integrations; the task interface is rendered by Rust controls.
@@ -36,6 +38,10 @@ At narrow widths, the sidebar, list, and details become separate full-width pane
 Task selection has a separate mode, range anchor, and keyboard cursor. Modifier clicks and keyboard ranges use the same visible ordering as the row projection, including date groups and collapsed completed rows. Navigation resets the selection and anchor. Bulk completion, movement, and deletion dispatch one domain batch, so one undo restores the entire operation. Selection filters stale entity identifiers before executing commands.
 
 Keyboard navigation reveals and focuses the corresponding virtualized container. The UI is split into small modules for row actions, list keyboard handling, selection controls, sidebar sections, and shell input. A shared edit-flush helper collects pending title, note, and step changes before host close/export paths can unmount the controls, then dispatches after releasing control/document reads.
+
+Focused row buttons own their Enter/Space activation; container shortcuts do not intercept their key-down and leave a mismatched key-up. Modal focus restoration uses weak references and defers until teardown. It yields to an attached replacement modal or existing live focus, then returns to the origin, a relevant editor, or the programmatically focusable app root.
+
+Task dragging uses FerroUI's in-process drag transport with a private typed payload and weak originating-view-model identity. Recycled row and sidebar controls resolve identities from their current tags. A mouse movement threshold separates clicks from drags. Hover adds feedback without editing the document; a validated drop dispatches one reorder or move transaction. Synchronous cancellation invalidates the payload before queued pointer events can produce a late drop. Detail surfaces are keyed by task identity so editor lifetimes do not cross between tasks.
 
 ## History and persistence
 
@@ -70,6 +76,8 @@ See [feature coverage](features.md#microsoft-graph-synchronization) for supporte
 ## Build and verification
 
 The browser uses FerroUI's pinned Emscripten toolchain and size-oriented browser profile. The build wrapper generates content-versioned offline assets after compilation. The app uses the single-threaded browser path by default, so deployment does not require a threaded shared-memory configuration.
+
+CI invokes the framework's canonical setup script and saves the installed tools before later gates. A separate compiler cache retains the submodule path dependencies that a generic workspace cache would prune. Its exact key includes the clean framework gitlink, compiler identity, manifests, lockfile, configuration, and profile environment. CI normalizes tracked framework source and source-directory timestamps to the pinned commit for Cargo freshness checks; generated content remains untouched. Compiler artifacts are saved after compilation and before browser checks, excluding the generated site and QA files.
 
 Tests cover domain calendar rules and relationships, smart-list commands, undo/redo, affected-entity cache updates, callback reentrancy, persistence failures, reminder deduplication, imports, and cloud replacement semantics. Selection tests verify that bulk operations remain atomic across undo, navigation resets anchors, and select-all matches visible completed-group behavior. Graph tests exercise the adapter against controlled service responses. The Pages workflow keeps one build path and a short browser editing/rendering check. That check drives real input, reads persisted state without flushing it through an export helper, and captures desktop and narrow layouts.
 

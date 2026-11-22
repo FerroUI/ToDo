@@ -5,9 +5,9 @@ use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
 use ferroui_controls::TextBox;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
-use todo_controls::{icon_button, task_check, Icon};
+use todo_controls::{task_check, Icon};
 use todo_domain::{Action, Task};
-use todo_state::AppViewModel;
+use todo_state::{AppViewModel, Panel};
 
 pub(super) fn steps(vm: Rc<AppViewModel>, task: &Task) -> Element {
     let p = palette(&vm);
@@ -16,48 +16,67 @@ pub(super) fn steps(vm: Rc<AppViewModel>, task: &Task) -> Element {
     for step in &task.steps {
         let step_id = step.id;
         let toggle = vm.clone();
-        let remove = vm.clone();
+        let options = vm.clone();
+        let context = vm.clone();
         let rename = vm.clone();
-        items =
-            items.child(
-                grid()
-                    .key(step_id.to_string())
-                    .column_definitions("40,*,30")
-                    .min_height(36.0)
-                    .child(border().vertical_alignment(V::Center).child(task_check(
-                        step.completed,
-                        p.accent,
-                        move || {
-                            toggle.dispatch(Action::ToggleStep {
+        items = items.child(
+            grid()
+                .key(step_id.to_string())
+                .column_definitions("40,*,32")
+                .min_height(36.0)
+                .child(border().vertical_alignment(V::Center).child(task_check(
+                    step.completed,
+                    p.accent,
+                    move || {
+                        toggle.dispatch(Action::ToggleStep {
+                            task_id: id,
+                            step_id,
+                        })
+                    },
+                )))
+                .child(border().grid_column(1).child(edit_field(
+                    &format!("Step{step_id}"),
+                    step.title.clone(),
+                    "Step",
+                    false,
+                    move |title| {
+                        if !title.trim().is_empty() {
+                            rename.dispatch(Action::RenameStep {
                                 task_id: id,
                                 step_id,
-                            })
-                        },
-                    )))
-                    .child(border().grid_column(1).child(edit_field(
-                        &format!("Step{step_id}"),
-                        step.title.clone(),
-                        "Step",
-                        false,
-                        move |title| {
-                            if !title.trim().is_empty() {
-                                rename.dispatch(Action::RenameStep {
-                                    task_id: id,
-                                    step_id,
-                                    title,
-                                });
-                            }
-                        },
-                    )))
-                    .child(border().grid_column(2).vertical_alignment(V::Center).child(
-                        icon_button(Icon::Close, "Delete step", move || {
-                            remove.dispatch(Action::DeleteStep {
+                                title,
+                            });
+                        }
+                    },
+                )))
+                .child(
+                    button()
+                        .grid_column(2)
+                        .vertical_alignment(V::Center)
+                        .name(format!("StepOptions{step_id}"))
+                        .class("todo-toolbar")
+                        .width(32.0)
+                        .height(32.0)
+                        .padding(6.0)
+                        .automation_properties_name(format!("Options for {}", step.title))
+                        .tool_tip_tip("Step options")
+                        .on_click(move |event| {
+                            event.set_handled(true);
+                            options.show_panel(Panel::StepMenu {
                                 task_id: id,
                                 step_id,
-                            })
-                        }),
-                    )),
-            );
+                            });
+                        })
+                        .on_context_requested(move |event| {
+                            event.set_handled(true);
+                            context.show_panel(Panel::StepMenu {
+                                task_id: id,
+                                step_id,
+                            });
+                        })
+                        .child(todo_controls::icon(Icon::More, 18.0, p.secondary)),
+                ),
+        );
     }
     let add = vm.clone();
     items

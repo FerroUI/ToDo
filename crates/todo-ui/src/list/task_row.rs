@@ -35,6 +35,8 @@ pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
             let context = vm.clone();
             let select = vm.clone();
             let modifiers = vm.clone();
+            let drag_source = vm.clone();
+            let drop_target = vm.clone();
             let title_color = if completed { p.secondary } else { p.text };
             let accessible_title = title.clone();
             let selection_label = format!("Select {title}");
@@ -57,6 +59,13 @@ pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
                         "0,42,*,40"
                     })
                     .min_height(54.0)
+                    .with(move |row| {
+                        crate::drag::attach_task_target(
+                            row,
+                            drop_target.clone(),
+                            super::interactions::task_id,
+                        )
+                    })
                     .on_context_requested(move |event| {
                         event.set_handled(true);
                         context.show_panel(Panel::TaskMenu(id));
@@ -94,9 +103,18 @@ pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
                             .vertical_content_alignment(V::Center)
                             .background("Transparent")
                             .with(move |button| {
-                                super::interactions::attach(button, modifiers.clone())
+                                super::interactions::attach(button, modifiers.clone());
+                                crate::drag::attach_source(
+                                    button,
+                                    drag_source.clone(),
+                                    super::interactions::task_id,
+                                );
                             })
-                            .on_click(move |_| {
+                            .on_click(move |event| {
+                                if crate::drag::ignore_click(event) {
+                                    event.set_handled(true);
+                                    return;
+                                }
                                 if open.selection_mode() {
                                     open.toggle_task_selection(id);
                                 } else {
@@ -110,7 +128,15 @@ pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
                                     text_block()
                                         .text(metadata)
                                         .font_size(11.0)
-                                        .foreground(if overdue { "#A84646" } else { p.secondary })
+                                        .foreground(if overdue {
+                                            if dark {
+                                                "#F18787"
+                                            } else {
+                                                "#A84646"
+                                            }
+                                        } else {
+                                            p.secondary
+                                        })
                                         .into()
                                 },
                             )),
@@ -119,7 +145,9 @@ pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
                         star_button(is_important, &accent, move || {
                             important.dispatch(Action::ToggleImportant(id))
                         }),
-                    )),
+                    ))
+                    .child(crate::drag::marker(&accent, false))
+                    .child(crate::drag::marker(&accent, true)),
                 selected,
                 dark,
             )

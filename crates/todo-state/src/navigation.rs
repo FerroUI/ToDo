@@ -21,6 +21,10 @@ pub enum Panel {
     Reminder(Id),
     Repeat(Id),
     TaskMenu(Id),
+    StepMenu {
+        task_id: Id,
+        step_id: Id,
+    },
     DeleteTask(Id),
     DeleteSelection,
     DeleteList(Id),

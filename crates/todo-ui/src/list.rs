@@ -1,6 +1,7 @@
 mod background;
 mod composer;
 mod empty;
+mod entry_hint;
 mod group;
 mod header;
 mod interactions;

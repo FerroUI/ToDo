@@ -8,14 +8,15 @@ This document distinguishes implemented behavior from reference-app parity. The 
 | --- | --- | --- |
 | Smart views | My Day, Important, Planned, All, Completed; optional Assigned to me and Flagged email navigation | Assigned/flagged data depends on available model or cloud data; this is not complete Planner or Outlook integration |
 | My Day | Add/remove, local-date rollover, due-today inclusion, suggestions | Suggestion ranking is local and deterministic; Microsoft's personalization service is not reproduced |
-| Tasks | Add, rename, complete/reopen, importance, delete confirmation, duplicate, move between lists | No complete natural-language task-entry parser |
-| Steps | Add, rename, complete, delete, progress summary | Domain supports promotion to a task; no dedicated promotion UI is exposed |
+| Tasks | Add, rename, complete/reopen, importance, delete confirmation, duplicate, move between lists | Reference-app service behaviors are covered separately below |
+| Smart task entry | English trailing dates and times, relative minutes/hours, live schedule preview, settings for recognition and title retention | No arbitrary embedded expressions, free-form month dates, ranges, or natural-language recurrence; detail editing remains literal |
+| Steps | Add, rename, complete, delete, progress summary, promote to a task in the same list | Promotion preserves the step's completion state and removes the source step in one undoable command |
 | Notes and search | Multiline notes; case-insensitive search across titles, notes, steps, and tags | Notes are plain text; no complete rich-text editor or dedicated tag-management interface |
 | Dates | Due-date shortcuts and calendar selection, local reminder date/time | Reminder scheduling is active only while the application is open |
-| Repeat | Daily, weekdays, weekly, monthly, yearly, custom intervals; month-end and leap-year handling | Custom business-day intervals are supported by the domain but not the custom-repeat UI |
+| Repeat | Daily, weekdays, weekly, monthly, yearly, custom intervals including weekdays; month-end and leap-year handling | Arbitrary weekly day sets and end-after-count/date patterns are not exposed |
 | Lists | Create, rename, duplicate, delete, color, sort, completed visibility | Full drag-and-drop list ordering is not exposed |
 | Groups | Create, rename, collapse, delete, move lists into/out of groups | No complete drag-and-drop group ordering |
-| Task order | Manual move up/down; importance, due date, alphabetic, creation-date sort | Manual movement uses menu commands rather than drag-and-drop gestures |
+| Task order | Manual move up/down; importance, due date, alphabetic, creation-date sort; mouse drag to reorder a manual list or move to a sidebar list | Single-task dragging; reorder stays within a completion group and manual List view; edge scrolling responds to movement |
 | History | Undo/redo for domain edits, including task/list deletion and import | History is session-local and bounded; cloud replacement clears stale local history |
 | Multi-selection | Selection mode, Ctrl/Command-click toggles, Shift-click ranges, select-all-visible, bulk completion, move, and delete with confirmation | Each bulk edit is one undo step; drag selection and every reference-app bulk operation are not reproduced |
 | Transfer | JSON export/import and print view | JSON includes attachment references, not file bytes |
@@ -32,7 +33,7 @@ This document distinguishes implemented behavior from reference-app parity. The 
 | Responsive layout | Separate full-width panes below 760 pixels; multi-column layout above that width |
 | Accessibility | Named controls and enabled FerroUI browser accessibility bridge; full assistive-technology certification remains unverified |
 | Typography | Bundled Inter through FerroUI; therefore not identical to every platform's Microsoft To Do font rendering |
-| Editing | Task title, notes, and steps commit on their implemented focus/keyboard paths; search is debounced on desktop |
+| Editing | Task title, notes, and steps commit on their implemented focus/keyboard paths; search is debounced on desktop; dialogs restore focus to their origin or a relevant editor |
 | Task-list navigation | Arrow keys, Home/End, and Page Up/Down move the task cursor and scroll it into view; Shift extends selection; controls expose action names |
 
 The application implements keyboard commands while the app has focus. Browser-reserved shortcuts can still be intercepted by the browser.
@@ -102,4 +103,4 @@ Automated tests exercise a simulated Graph service. Live sign-in, consent, accou
 
 Rust tests across `todo-domain` and `todo-state` cover date/recurrence edge cases, My Day behavior, relationships, import validation, reactive cache changes, reentrant callbacks, undo/redo, persistence failures, and reminder deduplication. Selection regression tests cover atomic bulk edits, recurrence during bulk completion, deletion confirmation, range anchors, navigation resets, and completed-row visibility. The JavaScript Graph tests cover the adapter using a simulated service.
 
-The repository includes a browser rendering smoke gate. This document makes no claim that a single smoke check establishes visual parity, complete accessibility, mobile keyboard fidelity, large-data frame times, native platform certification, or live Microsoft integration.
+The repository includes a browser editing and rendering gate covering task/list creation, date recognition, focused-button activation, modal focus restoration, steps and promotion, drag/move/reorder/cancellation, retained title editing, focused-note persistence on reload, and light/dark/narrow captures. This check does not establish visual parity, complete accessibility, mobile keyboard fidelity, large-data frame times, native platform certification, or live Microsoft integration.

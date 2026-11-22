@@ -12,6 +12,11 @@ pub enum Action {
         title: String,
         view: crate::View,
     },
+    /// Create a task with parsed scheduling fields in one undoable transaction.
+    AddTaskEntry {
+        entry: crate::TaskEntry,
+        view: crate::View,
+    },
     RenameTask {
         id: Id,
         title: String,

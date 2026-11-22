@@ -1,5 +1,6 @@
 mod detail;
 mod dialogs;
+mod drag;
 mod editing;
 mod list;
 mod rows;

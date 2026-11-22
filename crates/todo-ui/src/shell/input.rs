@@ -3,7 +3,7 @@ use ferroui_base::threading::{Dispatcher, DispatcherPriority, DispatcherTimer};
 use ferroui_controls::{ListBox, TextBox};
 use ferroui_view::prelude::*;
 use std::{cell::RefCell, rc::Rc, time::Duration};
-use todo_domain::View;
+use todo_domain::{Action, TaskEntry, View};
 use todo_state::AppViewModel;
 /// Transient input state has one owner regardless of which responsive pane is mounted.
 pub(crate) struct Drafts {
@@ -65,7 +65,22 @@ impl Drafts {
             return;
         }
         let before = vm.state().tasks.len();
-        vm.add_task(title);
+        let (recognize, remove) = {
+            let state = vm.state();
+            (
+                state.settings.recognize_dates,
+                state.settings.remove_recognized_dates,
+            )
+        };
+        if recognize {
+            let entry = TaskEntry::parse_english(&title, vm.today(), vm.current_minutes(), remove);
+            vm.dispatch(Action::AddTaskEntry {
+                entry,
+                view: vm.view(),
+            });
+        } else {
+            vm.add_task(title);
+        }
         if vm.state().tasks.len() > before {
             self.task.set(String::new());
         }

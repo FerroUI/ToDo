@@ -1,4 +1,6 @@
+use ferroui_base::input::InputElement;
 use ferroui_base::{Point, Visual};
+use ferroui_controls::automation::AutomationProperties;
 use ferroui_controls::{Application, Button, TextBlock, TextBox, TopLevel};
 use serde_json::json;
 use todo_domain::{Action, Attachment, Date};
@@ -149,6 +151,8 @@ pub fn inspect_view() -> String {
             std::ptr::eq(hit, &*visual) || visual.is_visual_ancestor_of(hit) || hit.is_visual_ancestor_of(&visual)
         });
         Some(json!({ "type": visual.get_type().name(), "name": visual.name(), "text": text,
+            "automationName": AutomationProperties::get_name(&visual),
+            "focused": visual.cast::<InputElement>().is_some_and(|input| input.is_focused()),
             "x": origin.x, "y": origin.y, "width": bounds.width, "height": bounds.height, "hit": hit }))
     }).collect::<Vec<_>>();
     json!({ "width": viewport.width, "height": viewport.height, "elements": elements }).to_string()

@@ -11,12 +11,15 @@ mod query;
 mod sample;
 mod steps;
 mod task_actions;
+mod task_creation;
+mod task_entry;
 
 pub use action::*;
 pub use calendar::*;
 pub use chrono::NaiveDate as Date;
 pub use model::*;
 pub use query::*;
+pub use task_entry::TaskEntry;
 
 /// Entity identifiers are monotonic and local to one persisted database.
 pub type Id = u64;

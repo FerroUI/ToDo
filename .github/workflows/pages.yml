@@ -27,10 +27,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: recursive
-      - uses: ./FerroUI/.github/actions/browser-toolchain
-        with:
-          ferroui: FerroUI
-          cache-key: todo-browser
+      - uses: ./.github/actions/browser-toolchain
+        id: toolchain
       - name: Check task state and synchronization
         run: |
           cargo test --locked -p todo-domain -p todo-state
@@ -38,6 +36,12 @@ jobs:
       - name: Build browser app
         id: browser_build
         run: bash scripts/build-browser.sh
+      - name: Cache browser compilation
+        if: ${{ github.ref == 'refs/heads/main' && steps.toolchain.outputs.build-cache-hit != 'true' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ steps.toolchain.outputs.build-cache-paths }}
+          key: ${{ steps.toolchain.outputs.build-cache-key }}
       - name: Check browser editing and rendering
         run: node scripts/ui-smoke.mjs target/browser/todo-browser target/browser/todo-browser/qa
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3

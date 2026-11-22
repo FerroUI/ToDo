@@ -19,7 +19,10 @@ pub(super) fn view(
     let title = target.title(&vm.state());
     let count = counts.get(&target);
     let go = vm.clone();
+    let drop_target = vm.clone();
     button()
+        .tag(crate::drag::list_tag(&target))
+        .with(move |button| crate::drag::attach_list_target(button, drop_target.clone()))
         .class(if selected {
             "todo-nav selected"
         } else {

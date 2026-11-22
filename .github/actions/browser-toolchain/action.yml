@@ -1,0 +1,79 @@
+name: To Do browser toolchain
+description: Install FerroUI's pinned tools and retain its compiled path dependencies.
+
+outputs:
+  build-cache-key:
+    description: Exact key for the complete browser compilation cache.
+    value: ${{ steps.compiled_key.outputs.key }}
+  build-cache-hit:
+    description: Whether the complete browser compilation cache was restored.
+    value: ${{ steps.compiled.outputs.cache-hit }}
+  build-cache-paths:
+    description: Compiler artifacts only, excluding the generated site and QA output.
+    value: ${{ steps.compiled_key.outputs.paths }}
+
+runs:
+  using: composite
+  steps:
+    - name: Read the framework toolchain pins
+      id: pins
+      shell: bash
+      run: python3 scripts/ci-browser-cache.py pins
+    - name: Restore Emscripten
+      id: emsdk
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ~/browser-tools/emsdk
+        key: emsdk-${{ runner.os }}-${{ steps.pins.outputs.emsdk }}
+    - name: Restore wasm-bindgen
+      id: bindgen
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ~/browser-tools/bin
+        key: wasm-bindgen-cli-${{ runner.os }}-${{ steps.pins.outputs.wasm-bindgen }}-rust-${{ steps.pins.outputs.rust }}
+    - name: Install the canonical framework toolchain
+      shell: bash
+      run: |
+        FerroUI/scripts/browser/setup.sh "$HOME/browser-tools"
+        source "$HOME/browser-tools/env.sh"
+        printf '%s\n' "EMSDK=$EMSDK" "RUSTUP_TOOLCHAIN=$RUSTUP_TOOLCHAIN" "EMCC_CFLAGS=$EMCC_CFLAGS" >> "$GITHUB_ENV"
+        printf '%s\n' "$EMSDK" "$EMSDK/upstream/emscripten" "$HOME/browser-tools/bin" >> "$GITHUB_PATH"
+    # Save immediately: a later compilation or browser gate failure must not
+    # force the next run to install the SDK or compile the CLI again.
+    - name: Save Emscripten
+      if: steps.emsdk.outputs.cache-hit != 'true'
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ~/browser-tools/emsdk
+        key: emsdk-${{ runner.os }}-${{ steps.pins.outputs.emsdk }}
+    - name: Save wasm-bindgen
+      if: steps.bindgen.outputs.cache-hit != 'true'
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ~/browser-tools/bin
+        key: wasm-bindgen-cli-${{ runner.os }}-${{ steps.pins.outputs.wasm-bindgen }}-rust-${{ steps.pins.outputs.rust }}
+    - name: Cache Cargo registry dependencies
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      with:
+        key: todo-browser-registry
+        cache-targets: false
+        cache-bin: false
+        cache-on-failure: true
+        save-if: ${{ github.ref == 'refs/heads/main' }}
+    - name: Prepare the pinned framework compilation cache
+      id: compiled_key
+      shell: bash
+      run: python3 scripts/ci-browser-cache.py prepare
+    # Restore after rust-cache: its miss cleanup must not prune these path
+    # dependencies. The workflow saves this cache before any post-job cleanup.
+    - name: Restore compiled framework dependencies
+      id: compiled
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ${{ steps.compiled_key.outputs.paths }}
+        key: ${{ steps.compiled_key.outputs.key }}
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      with:
+        node-version: 24
+        cache: npm
+        cache-dependency-path: FerroUI/src/Browser/FerroUI.Browser/webapp/package-lock.json

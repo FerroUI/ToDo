@@ -123,6 +123,7 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
         move || move_task.show_panel(Panel::MoveTask(id)),
     ));
     border()
+        .key(format!("task-detail-{id}"))
         .background(p.background)
         .border_brush(p.border)
         .border_thickness((1.0, 0.0, 0.0, 0.0))

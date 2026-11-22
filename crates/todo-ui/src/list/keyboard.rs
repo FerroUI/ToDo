@@ -3,7 +3,7 @@ use ferroui_base::input::{InputElement, Key, KeyEventArgs, KeyModifiers};
 use ferroui_base::interactivity::RoutingStrategies;
 use ferroui_base::threading::{Dispatcher, DispatcherPriority};
 use ferroui_base::{Ref, Visual};
-use ferroui_controls::{Control, ListBox};
+use ferroui_controls::{Button, Control, ListBox};
 use ferroui_view::on_cleanup;
 use std::rc::Rc;
 use todo_domain::{Action, Id};
@@ -34,6 +34,19 @@ fn handle(list: &Ref<ListBox>, vm: &AppViewModel, rows: &Rows, event: &KeyEventA
         vm.panel(),
         Panel::None | Panel::Suggestions | Panel::Settings
     ) {
+        return;
+    }
+    // Let the focused button own the entire activation gesture. Intercepting
+    // Space here would suppress its key-down while still allowing Button's
+    // key-up to click; Return would invoke the row instead of its child action.
+    // Test the actual source, not an ancestor: container focus still enables
+    // the row's completion and selection shortcuts below.
+    if matches!(event.key, Key::Space | Key::Return)
+        && event
+            .source()
+            .and_then(|source| source.cast::<Button>())
+            .is_some_and(|button| button.is_focused())
+    {
         return;
     }
     let ids = rows.task_ids();

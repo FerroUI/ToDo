@@ -204,7 +204,10 @@ fn scope(
                     .map(|task| task.id),
             );
         }
-        Action::AddTask { .. } | Action::AddTaskInView { .. } | Action::DuplicateTask(_) => {}
+        Action::AddTask { .. }
+        | Action::AddTaskInView { .. }
+        | Action::AddTaskEntry { .. }
+        | Action::DuplicateTask(_) => {}
         _ => *topology = true,
     }
 }
