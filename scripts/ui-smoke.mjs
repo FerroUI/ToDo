@@ -81,6 +81,10 @@ try {
   await clickText("Edited task");
   // Leave the note focused; pagehide/beforeunload must save it without an export or blur helping.
   await edit("TaskNotes", "Saved note");
+  await until(async () => {
+    const note = await control(element => element.name === "TaskNotes", "focused note before reload");
+    return note.focused && note.text === "Saved note";
+  }, "the native rich editor accepts the pending note before host departure");
   await navigate("Page.reload", { ignoreCache: true });
   const restored = await currentTask();
   assert.equal(restored.title, "Edited task");

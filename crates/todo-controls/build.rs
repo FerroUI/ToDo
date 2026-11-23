@@ -10,6 +10,7 @@ fn main() {
             "ToggleButton",
             "ToggleSwitch",
             "TextBox",
+            "RichEditBox",
             "TextBlock",
             "PathIcon",
             "ScrollViewer",

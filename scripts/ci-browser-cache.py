@@ -13,6 +13,9 @@ ROOT = Path(__file__).resolve().parent.parent
 FRAMEWORK = ROOT / "FerroUI"
 CACHE_PATHS = "\n".join(
     (
+        "target/debug/.fingerprint",
+        "target/debug/build",
+        "target/debug/deps",
         "target/browser/.fingerprint",
         "target/browser/build",
         "target/browser/deps",

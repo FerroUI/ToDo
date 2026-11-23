@@ -1,0 +1,108 @@
+name: Build native packages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/native-release.yml'
+      - 'scripts/native/**'
+      - 'scripts/native-packaging.test.mjs'
+      - 'scripts/native-platforms.test.mjs'
+      - 'scripts/fetch-native-runtime.mjs'
+      - 'scripts/package-native.mjs'
+      - 'crates/todo-desktop/**'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Package version (three numeric components)
+        type: string
+        required: true
+        default: '0.1.0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_BUILD_JOBS: 2
+  CARGO_PROFILE_TEST_DEBUG: 0
+
+jobs:
+  packages:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            name: Linux x64
+          - os: macos-15
+            name: macOS ARM64
+          - os: windows-2022
+            name: Windows x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Install the repository Rust toolchain
+        shell: bash
+        run: |
+          rustup show
+          rustc --version
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: native-packages-${{ matrix.os }}
+          cache-on-failure: true
+      - name: Linux build and package tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libfontconfig1-dev libfreetype6-dev pkg-config clang binutils dpkg-dev
+      - name: Windows build and package tools
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (!(Test-Path "$env:ProgramFiles\LLVM\bin\libclang.dll")) { throw 'The runner LLVM installation is missing libclang.dll' }
+          "LIBCLANG_PATH=$env:ProgramFiles\LLVM\bin" >> $env:GITHUB_ENV
+          'RUSTFLAGS=-C target-feature=+crt-static' >> $env:GITHUB_ENV
+          "$env:ProgramFiles\LLVM\bin" >> $env:GITHUB_PATH
+          "${env:ProgramFiles(x86)}\NSIS" >> $env:GITHUB_PATH
+      - name: macOS deployment target
+        if: runner.os == 'macOS'
+        run: echo 'MACOSX_DEPLOYMENT_TARGET=13.5' >> "$GITHUB_ENV"
+      - name: Native helper and packaging tests
+        shell: bash
+        run: |
+          cargo test --locked -p todo-desktop --lib
+          node --test scripts/native-*.test.mjs
+      - name: Build native desktop
+        shell: bash
+        run: cargo build --locked --profile dist -p todo-desktop
+      - name: Fetch and verify bundled service runtime
+        shell: bash
+        run: node scripts/fetch-native-runtime.mjs --out target/native/node-runtime
+      # This workflow deliberately emits unsigned artifacts. Production signing hooks
+      # in package-native.mjs use a provisioned macOS keychain or Windows certificate;
+      # credentials and notarization are never inferred from an unsigned CI build.
+      - name: Package application and installers
+        shell: bash
+        env:
+          TODO_PACKAGE_VERSION: ${{ inputs.version || '0.1.0' }}
+        run: node scripts/package-native.mjs --version "$TODO_PACKAGE_VERSION" --profile dist --runtime target/native/node-runtime --out target/native/packages
+      - name: Upload packages, hashes and signing report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-${{ matrix.os }}
+          path: target/native/packages/*
+          if-no-files-found: error
+          retention-days: 30
