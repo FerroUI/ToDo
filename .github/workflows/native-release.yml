@@ -56,6 +56,9 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: recursive
+      - name: Select isolated package staging directory
+        shell: bash
+        run: printf '%s\n' "TODO_NATIVE_STAGE=$RUNNER_TEMP/todo-native-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
@@ -95,7 +98,7 @@ jobs:
         run: cargo build --locked --profile dist-unwind -p todo-desktop
       - name: Fetch and verify bundled service runtime
         shell: bash
-        run: node scripts/fetch-native-runtime.mjs --out target/native/node-runtime
+        run: node scripts/fetch-native-runtime.mjs --out "$TODO_NATIVE_STAGE/node-runtime"
       # This workflow deliberately emits unsigned artifacts. Production signing hooks
       # in package-native.mjs use a provisioned macOS keychain or Windows certificate;
       # credentials and notarization are never inferred from an unsigned CI build.
@@ -103,11 +106,11 @@ jobs:
         shell: bash
         env:
           TODO_PACKAGE_VERSION: ${{ inputs.version || '0.1.0' }}
-        run: node scripts/package-native.mjs --version "$TODO_PACKAGE_VERSION" --profile dist-unwind --runtime target/native/node-runtime --out target/native/packages
+        run: node scripts/package-native.mjs --version "$TODO_PACKAGE_VERSION" --profile dist-unwind --runtime "$TODO_NATIVE_STAGE/node-runtime" --out "$TODO_NATIVE_STAGE/packages"
       - name: Upload packages, hashes and signing report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: native-${{ matrix.os }}
-          path: target/native/packages/*
+          path: ${{ env.TODO_NATIVE_STAGE }}/packages/*
           if-no-files-found: error
           retention-days: 30

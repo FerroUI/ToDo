@@ -1,3 +1,4 @@
+mod choices;
 pub(super) mod fields;
 mod signals;
 
@@ -8,7 +9,7 @@ use ferroui_controls::{primitives::ToggleButton, Control, TextBox};
 use ferroui_view::prelude::*;
 use std::rc::Rc;
 use todo_controls::primary_button;
-use todo_domain::{Id, RepeatDay, RepeatUnit};
+use todo_domain::{Id, RepeatUnit};
 use todo_state::{AppViewModel, RepeatDraft};
 
 pub fn repeat(vm: Rc<AppViewModel>, id: Id) -> Element {
@@ -26,6 +27,7 @@ pub fn repeat_bulk(vm: Rc<AppViewModel>, ids: Vec<Id>) -> Element {
             vm.state().settings.week_starts_monday,
         );
         let form = signals::Form::create(&initial);
+        let choices = use_hook(choices::Choices::new);
         let error = use_signal(String::new);
         let root = use_signal(NodeRef::<StackPanel>::new).get_untracked();
         let custom = vm.clone();
@@ -97,9 +99,7 @@ pub fn repeat_bulk(vm: Rc<AppViewModel>, ids: Vec<Id>) -> Element {
                             .grid_column(2)
                             .min_width(0.0)
                             .automation_properties_name("Repeat unit")
-                            .items_source(ferroui_controls::ItemsSource::from_strs([
-                                "days", "weekdays", "weeks", "months", "years",
-                            ]))
+                            .items_source(choices.units.clone())
                             .selected_index(form.unit.two_way())
                             .horizontal_alignment(H::Stretch),
                     ),
@@ -113,20 +113,7 @@ pub fn repeat_bulk(vm: Rc<AppViewModel>, ids: Vec<Id>) -> Element {
                     .automation_properties_name("Repeat month")
                     .min_width(0.0)
                     .horizontal_alignment(H::Stretch)
-                    .items_source(ferroui_controls::ItemsSource::from_strs([
-                        "January",
-                        "February",
-                        "March",
-                        "April",
-                        "May",
-                        "June",
-                        "July",
-                        "August",
-                        "September",
-                        "October",
-                        "November",
-                        "December",
-                    ]))
+                    .items_source(choices.months.clone())
                     .selected_index(form.month.two_way())
                     .into(),
             ));
@@ -140,10 +127,7 @@ pub fn repeat_bulk(vm: Rc<AppViewModel>, ids: Vec<Id>) -> Element {
                     .automation_properties_name("Repeat date pattern")
                     .min_width(0.0)
                     .horizontal_alignment(H::Stretch)
-                    .items_source(ferroui_controls::ItemsSource::from_strs([
-                        "Day of the month",
-                        "Weekday of the month",
-                    ]))
+                    .items_source(choices.patterns.clone())
                     .selected_index(form.relative.two_way())
                     .into(),
             ));
@@ -154,9 +138,7 @@ pub fn repeat_bulk(vm: Rc<AppViewModel>, ids: Vec<Id>) -> Element {
                         .automation_properties_name("Week of the month")
                         .min_width(0.0)
                         .horizontal_alignment(H::Stretch)
-                        .items_source(ferroui_controls::ItemsSource::from_strs([
-                            "First", "Second", "Third", "Fourth", "Last",
-                        ]))
+                        .items_source(choices.ordinals.clone())
                         .selected_index(form.ordinal.two_way()),
                 );
             } else {
@@ -187,10 +169,7 @@ pub fn repeat_bulk(vm: Rc<AppViewModel>, ids: Vec<Id>) -> Element {
                         .automation_properties_name("Relative weekday matching")
                         .min_width(0.0)
                         .horizontal_alignment(H::Stretch)
-                        .items_source(ferroui_controls::ItemsSource::from_strs([
-                            "First matching weekday (Microsoft To Do)",
-                            "Count matching days (Outlook)",
-                        ]))
+                        .items_source(choices.relative_modes.clone())
                         .selected_index(form.relative_mode.two_way())
                         .into(),
                 ));
@@ -206,9 +185,7 @@ pub fn repeat_bulk(vm: Rc<AppViewModel>, ids: Vec<Id>) -> Element {
                     .automation_properties_name("Repeat week starts on")
                     .min_width(0.0)
                     .horizontal_alignment(H::Stretch)
-                    .items_source(ferroui_controls::ItemsSource::from_strs(
-                        RepeatDay::ALL.map(|day| day.label()),
-                    ))
+                    .items_source(choices.weekdays.clone())
                     .selected_index(form.week_start.two_way())
                     .into(),
             ));
@@ -227,11 +204,7 @@ pub fn repeat_bulk(vm: Rc<AppViewModel>, ids: Vec<Id>) -> Element {
                     .automation_properties_name("Repeat ends")
                     .min_width(0.0)
                     .horizontal_alignment(H::Stretch)
-                    .items_source(ferroui_controls::ItemsSource::from_strs([
-                        "Never",
-                        "On a date",
-                        "After a number of occurrences",
-                    ]))
+                    .items_source(choices.endings.clone())
                     .selected_index(form.ending.two_way())
                     .into(),
             ));

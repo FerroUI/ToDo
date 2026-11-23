@@ -149,8 +149,8 @@ try {
 
   await verifyAdaptive(ui, { taskId: task.id });
   await verifyNativeMenus(ui);
-  await verifyScheduling(ui, task.id);
   reviewFailures = await runReviewGroups(ui, output, [
+    { name: "scheduling", run: () => verifyScheduling(ui, task.id) },
     { name: "detail", run: () => verifyDetailPresentation(ui, task.id) },
     { name: "settings", run: () => verifySettingsPresentation(ui) },
     { name: "list", run: () => verifyListPresentation(ui) },

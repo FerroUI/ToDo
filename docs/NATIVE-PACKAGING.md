@@ -283,6 +283,11 @@ formats, and uploads artifacts plus hash/signing reports. The workflow has read
 access to repository contents and does not publish a GitHub Release. Signing
 credentials are deliberately not configured by the unsigned validation workflow.
 
+Compilation artifacts are cached under `target`. Runtime downloads and package
+staging use a fresh directory under `RUNNER_TEMP` for each run and attempt, so a
+restored compiler cache cannot collide with immutable runtime output or add an
+older package to the current upload.
+
 The pure tests cover reminder planning, ownership locks, accepted-versus-failed
 delivery persistence, shutdown coalescing, service-format escaping, macOS
 catch-up/rearm behavior, bounded child-process output, runtime hashes, resource
