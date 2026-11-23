@@ -116,7 +116,8 @@ test("the serialized browser installer observes input passively and retains boun
     } };
   runInNewContext(inputTraceScript, browser);
   for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel", "gotpointercapture", "lostpointercapture",
-    "mousedown", "mousemove", "mouseup", "focus", "blur", "visibilitychange", "popstate", "wheel"]) {
+    "mousedown", "mousemove", "mouseup", "focus", "blur", "visibilitychange", "popstate", "wheel",
+    "dragenter", "dragover", "dragleave", "drop", "dragend"]) {
     assert.equal(typeof listeners.get(type), "function", `${type} is observable`);
   }
   for (let index = 0; index < 520; index++) {
@@ -141,4 +142,10 @@ test("the serialized browser installer observes input passively and retains boun
   assert.equal(hidden.focus, false); assert.equal(hidden.visibility, "hidden"); assert.equal(hidden.activeElement, "input#editor");
   assert.equal(hidden.total, 521); assert.equal(hidden.dropped, 9);
   assert.equal(hidden.events.at(-1).type, "visibilitychange"); assert.equal(hidden.events.at(-1).visibility, "hidden");
+  listeners.get("dragover")({ type: "dragover", target: canvas, isTrusted: true, clientX: 780, clientY: 440,
+    get dataTransfer() { assert.fail("diagnostics must not inspect or materialize the native transfer"); },
+    preventDefault() { assert.fail("diagnostics must not accept a drop"); },
+    stopPropagation() { assert.fail("diagnostics must not change routing"); } });
+  const drag = browser.__todoInputTrace.read().events.at(-1);
+  assert.equal(drag.type, "dragover"); assert.equal(drag.clientX, 780); assert.equal(drag.clientY, 440);
 });

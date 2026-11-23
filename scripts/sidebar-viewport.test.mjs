@@ -89,6 +89,18 @@ test("an already visible target requires no cleanup input after a rejected gestu
   assert.deepEqual(ui.swipes, []);
 });
 
+test("a touch drop target is prepared outside the native edge-scroll zone even when already visible", async () => {
+  const ui = harness({ width: 1280, height: 1000, top: 160, bottom: 948,
+    rows: [{ name: "source", y: 860 }, { name: "group", y: 908, height: 40 }] });
+  const [source, group] = await revealSidebarControls(ui, [named("source"), named("group")], "held drop endpoints",
+    { touch: ui.touch, edgeMargin: 36, fractions: [.5, .5] });
+  assert(ui.swipes.length > 0, "a fully visible group whose center is 20px from the bottom must be scrolled before Holding");
+  assert.equal(ui.wheel.length, 0);
+  for (const row of [source, group]) {
+    assert(row.y + row.height / 2 >= 196 && row.y + row.height / 2 <= 912);
+  }
+});
+
 test("an omitted target above the viewport is found by scrolling toward the content origin", async () => {
   const ui = harness({ offset: 600, rows: [{ name: "target", y: 400 }] });
   const row = await revealSidebarControl(ui, named("target"), "earlier list");

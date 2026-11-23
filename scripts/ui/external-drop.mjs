@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { button, named, center } from "./touch-input.mjs";
+import { dragExternalInput } from "./external-input.mjs";
+import { revealSidebarControl } from "./sidebar-viewport.mjs";
 
 // CDP supplies a real browser drag data store. The page's drag listeners, native
 // IDataTransfer adapter, retained controls and view model handle every import.
@@ -13,41 +15,14 @@ export async function verifyExternalDrop(ui) {
     await edit("ListName", name, true);
     return until(async () => (await saved()).lists.find(list => list.name === name), `${name} saved`);
   }
-  async function sidebar(id) {
-    const match = named(`NavigateList(${id})`);
-    for (let attempt = 0; attempt < 12; attempt++) {
-      const target = (await snapshot()).elements.find(match);
-      if (target?.hit) return target;
-      await page.wheel(140, 580, 0, target && target.y < 100 ? -360 : 360);
-    }
-    return control(match, `external-drop destination ${id}`);
-  }
+  const sidebar = id => revealSidebarControl(ui, named(`NavigateList(${id})`), `external-drop destination ${id}`);
   async function openList(id) {
     const point = center(await sidebar(id));
     await page.click(point.x, point.y);
   }
   const tasks = async id => (await saved()).tasks.filter(task => task.list_id === id)
     .sort((a, b) => a.position - b.position || a.id - b.id);
-  async function drag(target, items, { accept = true, hover = false } = {}) {
-    const point = center(target);
-    const data = { items, dragOperationsMask: 1 };
-    for (const type of ["dragEnter", "dragOver"]) {
-      const result = await page.send("Input.dispatchDragEvent", { type, ...point, data });
-      assert(!result.error, result.error?.message);
-    }
-    if (hover) {
-      await until(async () => (await snapshot()).elements.some(named("ExternalTaskDropHint")), "native external-drop destination feedback");
-    }
-    if (!accept) {
-      // CDP dragCancel ends only the drag source; a synthetic external drag has
-      // no source to dispatch a target leave. Exercise the real native Escape
-      // cancellation path before releasing that CDP source state.
-      await page.press("Escape");
-    }
-    const result = await page.send("Input.dispatchDragEvent", { type: accept ? "drop" : "dragCancel", ...point, data });
-    assert(!result.error, result.error?.message);
-    await page.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  }
+  const drag = (...args) => dragExternalInput(ui, ...args);
   const plain = text => [{ mimeType: "text/plain", data: text }];
   const html = value => [{ mimeType: "text/html", data: value }, ...plain("Weaker fallback must not become a task")];
   const body = () => control(named("TaskDropSurface"), "native task drop surface");

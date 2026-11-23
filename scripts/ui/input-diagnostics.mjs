@@ -7,7 +7,8 @@ export function browserInputTrace() {
     ? `${value.tagName.toLowerCase()}${value.id ? `#${value.id}` : ""}` : value === globalThis ? "window" : "document";
   for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel",
     "gotpointercapture", "lostpointercapture", "mousedown", "mousemove", "mouseup",
-    "focus", "blur", "visibilitychange", "popstate", "wheel"]) {
+    "focus", "blur", "visibilitychange", "popstate", "wheel",
+    "dragenter", "dragover", "dragleave", "drop", "dragend"]) {
     globalThis.addEventListener(type, event => {
       const entry = { sequence: ++total, time: performance.now(), type,
         target: element(event.target), trusted: event.isTrusted,

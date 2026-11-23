@@ -17,27 +17,34 @@ export function sidebarViewport(view) {
 
 // Prepare input targets before a press/hold. Never scroll during a drag or as
 // cleanup after a rejected gesture: that would obscure capture/release failures.
-export async function revealSidebarControls(ui, matches, label, { touch } = {}) {
+export async function revealSidebarControls(ui, matches, label, { touch, edgeMargin = 0, fractions = matches.map(() => .5) } = {}) {
+  assert(fractions.length === matches.length && fractions.every(value => value >= 0 && value <= 1));
   let scanningDown = false;
   for (let attempt = 0; attempt < 40; attempt++) {
     const view = await ui.snapshot(), clip = sidebarViewport(view);
     assert(clip, `The sidebar scroll viewport is visible while locating ${label}`);
+    const inside = (row, index) => row && contains(clip, row)
+      && row.y + row.height * fractions[index] >= clip.y + edgeMargin
+      && row.y + row.height * fractions[index] <= clip.y + clip.height - edgeMargin;
     const rows = matches.map(match => {
       const found = view.elements.filter(match);
       assert(found.length <= 1, `Ambiguous sidebar target: ${label}`);
       return found[0];
     });
-    if (rows.every(row => row?.hit && contains(clip, row))) return rows;
+    if (rows.every((row, index) => row?.hit && inside(row, index))) return rows;
 
     let delta;
     if (rows.every(Boolean)) {
       const top = Math.min(...rows.map(row => row.y));
       const bottom = Math.max(...rows.map(row => row.y + row.height));
       assert(bottom - top <= clip.height, `The sidebar targets for ${label} must fit together before input`);
+      const contacts = rows.map((row, index) => row.y + row.height * fractions[index]);
+      assert(Math.max(...contacts) - Math.min(...contacts) <= clip.height - edgeMargin * 2,
+        `The sidebar contacts for ${label} must fit outside the edge-scroll zones`);
       delta = (top + bottom) / 2 - (clip.y + clip.height / 2);
       // A fully contained target can be briefly obscured during native layout.
       // Waiting does not dismiss an obstruction or manufacture a successful hit.
-      if (rows.every(row => contains(clip, row))) delta = 0;
+      if (rows.every(inside)) delta = 0;
     } else {
       // inspectView omits controls outside the canvas. Use the rendered content
       // origin to scan from the top without reading or changing application state.

@@ -76,7 +76,7 @@ fn color_picker(
                     .map(|(index, (name, color))| {
                         let value = preset(index);
                         let choose = choose.clone();
-                        crate::menus::color_command(name, color, current == value, move || {
+                        crate::menus::color_choice(name, color, current == value, move || {
                             choose(value.clone())
                         })
                     })

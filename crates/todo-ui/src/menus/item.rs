@@ -10,6 +10,35 @@ pub(crate) fn color_command(
     checked: bool,
     action: impl Fn() + 'static,
 ) -> Element {
+    color_item(label, color, checked, action)
+        .automation_properties_name(format!(
+            "{} category {label}",
+            if checked { "Remove" } else { "Add" }
+        ))
+        .into()
+}
+
+/// A catalogue color is one exclusive preset, not a task-membership toggle.
+pub(crate) fn color_choice(
+    label: &str,
+    color: &str,
+    checked: bool,
+    action: impl Fn() + 'static,
+) -> Element {
+    color_item(label, color, checked, action)
+        .automation_properties_name(label)
+        .min_height(32.0)
+        .toggle_type(ferroui_controls::MenuItemToggleType::Radio)
+        .group_name("OutlookCategoryColor")
+        .into()
+}
+
+fn color_item(
+    label: &str,
+    color: &str,
+    checked: bool,
+    action: impl Fn() + 'static,
+) -> El<MenuItem> {
     menu_item()
         .header(
             text_block()
@@ -18,10 +47,6 @@ pub(crate) fn color_command(
                 .text_trimming(<dyn ferroui_base::media::TextTrimming>::character_ellipsis()),
         )
         .tool_tip_tip(label)
-        .automation_properties_name(format!(
-            "{} category {label}",
-            if checked { "Remove" } else { "Add" }
-        ))
         .toggle_type(ferroui_controls::MenuItemToggleType::CheckBox)
         .is_checked(checked)
         .icon(
@@ -37,7 +62,6 @@ pub(crate) fn color_command(
             action();
             event.set_handled(true);
         })
-        .into()
 }
 
 pub(crate) fn command(

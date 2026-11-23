@@ -1,21 +1,9 @@
-import { sleep } from "../../FerroUI/scripts/browser/harness.mjs";
+import { dragControls } from "./mouse-drag.mjs";
 import { revealSidebarControl, revealSidebarControls } from "./sidebar-viewport.mjs";
 
 export async function dragSidebar(ui, from, to, { fraction = 0.5, cancel = false } = {}) {
-  const [source, target] = await revealSidebarControls(ui, [from, to], "navigation drag source and drop target");
-  const x = source.x + source.width / 2, y = source.y + source.height / 2;
-  const tx = target.x + target.width / 2, ty = target.y + target.height * fraction;
-  const move = (x, y) => ui.page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, buttons: 1, pointerType: "mouse" });
-  const escape = type => ui.page.send("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
-  await ui.page.mouseMove(x, y);
-  await ui.page.mouseDown(x, y);
-  await move(x + 12, y);
-  await move(x + 14, y);
-  await move(tx, ty);
-  if (cancel) { await escape("rawKeyDown"); await move(tx + 1, ty); }
-  await ui.page.mouseUp(tx, ty);
-  if (cancel) await escape("keyUp");
-  await sleep(100);
+  await revealSidebarControls(ui, [from, to], "navigation drag source and drop target");
+  await dragControls(ui, from, to, { fraction, cancel });
 }
 
 export async function rightClick(ui, match) {

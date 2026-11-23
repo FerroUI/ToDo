@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { revealSettingsControl } from "./settings-input.mjs";
 
 const button = name => element => element.type.endsWith("Button") && element.automationName === name;
 const named = name => element => element.name === name;
@@ -13,13 +14,7 @@ export async function verifyPushSettings(ui) {
   let originalDemo;
   const state = { available: true, supported: true, enabled: false, service_url: "", public_key: "", status: "A user-configured reminder service is required." };
   const setState = value => page.evaluate(`todoApp.pushState(${JSON.stringify(JSON.stringify(value))})`);
-  const visible = async (match, label, width) => {
-    for (let step = 0; step < 35; step++) {
-      if ((await snapshot()).elements.some(element => element.hit && match(element))) return control(match, label);
-      await page.wheel(width - 60, 630, 0, 150);
-    }
-    return control(match, label);
-  };
+  const visible = (match, label) => revealSettingsControl(ui, match, label);
   const bounded = (element, width) => assert(element.x >= -1 && element.x + element.width <= width + 1, `Push Settings control overflows: ${JSON.stringify(element)}`);
   try {
     await navigate("Page.navigate", { url: demoUrl.href });
@@ -39,7 +34,7 @@ export async function verifyPushSettings(ui) {
       await edit("PushPublicKey", "public-key-draft");
       await setState({ ...state, status: "Status refresh keeps unfinished setup fields." });
       for (const [name, value] of [["PushServiceUrl", "https://reminders.example.test/"], ["PushPublicKey", "public-key-draft"]]) {
-        const input = await control(named(name), name); bounded(input, width); assert.equal(input.text, value);
+        const input = await visible(named(name), name); bounded(input, width); assert.equal(input.text, value);
       }
       await visible(named("PushEnrollmentKey"), "masked service enrollment key", width);
       await edit("PushEnrollmentKey", "not-a-real-enrollment-key");
@@ -51,7 +46,7 @@ export async function verifyPushSettings(ui) {
       await until(async () => (await control(named("PushEnrollmentKey"), "cleared enrollment field")).text === "", "enrollment draft is cleared");
       await setState({ ...state, enabled: true, service_url: "https://reminders.example.test/", public_key: "public-key-draft", status: "2 reminders scheduled from the active workspace." });
       await visible(button("Refresh background reminders"), "refresh configured subscription", width);
-      bounded(await control(button("Disable background reminders"), "disable configured subscription"), width);
+      bounded(await visible(button("Disable background reminders"), "disable configured subscription"), width);
       assert(!(await snapshot()).elements.some(named("PushEnrollmentKey")));
       await capture(`push-settings-enabled-${width}`);
       await setState({ ...state, service_url: "https://reminders.example.test/", public_key: "public-key-draft" });
@@ -60,6 +55,9 @@ export async function verifyPushSettings(ui) {
     }
     assert.equal(await demoDocument(), originalDemo, "host push state and drafts never enter the demo task backup");
     assert.deepEqual(await saved(), personal, "push review leaves the personal task document unchanged");
+  } catch (error) {
+    try { await capture("push-settings-failure"); } catch {}
+    throw error;
   } finally {
     // Leave the demo before restoring its earlier storage, so lifecycle saves
     // cannot put the review's sample document back over the preserved bytes.

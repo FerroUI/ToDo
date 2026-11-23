@@ -38,8 +38,8 @@ export async function verifyCategoryManagement(ui) {
       await clickControl(button("New category color: Blue"), "new category native color menu");
       bounded(await control(menu("Purple"), "Purple category preset"), width);
       await clickControl(menu("Purple"), "choose native color preset");
-      await control(button("New category color: Purple"), "selected category preset survives rerender");
-      assert.equal((await control(element => element.name === "OutlookCategoryName", "retained category draft")).text, category.name);
+      await visible(button("New category color: Purple"), "selected category preset survives rerender");
+      assert.equal((await visible(element => element.name === "OutlookCategoryName", "retained category draft")).text, category.name);
       await visible(button(`Color for ${category.name}: Blue`), "existing catalogue color", width);
       await clickControl(button(`Color for ${category.name}: Blue`), "existing color menu");
       bounded(await control(menu("Purple"), "existing category color choice"), width);
@@ -47,7 +47,7 @@ export async function verifyCategoryManagement(ui) {
       await visible(button(`Remove category ${category.name} from Outlook`), "remove catalogue category", width);
       await clickControl(button(`Remove category ${category.name} from Outlook`), "review category removal");
       bounded(await visible(button("Confirm category removal"), "confirm catalogue removal", width), width);
-      bounded(await control(button("Cancel category removal"), "cancel catalogue removal"), width);
+      bounded(await visible(button("Cancel category removal"), "cancel catalogue removal"), width);
       await capture(`category-management-${label}`);
       await clickControl(button("Cancel category removal"), "cancel without changing Outlook");
       assert(!(await snapshot()).elements.some(element => element.hit && button("Confirm category removal")(element)));

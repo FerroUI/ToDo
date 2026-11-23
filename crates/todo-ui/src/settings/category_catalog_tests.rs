@@ -4,8 +4,11 @@ use ferroui_base::reactive::Subscription;
 use ferroui_base::rendering::testing::MockPlatformRenderInterface;
 use ferroui_base::threading::Dispatcher;
 use ferroui_controls::automation::AutomationProperties;
-use ferroui_controls::{Button, Control, TextBlock, TextBox};
-use std::{cell::RefCell, rc::Rc};
+use ferroui_controls::{Button, Control, MenuItem, MenuItemToggleType, TextBlock, TextBox};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 use todo_domain::AppState;
 use todo_state::{AppViewModel, HostRequest, HostServices};
 
@@ -80,4 +83,41 @@ fn category_catalog_validates_retained_draft_on_enter_after_empty_submission() {
     ));
     assert_eq!(field.text().as_deref(), Some("  日本語, Release  "));
     owner.dispose();
+}
+
+#[test]
+fn catalogue_color_presets_have_single_choice_semantics_and_keep_category_toggles() {
+    let _scope = Dispatcher::unit_test_scope();
+    let (render_scope, _render) = MockPlatformRenderInterface::install();
+    let _render_scope = Subscription::new(render_scope);
+    let clicks = Rc::new(Cell::new(0));
+    let received = clicks.clone();
+    let (surface, owner) = crate::menus::color_choice("Purple", "#8764B8", true, move || {
+        received.set(received.get() + 1);
+    })
+    .mount_root();
+    let item = surface.cast::<MenuItem>().unwrap();
+    assert_eq!(
+        AutomationProperties::get_name(&item).as_deref(),
+        Some("Purple")
+    );
+    assert_eq!(item.toggle_type(), MenuItemToggleType::Radio);
+    assert_eq!(item.group_name().as_deref(), Some("OutlookCategoryColor"));
+    assert!(item.is_checked());
+    item.raise_event(&RoutedEventArgs::with_event(MenuItem::click_event()));
+    assert_eq!(clicks.get(), 1);
+    owner.dispose();
+
+    for (checked, name) in [
+        (false, "Add category Purple"),
+        (true, "Remove category Purple"),
+    ] {
+        let (surface, owner) =
+            crate::menus::color_command("Purple", "#8764B8", checked, || {}).mount_root();
+        let item = surface.cast::<MenuItem>().unwrap();
+        assert_eq!(AutomationProperties::get_name(&item).as_deref(), Some(name));
+        assert_eq!(item.toggle_type(), MenuItemToggleType::CheckBox);
+        assert_eq!(item.is_checked(), checked);
+        owner.dispose();
+    }
 }
