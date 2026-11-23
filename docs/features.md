@@ -22,6 +22,8 @@ This document distinguishes implemented behavior from reference-app parity. The 
 | Transfer | Document JSON, checksummed file backups, Graph archives, real task PST import/export with safe HTML and native Gregorian recurrence; native typed task clipboard, cross-app structured/text COPY drops and multiline text import | Outlook exceptions, sliding rules, unsupported calendar/RTF representations and unpublished export formats remain bounded; originals are preserved where possible |
 | Sharing | Export a copy; linked Microsoft To Do entry for service-managed invitations; imported owner/shared-list capability guards | Invitation creation, member/assignee administration, and collaboration presence are not exposed through the public To Do API used here |
 
+Task clipboard copies and incoming external drops create fresh task and step identifiers and reset their completion state. An authorized local cut/paste moves the existing tasks and preserves their progress; external drops always create copies, even when the offer matches a local cut.
+
 ## Appearance and interaction
 
 | Area | Coverage |

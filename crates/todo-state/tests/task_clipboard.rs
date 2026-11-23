@@ -319,6 +319,59 @@ fn external_drop_cannot_consume_an_exact_local_cut_or_reuse_its_attachment_keys(
 }
 
 #[test]
+fn marked_html_external_copy_restarts_completion_without_changing_its_source() {
+    let (vm, ids, destination) = fixture();
+    let step_id = vm.state().task(ids[0]).unwrap().steps[0].id;
+    vm.dispatch(Action::ToggleStep {
+        task_id: ids[0],
+        step_id,
+    });
+    vm.dispatch(Action::ToggleCompleted(ids[0]));
+    let before = vm.state().clone();
+    let offer = vm.prepare_task_clipboard(&ids, true).unwrap();
+    let payload = TaskClipboard::from_html(&offer.data.to_html().unwrap())
+        .unwrap()
+        .unwrap();
+    let decoded: serde_json::Value = serde_json::from_str(&payload.to_json().unwrap()).unwrap();
+    assert_eq!(decoded["tasks"][0]["completed"], true);
+    assert_eq!(decoded["tasks"][0]["steps"][0]["completed"], true);
+
+    vm.paste_external_tasks(
+        vm.task_paste_target(View::List(destination)),
+        Some(payload),
+        "This weaker text must not become another task",
+    )
+    .unwrap();
+    let state = vm.state();
+    let copies: Vec<_> = state
+        .tasks
+        .iter()
+        .filter(|task| task.list_id == destination)
+        .collect();
+    assert_eq!(copies.len(), ids.len());
+    for (copy, source_id) in copies.iter().zip(&ids) {
+        let source = before.task(*source_id).unwrap();
+        assert_eq!(state.task(*source_id), Some(source));
+        assert!(!ids.contains(&copy.id));
+        assert_eq!(copy.title, source.title);
+        assert!(!copy.completed);
+        assert_eq!(copy.completed_on, None);
+        assert_eq!(copy.steps.len(), source.steps.len());
+        for (step, source_step) in copy.steps.iter().zip(&source.steps) {
+            assert_ne!(step.id, source_step.id);
+            assert_eq!(step.title, source_step.title);
+            assert!(!step.completed);
+        }
+        assert!(copy.attachments.is_empty());
+    }
+    drop(state);
+    vm.undo();
+    let mut restored = vm.state().clone();
+    restored.next_id = before.next_id;
+    assert_eq!(restored, before, "one undo restores the complete document");
+}
+
+#[test]
 fn external_drop_rejects_a_destination_from_an_old_account_even_with_matching_ids() {
     let (vm, _, destination) = fixture();
     let target = vm.task_paste_target(View::List(destination));

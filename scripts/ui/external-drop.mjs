@@ -44,6 +44,7 @@ export async function verifyExternalDrop(ui) {
   await until(async () => (await tasks(destination.id)).length === 0, "one immediate undo removes the complete external text drop");
 
   const foreign = { ...original, title: "External structured 💼", notes: "Transferred note", important: true,
+    completed: true, completed_on: original.created_on,
     tags: ["External category"], steps: [{ id: original.id, title: "Transferred step", completed: true }],
     attachments: [{ id: 70001, name: "foreign.txt", mime_type: "text/plain", size: 1, storage_key: "foreign-private-file" }],
     assigned_to: "another-account", flagged_email: true,
@@ -66,7 +67,11 @@ export async function verifyExternalDrop(ui) {
   assert.equal(copied.steps.length, 1);
   assert.notEqual(copied.steps[0].id, original.id);
   assert.equal(copied.steps[0].title, "Transferred step");
-  assert.equal(copied.steps[0].completed, true);
+  // Portable transfers create fresh tasks under the same completion policy as
+  // clipboard copies; a completed foreign payload does not carry its progress.
+  assert.equal(copied.completed, false);
+  assert.equal(copied.completed_on, null);
+  assert.equal(copied.steps[0].completed, false);
   assert.deepEqual(copied.attachments, []);
   assert.equal(copied.external ?? null, null);
   assert.equal(copied.microsoft_data ?? null, null);

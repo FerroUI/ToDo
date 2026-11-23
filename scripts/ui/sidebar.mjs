@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { centerY, close, one, sameBounds, textPresenter } from "./layout-geometry.mjs";
 import { dragSidebar, pressFunction, rightClick } from "./sidebar-input.mjs";
 import { revealSidebarControl, revealSidebarControls } from "./sidebar-viewport.mjs";
+import { expectSidebarFocus } from "./sidebar-keyboard.mjs";
 
 const button = label => element => element.type.endsWith("Button") && element.automationName === label;
 const groupButton = id => element => element.name === `Group${id}`;
@@ -34,7 +35,7 @@ export async function verifySidebar(ui) {
 
   await dragSidebar(ui, listButton(first.id), groupButton(group.id));
   await until(async () => (await saved()).lists.find(list => list.id === first.id).group_id === group.id, "drop list into a group");
-  await control(element => listButton(first.id)(element) && element.focused, "focus follows the relocated list");
+  await expectSidebarFocus(ui, listButton(first.id), "focus follows the relocated list");
   await dragSidebar(ui, listButton(second.id), groupButton(group.id), { fraction: 0.85 });
   await until(async () => {
     const order = (await saved()).sidebar_order;
@@ -74,18 +75,18 @@ export async function verifySidebar(ui) {
   await page.press("ArrowRight");
   await until(async () => !(await saved()).groups.find(item => item.id === group.id).collapsed, "Right expands a group");
   await page.press("ArrowRight");
-  await control(element => listButton(second.id)(element) && element.focused, "Right enters the first group member");
+  await expectSidebarFocus(ui, listButton(second.id), "Right enters the first group member");
   await page.press("ArrowDown");
-  await control(element => listButton(first.id)(element) && element.focused, "Down follows visible sibling order");
+  await expectSidebarFocus(ui, listButton(first.id), "Down follows visible sibling order");
   await page.press("ArrowLeft");
-  await control(element => groupButton(group.id)(element) && element.focused, "Left returns to the parent group");
+  await expectSidebarFocus(ui, groupButton(group.id), "Left returns to the parent group");
   const beforeName = await snapshot();
   const optionsBefore = one(beforeName.elements, element => element.name === `GroupOptions${group.id}`, "group options before rename");
   const memberBefore = one(beforeName.elements, listButton(second.id), "first group member before rename");
   const labelBefore = one(beforeName.elements, element => /TextBlock$/.test(element.type) && element.text === group.name,
     "group label before rename");
   await pressFunction(page, 2);
-  await control(element => element.name === "GroupName" && element.focused, "F2 opens inline group naming");
+  await expectSidebarFocus(ui, element => element.name === "GroupName", "F2 opens inline group naming");
   await until(async () => {
     const view = await snapshot();
     sameBounds(one(view.elements, element => element.name === `GroupOptions${group.id}`, "group options during rename"),
