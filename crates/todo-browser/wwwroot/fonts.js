@@ -3,8 +3,8 @@ export const EMOJI_FONT_FILE = "Noto-COLRv1.ttf";
 export const EMOJI_FONT_SIZE = 5_038_236;
 export const EMOJI_FONT_INTEGRITY = "sha256-uOJepo24L55NCu6SH0QgvivjmIe9XIk6KtmHEFMfnQw=";
 export const CJK_FONT_FILE = "WenQuanYiMicroHei.ttf";
-export const CJK_FONT_SIZE = 4_626_376;
-export const CJK_FONT_INTEGRITY = "sha256-JyQ19Wnz5/+nzqKZ0LF1NGc4tZIuzK7bFo6ttj+BI9o=";
+export const CJK_FONT_SIZE = 4_626_872;
+export const CJK_FONT_INTEGRITY = "sha256-PDkGACn9ETkf5UV3LdCuQCp5tG/ldKIpRVyfjAmCvmo=";
 
 export function loadEmojiFont(fetcher = globalThis.fetch) {
   return loadFont(fetcher, EMOJI_FONT_FILE, EMOJI_FONT_SIZE, EMOJI_FONT_INTEGRITY, "emoji");

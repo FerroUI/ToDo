@@ -33,19 +33,21 @@ browser integrity constant together.
 
 ## WenQuanYi Micro Hei
 
-`WenQuanYiMicroHei.ttf` is the **complete proportional face** of the official
+`WenQuanYiMicroHei.ttf` is derived from the **complete proportional face** of the official
 [WenQuanYi Micro Hei 0.2.0-beta release](https://sourceforge.net/projects/wqy/files/wqy-microhei/0.2.0-beta/).
-It is extracted from face 0 of `wqy-microhei.ttc`; no glyph, character-map,
-hinting, kerning, or layout subsetting is performed. The unused monospace face
-is not bundled. This is an openly licensed fallback, not Microsoft typography.
+It is extracted from face 0 of `wqy-microhei.ttc`, with the composite Hangul
+advance normalization described below. No glyph, character-map, hinting,
+kerning, or layout subsetting is performed. The unused monospace face is not
+bundled. This is an openly licensed fallback, not Microsoft typography.
 
 - Archive: [wqy-microhei-0.2.0-beta.tar.gz](https://downloads.sourceforge.net/project/wqy/wqy-microhei/0.2.0-beta/wqy-microhei-0.2.0-beta.tar.gz)
 - Archive size: `2,418,536` bytes
 - Archive SHA-256: `2802ac8023aa36a66ea6e7445854e3a078d377ffff42169341bd237871f7213e`
 - Original TTC size: `5,177,387` bytes
 - Original TTC SHA-256: `e4bca8df123ce01b104780f576ea1a58b9a5ff1662a91124b6d3180cb6c88212`
-- Bundled face size: `4,626,376` bytes
-- Bundled face SHA-256: `272435f569f3e7ffa7cea299d0b175346738b5922eccaedb168eadb63f8123da`
+- Unmodified extracted face SHA-256: `272435f569f3e7ffa7cea299d0b175346738b5922eccaedb168eadb63f8123da`
+- Bundled normalized face size: `4,626,872` bytes
+- Bundled normalized face SHA-256: `3c39060029fd11391fe545772dd0ae402a79b46fe574a229455c9f8c0982be6a`
 - Format: OpenType TrueType, 49,531 glyphs and 34,600 Unicode character mappings
 - License chosen for this distribution: **Apache License 2.0**, offered by the
   upstream dual Apache 2.0/GPLv3 release
@@ -66,15 +68,43 @@ a claim of all current Unicode CJK coverage**: newer Han extension blocks,
 some rare Kana, and some historic characters are absent. A later font upgrade
 must verify the desired script coverage and license as well as changing the pin.
 
+### Composite Hangul advance normalization
+
+The upstream face stores an advance of 256 design units for 11,170 of its
+11,172 Hangul syllables, despite a 2048-unit em and full-width outlines. Those
+composites use `USE_MY_METRICS` to inherit a simple component's 2048-unit advance.
+The pinned FerroUI HarfBuzz backend obtains OpenType metrics from the font tables,
+so the original `hmtx` values shape three syllables into only 5.25 pixels at a
+14-pixel font size. The resulting outlines overlap even though every character
+maps to the correct glyph.
+
+The extraction script materializes only those inherited advances in `hmtx`.
+It requires the exact pinned source, one simple metrics component, an identity
+transform, zero translation, and equal zero horizontal phantom origins. The
+parent's existing side bearing stays unchanged: for example, copying the child
+bearing for 국 would incorrectly change it from 168 to 368 design units. The
+other two syllables already have full-width advances and remain unchanged.
+These constraints follow the [composite-glyph metric semantics](https://learn.microsoft.com/en-us/typography/opentype/spec/glyf)
+and [horizontal metric representation](https://learn.microsoft.com/en-us/typography/opentype/spec/hmtx).
+
+Only the `hmtx`, `name`, and `head` checksum data change. All other SFNT tables,
+including `glyf`, `loca`, `cmap`, hinting programs, `GSUB`, and `GPOS`, are copied
+byte for byte. The font's version and description records explicitly identify
+the FerroUI ToDo modification; original copyright and license records remain.
+This normalization adds no runtime work and uses the same corrected bytes in
+browser and desktop hosts.
+
 Reproduce the binary and notices with Python and `fonttools==4.61.1`:
 
 ```sh
 python scripts/extract-cjk-font.py /path/to/wqy-microhei-0.2.0-beta.tar.gz
 ```
 
-The script checks the archive SHA-256, extracts the first complete face with
-`recalcTimestamp=False`, and verifies the resulting size/hash before writing.
-Normal builds consume the committed assets and need no fontTools dependency.
+The script checks the archive and unmodified extracted-face SHA-256 values,
+extracts the first complete face with `recalcTimestamp=False`, normalizes the
+proven advances without recompiling outlines, and verifies the final size/hash
+before writing. Normal builds consume the committed assets and need no
+fontTools dependency.
 
 Both fonts load in parallel with the browser runtime through same-origin,
 integrity-pinned requests. The loader bounds decoded bytes by each exact size,
@@ -83,5 +113,8 @@ offline use. Neither file is embedded in WebAssembly. Native hosts embed the
 same two faces, so script coverage does not depend on installed system fonts.
 Regression tests verify the full documented ranges from the actual `cmap`, the
 native font fallback chain with no system fonts, and mixed Japanese, Chinese,
-Korean and emoji text. The compiled browser rich-note review retains real IME
-composition and its rendered editor screenshot.
+Korean and emoji text. Actual FerroUI HarfBuzz tests verify full-em Korean
+advances, UTF-16 clusters, precomposed/decomposed equivalence and separate glyph
+ink bounds at regular and bold/italic styles. The compiled browser rich-note
+review retains real IME composition, formatted Japanese/Chinese/Korean/emoji
+text, reload persistence and its rendered editor screenshot.

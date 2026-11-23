@@ -2189,6 +2189,7 @@ dependencies = [
  "ferroui-base",
  "ferroui-build",
  "ferroui-controls",
+ "ferroui-harfbuzz",
  "ferroui-markup-xaml",
  "ferroui-themes-winui",
  "ferroui-view",

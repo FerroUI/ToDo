@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { button, named, touchInput } from "./touch-input.mjs";
 import { typeText } from "./text-input.mjs";
+import { revealSidebarControl } from "./sidebar-viewport.mjs";
 
 // Native RichEditBox commands, selection, history, IME and read-view links.
 // All document mutations below use ordinary input; saved() never flushes drafts.
@@ -24,7 +25,7 @@ export async function verifyRichNotes(ui) {
   };
   const click = async name => { await visible(name); await clickControl(named(name), name); };
   const save = () => page.press("Enter", ["ctrl"]);
-  const text = "日本語 👩🏽‍💻 #RichNotes";
+  const text = "日本語 中文 한국어 한글 👩🏽‍💻 #RichNotes";
   await visible("TaskNotes"); await edit("TaskNotes", text);
   await page.press("a", ["ctrl"]);
   for (const name of ["NoteBold", "NoteItalic", "NoteUnderline", "NoteStrike"]) await click(name);
@@ -101,6 +102,15 @@ export async function verifyRichNotes(ui) {
   await clickControl(button(task.title), "reopen note after navigation");
   await visible("TaskNotes");
   assert.equal((await control(named("TaskNotes"), "restored rich editor")).text, (await current()).notes, "switching read/edit and navigating retains the complete note");
+  const beforeReload = await current();
+  await ui.navigate("Page.reload", { ignoreCache: true });
+  await revealSidebarControl(ui, named(`NavigateList(${list.id})`), "rich-note list after reload");
+  await clickControl(named(`NavigateList(${list.id})`), "open the saved rich-note list");
+  await clickControl(button(task.title), "reopen the rich-note document after reload");
+  await visible("TaskNotes");
+  assert.deepEqual(await current(), beforeReload, "reload preserves every rich-note task field, inline format, list, and link");
+  assert.equal((await control(named("TaskNotes"), "reloaded CJK rich editor")).text, beforeReload.notes,
+    "reload retains Japanese, Chinese, Korean syllables, emoji, and the committed composition in the native editor");
   await capture("rich-note-editor");
   await clickControl(button("Close details"), "close rich-note task");
   await clickControl(button("List options"), "rich-note fixture options");
@@ -109,5 +119,5 @@ export async function verifyRichNotes(ui) {
   await until(async () => !(await saved()).lists.some(item => item.id === list.id), "rich-note fixture removed");
   if ((await snapshot()).elements.some(element => element.hit && button("Dismiss message")(element))) await clickControl(button("Dismiss message"), "dismiss rich-note status");
   await resize(1280, 800);
-  console.log("ok: native rich-note Unicode selection, formatting, lists, undo/redo, links, IME, and pointer/keyboard/touch note/step hashtag navigation");
+  console.log("ok: native rich-note Japanese/Chinese/Korean/emoji selection, formatting, lists, undo/redo, links, IME, reload, and pointer/keyboard/touch note/step hashtag navigation");
 }

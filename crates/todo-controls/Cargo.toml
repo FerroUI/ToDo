@@ -19,3 +19,4 @@ ferroui-build.workspace = true
 
 [dev-dependencies]
 ferroui-base = { workspace = true, features = ["testing"] }
+ferroui-harfbuzz.workspace = true
