@@ -1,6 +1,7 @@
 //! A small reusable control template; the Button still owns input and automation.
 
 use ferroui_base::data::TemplateBinding;
+use ferroui_base::input::{KeyboardNavigation, KeyboardNavigationMode};
 use ferroui_base::styling::{ControlTheme, Setter};
 use ferroui_base::Ref;
 use ferroui_controls::presenters::ContentPresenter;
@@ -19,6 +20,7 @@ ferroui_base::ferro_thread_local! {
 
 fn content_theme<T: ferroui_base::ObjectType>(
     slot: &OnceCell<Ref<ControlTheme>>,
+    configure: impl FnOnce(&ControlTheme),
 ) -> Ref<ControlTheme> {
     slot.get_or_init(|| {
         let theme = ControlTheme::for_type::<T>();
@@ -88,15 +90,25 @@ fn content_theme<T: ferroui_base::ObjectType>(
             TemplatedControl::template_property(),
             Some(template),
         ));
+        configure(&theme);
         theme
     })
     .clone()
 }
 
 pub(crate) fn flat_button_theme() -> Ref<ControlTheme> {
-    BUTTON_THEME.with(content_theme::<Button>)
+    BUTTON_THEME.with(|slot| content_theme::<Button>(slot, |_| {}))
 }
 
 pub(crate) fn list_item_theme() -> Ref<ControlTheme> {
-    ITEM_THEME.with(content_theme::<ListBoxItem>)
+    ITEM_THEME.with(|slot| {
+        content_theme::<ListBoxItem>(slot, |theme| {
+            // Preserve WinUI's internal row tab group when replacing its chrome.
+            // The outer ListBox remains Once; Local lets Tab reach row actions.
+            theme.add_setter(Setter::new(
+                KeyboardNavigation::tab_navigation_property(),
+                KeyboardNavigationMode::Local,
+            ));
+        })
+    })
 }

@@ -21,12 +21,12 @@ export async function verifyPstRoundTrip(ui, output) {
     const result=await (browser?page.browserSend(method,parameters):page.send(method,parameters));
     assert(!result.error,`${method}: ${result.error?.message}`);return result;
   };
-  const visible=async(match,label)=>{
+  const visible=async(match,label,scrollPoint={x:1200,y:600})=>{
     for(let attempt=0;attempt<12;attempt++) {
       const elements=(await snapshot()).elements;
       if(elements.some(element=>element.hit&&match(element))) return control(match,label);
       const target=elements.find(match);
-      await page.wheel(1200,600,0,target&&target.y<90?-260:260);
+      await page.wheel(scrollPoint.x,scrollPoint.y,0,target&&target.y<90?-260:260);
     }
     return control(match,label);
   };
@@ -127,6 +127,9 @@ export async function verifyPstRoundTrip(ui, output) {
     if((await snapshot()).elements.some(element=>element.hit&&button("Close settings")(element)))await clickControl(button("Close settings"),"close PST import Settings");
     await navigate("Page.reload",{ignoreCache:true});
     assert.deepEqual(await saved(),restored,"restored PST state survives a real reload");
+    // Previous reviews retain their documents on failure. A longer sidebar
+    // requires ordinary scrolling before this exact list can receive a click.
+    await visible(button("PST round trip"),"restored PST list",{x:140,y:600});
     await clickControl(button("PST round trip"),"restored PST list");
     await clickText(title);
     await visible(button(filename),"restored PST attachment");
