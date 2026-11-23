@@ -8,7 +8,7 @@ use ferroui_base::input::{
     IPointer, PointerEventArgs, PointerPressedEventArgs, PointerReleasedEventArgs, PointerType,
 };
 use ferroui_controls::primitives::ToggleButton;
-use ferroui_controls::{Button, CheckBox, Control, TextBox};
+use ferroui_controls::{Button, CheckBox, Control, RichEditBox, TextBox};
 use std::rc::Rc;
 use todo_state::{
     gestures::{Axis, TouchTrack},
@@ -169,7 +169,10 @@ fn is_editor_or_toggle(event: &PointerEventArgs) -> bool {
         .and_then(|source| source.cast::<Control>())
         .is_some_and(|source| {
             source.get_self_and_visual_ancestors().any(|visual| {
-                visual.is::<TextBox>() || visual.is::<CheckBox>() || visual.is::<ToggleButton>()
+                visual.is::<TextBox>()
+                    || visual.is::<RichEditBox>()
+                    || visual.is::<CheckBox>()
+                    || visual.is::<ToggleButton>()
             })
         })
 }

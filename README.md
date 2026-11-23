@@ -12,20 +12,23 @@ The application includes the main personal task workflows and optional Microsoft
 - Task details with steps, step-to-task promotion, notes, importance, due dates, reminders, and repeat schedules.
 - English date/time recognition in new task titles, a live schedule preview, and configurable title retention.
 - Search across task names, notes, steps, and tags; native inline hashtag links in task titles; suggestions; sorting; drag tasks to reorder or move between lists; task and list duplication that retains manual order.
-- Multiple selection with modifier-click and ranges, native touch hold, select-all, and bulk completion, move, and deletion.
+- Multiple selection with modifier-click and ranges, native touch/pen hold, stable multi-item drag, native task copy/cut/paste, cross-app task/text drop and multiline text paste; one undo transaction for bulk completion, importance, My Day, move, delete, dates, repeats and categories.
 - Touch swipe actions for Delete, My Day and Move; hold-and-drag task/list/group organization, scroll arbitration, and cancellation.
 - Browser/keyboard/edge Back, swipe-to-dismiss navigation, and pull-to-refresh without losing drafts or reloading the app.
 - Native anchored task/list/group/scheduling menus, selection-aware task commands, and inline list/group naming.
 - Mixed list/group navigation ordering, list-to-group dragging, keyboard tree navigation, and leading-emoji list icons.
 - Visible sort direction with reverse/reset controls, search cancellation, native Calendar selection, and WinUI Settings switches.
-- Calendar-aware daily, weekday, weekly, monthly, yearly, and custom interval recurrence.
+- Native rich-text notes with emphasis, lists, links, IME and retained selection; actionable hashtags in titles, notes and steps.
+- Calendar-aware weekday sets, anchored monthly/yearly rules, finite recurrence ranges, start/due ranges, previews, and bounded English schedule entry.
 - Undo/redo, JSON backup and restore, portable backups with attachment bytes and checksums, Microsoft Graph data archives, Outlook task PST import/export, and print view.
-- Light, dark, and system themes; per-list colors; original vector icons and My Day landscape.
+- Light, dark, and system themes; list/smart-view colors, six original vector scenes and bounded custom-image wallpapers that travel with backups and OneDrive presentation settings.
 - Adaptive one-, two-, and three-pane layouts, retained drafts and keyboard focus, virtualized task rows with current accessible names and status, and FerroUI accessibility support.
 - Browser storage, installable app metadata, and offline resources cached after a successful load.
 - Optional Microsoft sign-in with MSAL and PKCE, automatic foreground synchronization, explicit **Sync now**, cloud file attachments, categories, and linked source actions.
 - Optional **Assigned to me** integration for work-account Planner tasks, including title, completion, due date, notes, and checklist edits.
-- Optional Outlook master-category catalogue with color-aware selection and separate `MailboxSettings.Read` consent.
+- Optional Outlook master-category catalogue with color-aware selection and separate `MailboxSettings.Read` consent; explicitly consented `MailboxSettings.ReadWrite` enables create, recolor and delete.
+- Independent local and Microsoft-account workspaces with crash recovery, stale-tab protection and isolated entity history/clipboard state.
+- Browser reminders after page close through an optional self-hosted Web Push service; explicit setup, active-workspace schedule replacement, durable duplicate suppression, expiry and permission/cancellation handling. See [background push](docs/BACKGROUND-PUSH.md).
 - Optional OneDrive app-folder synchronization of My Day, groups, ordering, and appearance between installations using the same Microsoft application registration.
 - Fixed global, GCC High, and DoD identity/Graph configurations; unsupported China-operated To Do services are reported explicitly.
 - Desktop Microsoft services through an isolated Node.js worker, system-browser PKCE login, local attachment storage, and optional tray operation when the platform supports it.
@@ -67,24 +70,28 @@ cargo run --locked -p todo-desktop --profile fast-release -- --demo
 
 The desktop host shares the UI and model with the browser. It saves `tasks.json` in the platform's application-data directory under `FerroUI/ToDo`; `TODO_DATA_DIR` overrides that directory. Its Microsoft, attachment, and portable/PST archive services run in an isolated **Node.js 22 or later** worker; `TODO_NODE_BINARY` selects a particular Node executable. The worker uses vendored dependencies and requires no runtime npm install. Local task editing continues without the worker.
 
-Native authentication opens the system browser and uses a registered **Mobile and desktop applications** loopback redirect, normally `http://localhost/`. An encrypted MSAL cache can resume the explicitly selected account after restart, with its encryption key held in the OS credential store. An unavailable credential store falls back visibly to a session-only connection. Disconnect forgets the saved session. An optional **Keep running in the background** setting keeps sync and reminders active after closing the window only when a usable system tray is available; Quit still stops the process. Native PST import runs in an isolated child on Linux, Windows, and macOS with a deadline and a 1.5 GiB cumulative Rust allocation budget; Linux/Windows also enforce OS memory limits. See the [native service guide](docs/NATIVE-MICROSOFT.md) for setup, platform gates, and verification limits.
+Native authentication opens the system browser and uses a registered **Mobile and desktop applications** loopback redirect, normally `http://localhost/`. An encrypted MSAL cache can resume the explicitly selected account after restart, with its encryption key held in the OS credential store. An unavailable credential store falls back visibly to a session-only connection. Disconnect forgets the saved session. An optional **Keep running in the background** setting keeps sync and reminders active after closing the window when a usable system tray is available. The separate **Remind me after this app closes** opt-in schedules a headless helper through the current user’s OS service. It operates only on the active workspace and performs no cloud synchronization; Quit stops continuous sync. Native PST import runs in an isolated child on Linux, Windows, and macOS with a deadline and a 1.5 GiB cumulative Rust allocation budget; Linux/Windows also enforce OS memory limits. See the [native service guide](docs/NATIVE-MICROSOFT.md) for setup, platform gates, and verification limits.
 
 ## Microsoft account connection
 
 The local application works without an account. Optional synchronization requires **your own Microsoft Entra application registration**, its public Application (client) ID, correctly registered browser/native redirect URIs, and delegated consent for `Tasks.ReadWrite` and `User.Read`. The owner-run registration helper can produce a reviewable registration plan and apply it through an already authenticated Azure CLI session; it does not log in, create secrets, or grant consent automatically.
 
-Follow the [Microsoft account setup guide](docs/MICROSOFT.md). Configure the public client ID at deployment time, or enter it in Settings for a local setup. Connect the account to enable automatic synchronization; **Sync now** and pull-to-refresh also synchronize on demand. Work accounts can enable **Settings → Connected apps → Planner**. Outlook category colors and OneDrive device settings each request their own optional permission only when enabled; declining either preserves the existing task connection. Browser tokens use session storage; native persistence uses an OS-protected encrypted cache. Credentials are excluded from task documents and backups. There is no client secret or application-owned server.
+Follow the [Microsoft account setup guide](docs/MICROSOFT.md). Configure the public client ID at deployment time, or enter it in Settings for a local setup. Connect the account to enable automatic synchronization; **Sync now** and pull-to-refresh also synchronize on demand. Work accounts can enable **Settings → Connected apps → Planner**. Outlook category reads, category editing and OneDrive device settings request separate optional permissions only when enabled; declining them preserves the existing task connection. Browser tokens use session storage; native persistence uses an OS-protected encrypted cache. Credentials are excluded from task documents and backups. No Microsoft client secret is needed. Task synchronization talks directly to Microsoft. The separately configured Web Push reminder sender is optional and never receives Microsoft tokens.
 
 The Pages build accepts repository variables `MICROSOFT_CLIENT_ID`, `MICROSOFT_TENANT`, `MICROSOFT_REDIRECT_URI`, and `MICROSOFT_CLOUD`; the corresponding local build variables have a `TODO_` prefix. The canonical production redirect is `https://ferroui.com/ToDo/`. These are public settings, not secrets. Browser SPA and native public-client redirects are separate entries on the same registration. Native configuration uses `TODO_MICROSOFT_NATIVE_REDIRECT_URI` for its loopback address.
 
-The integration has automated tests for OAuth, cloud/scope isolation, Graph transport, delta synchronization, files, interrupted writes, Planner, category caching, OneDrive replica merging, PST/portable archives, and host orchestration. A live Microsoft login/round-trip and acceptance of the exported PST in desktop Outlook have not been verified. Invitation administration, shared-list assignee editing, Microsoft's private My Day/group metadata, rich native Outlook recurrence export, and closed-process push remain outside the implemented surface. OneDrive settings sync is an independent app format and does not synchronize Microsoft's private client state. See the [integration review](docs/integration-review.md), [PST format guide](docs/OUTLOOK-PST.md), and [feature matrix](docs/features.md#microsoft-graph-synchronization) for exact boundaries.
+The integration has automated tests for OAuth, cloud/scope isolation, Graph transport, delta synchronization, files, interrupted writes, Planner, category caching, OneDrive replica merging, PST/portable archives, and host orchestration. A live Microsoft login/round-trip and acceptance of the exported PST in desktop Outlook have not been verified. Invitation administration, shared-list assignee editing, Microsoft's private My Day/group metadata and unsupported Outlook exception/RTF/calendar forms remain outside the documented public-service/local-editor surface. Native Gregorian recurrence and safe HTML round trips are implemented. OneDrive settings sync is an independent app format and does not synchronize Microsoft's private client state. See the [integration review](docs/integration-review.md), [PST format guide](docs/OUTLOOK-PST.md), and [feature matrix](docs/features.md#microsoft-graph-synchronization) for exact boundaries.
 
 ## Check changes
 
 ```bash
 cargo fmt -p todo-domain -p todo-state -p todo-controls -p todo-ui -p todo-browser -p todo-desktop -p todo-interop -p todo-interop-wasm -p todo-credentials --check
 cargo test --locked -p todo-domain -p todo-state -p todo-interop -p todo-credentials
+cargo test --locked -p todo-ui --lib
+cargo test --locked -p todo-desktop --lib
 node --test scripts/*.test.mjs
+npm --prefix services/reminders ci --ignore-scripts --no-audit --no-fund
+npm --prefix services/reminders test
 node scripts/ui-smoke.mjs target/browser/todo-browser
 ```
 
@@ -129,7 +136,7 @@ Commit the updated submodule pointer, manifest, and lockfile together. CI checks
 
 ## Deployment
 
-The repository uses one workflow with a cached browser build and a Pages deployment job. A short post-deployment HTTP check verifies the page, JavaScript, WASM, and narrow-layout preview over HTTPS. It runs on pushes to `main` and manual dispatch. The toolchain comes from FerroUI's setup script. An explicit compiler cache retains its submodule path dependencies, keyed by the pinned framework revision, toolchain, and build configuration; successful compilation is cached before the browser gate. There is no platform matrix or release-packaging pipeline. Configure repository Pages to use **GitHub Actions**; the workflow uploads the generated site and publishes it using GitHub's Pages actions.
+The browser workflow has a cached build, compiled-control/input checks and a gated Pages deployment job. A short post-deployment HTTP check verifies the page, JavaScript, WASM, and narrow-layout preview over HTTPS. It runs on pushes to `main` and manual dispatch. The toolchain comes from FerroUI's setup script. An explicit compiler cache retains its submodule path dependencies, keyed by the pinned framework revision, toolchain, and build configuration; successful compilation is cached before the browser gate. A separate [native packaging workflow](.github/workflows/native-release.yml) builds Linux x64, macOS ARM64 and Windows x64 packages on scoped packaging/native changes or manual dispatch. It bundles a verified Node runtime and emits unsigned artifacts, hashes and signing reports. [Native distribution](docs/NATIVE-PACKAGING.md) documents Linux tar/deb, macOS app/DMG, Windows ZIP/MSIX/per-user installers and owner-supplied signing/notarization hooks. Configure repository Pages to use **GitHub Actions**; the workflow uploads the generated site and publishes it using GitHub's Pages actions.
 
 ## License
 

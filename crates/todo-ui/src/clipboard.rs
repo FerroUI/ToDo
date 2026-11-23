@@ -1,23 +1,13 @@
 //! Task commands share the platform clipboard with native text editors.
 use ferroui_base::input::platform::IClipboard;
-use ferroui_base::input::{
-    AsyncDataTransferExtensions, DataFormat, DataFormatOf, DataTransfer, DataTransferItem,
-    IAsyncDataTransfer,
-};
+use ferroui_base::input::{DataTransfer, IAsyncDataTransfer};
 use ferroui_base::threading::Dispatcher;
 use ferroui_controls::{Control, TopLevel};
 use ferroui_view::Element;
 use std::rc::Rc;
 use todo_controls::Icon;
 use todo_domain::{Id, View};
-use todo_state::{AppViewModel, TaskClipboard};
-
-fn format() -> DataFormatOf<Rc<[u8]>> {
-    DataFormat::create_bytes_application_format("FerroUI.ToDo.Tasks")
-}
-fn html_format() -> DataFormatOf<String> {
-    DataFormat::create_string_platform_format("text/html")
-}
+use todo_state::AppViewModel;
 fn platform(anchor: &Control) -> Option<Rc<dyn IClipboard>> {
     TopLevel::get_top_level(Some(anchor)).and_then(|root| root.clipboard())
 }
@@ -33,13 +23,7 @@ fn write(clipboard: Option<Rc<dyn IClipboard>>, vm: Rc<AppViewModel>, ids: Vec<I
     };
     let prepared = (|| {
         let offer = vm.prepare_task_clipboard(&ids, cut)?;
-        let item = DataTransferItem::new();
-        item.set(&DataFormat::text(), Some(offer.data.text()));
-        item.set(&html_format(), Some(offer.data.to_html()?));
-        item.set(
-            &format(),
-            Some(Rc::<[u8]>::from(offer.data.to_json()?.into_bytes())),
-        );
+        let item = crate::task_transfer::item(&offer.data)?;
         let data = DataTransfer::new();
         data.add(item);
         Ok::<_, String>((offer, data))
@@ -82,33 +66,7 @@ fn read(clipboard: Option<Rc<dyn IClipboard>>, vm: Rc<AppViewModel>, view: View)
                 .map_err(|error| format!("Could not read the clipboard: {error}"))?
                 .ok_or("The clipboard is empty")?;
             let data = Using(data);
-            let bytes = data
-                .0
-                .try_get_value_async(&format())
-                .await
-                .map_err(|error| error.to_string())?;
-            let payload = if let Some(bytes) = bytes {
-                Some(TaskClipboard::from_json(
-                    std::str::from_utf8(&bytes)
-                        .map_err(|_| "The clipboard task data is invalid")?,
-                )?)
-            } else {
-                let html = data
-                    .0
-                    .try_get_value_async(&html_format())
-                    .await
-                    .map_err(|error| error.to_string())?;
-                match html {
-                    Some(html) => TaskClipboard::from_html(&html)?,
-                    None => None,
-                }
-            };
-            let text = data
-                .0
-                .try_get_value_async(&DataFormat::text())
-                .await
-                .map_err(|error| error.to_string())?
-                .unwrap_or_default();
+            let (payload, text) = crate::task_transfer::read_clipboard(&*data.0).await?;
             vm.paste_task_clipboard(target, payload, &text)
         }
         .await;

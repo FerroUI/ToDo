@@ -8,6 +8,13 @@ import { packageLinux, packageMac, packageWindows } from "./platforms.mjs";
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const defaultFormats = { linux: ["tar", "deb"], darwin: ["app", "dmg"], win32: ["zip", "msix", "installer"] };
 
+export function packageProfile(value = "dist-unwind") {
+    if (!["dist-unwind", "release-unwind", "dist", "release", "debug"].includes(value)) {
+        throw new Error("Package profile must be dist-unwind, release-unwind, dist, release, or debug");
+    }
+    return value;
+}
+
 export function packageFormats(targetPlatform, value) {
     const allowed = defaultFormats[platform(targetPlatform)];
     const result = value ? value.split(",") : [...allowed];
@@ -24,8 +31,7 @@ export async function packageNative(args = {}) {
     const cargo = await readFile(join(repo, "Cargo.toml"), "utf8");
     const section = cargo.split("[workspace.package]")[1]?.split("\n[")[0];
     const release = version(args.version || /(?:^|\n)version\s*=\s*"([^"]+)"/.exec(section || "")?.[1]);
-    const profile = args.profile || "dist";
-    if (!["dist", "release", "debug"].includes(profile)) throw new Error("Package profile must be dist, release, or debug");
+    const profile = packageProfile(args.profile);
     const binary = resolve(args.binary || join(repo, "target", profile, targetPlatform === "win32" ? "todo-desktop.exe" : "todo-desktop"));
     if (!(await stat(binary)).isFile()) throw new Error("Build todo-desktop before packaging it");
     const runtime = resolve(args.runtime || join(repo, "target/native/node-runtime"));

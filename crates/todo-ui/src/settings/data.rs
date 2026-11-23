@@ -65,7 +65,7 @@ pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
         .child(text_block().text("Backups with files are portable. Restoring makes a local copy and pauses Microsoft sync. Plain JSON backups contain file references only.")
             .font_size(12.0).foreground(p.secondary).text_wrapping(TextWrapping::Wrap))
         .child(action_button(Icon::Bell, "Enable notifications", move || notify.request(HostRequest::RequestNotifications)))
-        .child(text_block().text(if background {"Background reminder scheduling is enabled for this workspace."} else {"Reminders are delivered while this app is open."})
+        .child(text_block().text(if background || vm.push_state().enabled {"Background reminder scheduling is enabled for this workspace."} else {"Reminders are delivered while this app is open."})
             .font_size(12.0).foreground(p.secondary).text_wrapping(TextWrapping::Wrap))
         .child(section_label("About", p.text))
         .child(action_button(Icon::Info, "Keyboard shortcuts", move || help.show_panel(Panel::Help)))

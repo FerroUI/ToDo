@@ -1,5 +1,6 @@
 mod calendar;
 mod calendar_accessibility;
+mod date_field;
 mod recurrence;
 mod validation;
 

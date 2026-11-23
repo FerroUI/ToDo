@@ -8,7 +8,7 @@ import { architecture, options, platform, run, sha256, version } from "./native/
 import { nodeRelease, releaseChecksum } from "./native/node-runtime.mjs";
 import { copyServiceAssets, stageBundle, verifyRuntime } from "./native/bundle.mjs";
 import { debControl, macInfoPlist, msixManifest, nsis, windowsInstaller } from "./native/manifests.mjs";
-import { packageFormats } from "./native/package.mjs";
+import { packageFormats, packageProfile } from "./native/package.mjs";
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), "..");
 async function temporary(t) {
@@ -47,6 +47,11 @@ test("native release inputs reject unsupported targets, versions and option inje
     assert.deepEqual(packageFormats("linux", "tar,deb"), ["tar", "deb"]);
     assert.throws(() => packageFormats("linux", "tar,msix"));
     assert.throws(() => packageFormats("win32", "zip,zip"));
+    assert.equal(packageProfile(), "dist-unwind");
+    assert.equal(packageProfile("release-unwind"), "release-unwind");
+    assert.equal(packageProfile("debug"), "debug");
+    assert.throws(() => packageProfile("../../dist"));
+    assert.throws(() => packageProfile("dist-unwind\n"));
 });
 
 test("official Node archive selection and exact checksums reject ambiguous manifests", () => {

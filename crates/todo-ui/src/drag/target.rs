@@ -25,7 +25,8 @@ pub(crate) fn attach_list_target(control: &Ref<Button>, vm: Rc<AppViewModel>) {
             .set(TemplatedControl::border_brush_property(), "#3D73DD")
             .build(),
     );
-    attach(&control.clone().upcast(), vm, Target::List);
+    attach(&control.clone().upcast(), vm.clone(), Target::List);
+    super::external::attach_list(control, vm);
 }
 
 fn plan(

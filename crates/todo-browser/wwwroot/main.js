@@ -6,6 +6,7 @@ import { registerOffline } from "./offline.js";
 import { loadEmojiFont } from "./fonts.js";
 import { attachNavigation } from "./navigation.js";
 import { attachLifecycle } from "./lifecycle.js";
+import { attachPush } from "./push.js";
 
 try {
   await prepareMicrosoft();
@@ -19,6 +20,7 @@ try {
     attachRuntime(runtime);
     globalThis.todoApp = runtime;
     runtime.runMain(globalThis.location.search, emojiFont);
+    attachPush(runtime);
     attachNavigation(runtime);
     void attachMicrosoft(runtime, { workspaceChanged: acceptWorkspaceStorage });
     new ResizeObserver(() => runtime.resizeWindow(width())).observe(document.getElementById("out"));

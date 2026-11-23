@@ -159,6 +159,14 @@ pub fn host_status(message: &str) {
     }
 }
 
+#[wasm_bindgen(js_name = pushState)]
+pub fn push_state(contents: &str) -> Result<(), JsValue> {
+    crate::app::view_model()
+        .ok_or_else(|| JsValue::from_str("The app is starting"))?
+        .set_push_state(contents)
+        .map_err(|error| JsValue::from_str(&error))
+}
+
 #[wasm_bindgen(js_name = cloudHint)]
 pub fn cloud_hint(message: &str) {
     if let Some(vm) = crate::app::view_model() {

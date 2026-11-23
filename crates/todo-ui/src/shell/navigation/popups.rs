@@ -1,6 +1,6 @@
 use ferroui_base::Ref;
 use ferroui_controls::primitives::FlyoutBase;
-use ferroui_controls::{ContextMenu, Control, Grid, TextBox};
+use ferroui_controls::{ContextMenu, Control, Grid, RichEditBox, TextBox};
 use ferroui_view::on_cleanup;
 use std::rc::Rc;
 use todo_state::AppViewModel;
@@ -50,7 +50,8 @@ fn menu(root: &Control) -> Option<Ref<ContextMenu>> {
 
 fn editor_flyout(root: &Control) -> Option<Ref<FlyoutBase>> {
     root.get_visual_descendants()
-        .filter_map(|visual| visual.cast::<TextBox>())
+        .filter_map(|visual| visual.cast::<Control>())
+        .filter(|control| control.is::<TextBox>() || control.is::<RichEditBox>())
         .find_map(|editor| {
             let owner: &Control = &editor;
             editor.context_flyout().filter(|flyout| {

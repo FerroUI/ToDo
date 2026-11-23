@@ -66,3 +66,66 @@ fn native_formatting_links_and_ime_roundtrip_without_flattening() {
     assert_eq!(selected_link(&field), None);
     assert_eq!(read(&field).text(), "Hello é");
 }
+
+#[test]
+fn lifecycle_flush_commits_hidden_rich_note_and_composition_to_its_own_task() {
+    use ferroui_controls::Border;
+    use std::{cell::RefCell, rc::Rc};
+    use todo_domain::{AppState, Date};
+    use todo_state::AppViewModel;
+
+    let _scope = Dispatcher::unit_test_scope();
+    let saved = Rc::new(RefCell::new(String::new()));
+    let durable = saved.clone();
+    let vm = AppViewModel::new(
+        AppState::new(),
+        "2026-11-23".parse::<Date>().unwrap(),
+        Rc::new(move |json| {
+            *durable.borrow_mut() = json.to_owned();
+            Ok(())
+        }),
+    );
+    vm.add_task("First task".into());
+    let first = vm.state().tasks[0].id;
+    vm.add_task("Second task".into());
+    let second = vm.state().tasks[1].id;
+    vm.select(Some(first));
+    let area = Border::new();
+    area.set_name(Some(format!("NoteArea{first}")));
+    let field = RichEditBox::new();
+    field.set_name(Some("TaskNotes".into()));
+    area.set_child(field.clone());
+    let note = RichNote::from_html("<p><strong>日本語 👩🏽‍💻</strong></p>").unwrap();
+    field.rich_document().restore(&snapshot(&note)).unwrap();
+    let end = field.text().encode_utf16().count();
+    field.select(end, end);
+    field.set_preedit_text(Some("候補"), Some(2)).unwrap();
+    field.set_is_visible(false); // Preview retains the authoritative editor.
+    crate::editing::commit_pending_edits(&vm, &area);
+    assert!(!field.editor().is_composing());
+    let restored = AppState::from_json(&saved.borrow()).unwrap();
+    assert_eq!(restored.task(first).unwrap().notes, "日本語 👩🏽‍💻候補");
+    assert!(restored
+        .task(first)
+        .unwrap()
+        .notes_html
+        .as_deref()
+        .unwrap()
+        .contains("<strong>"));
+    assert_eq!(read(&field).text(), restored.task(first).unwrap().notes);
+    let once = saved.borrow().clone();
+    crate::editing::commit_pending_edits(&vm, &area);
+    assert_eq!(
+        *saved.borrow(),
+        once,
+        "a repeated lifecycle flush cannot duplicate composition"
+    );
+
+    // The VM has moved to the next task but the old retained pane has not yet
+    // reconciled. A host flush at that point cannot overwrite the new task.
+    vm.select(Some(second));
+    field.set_text("An old retained draft").unwrap();
+    crate::editing::commit_pending_edits(&vm, &area);
+    assert!(vm.state().task(second).unwrap().notes.is_empty());
+    assert_eq!(vm.state().task(first).unwrap().notes, "日本語 👩🏽‍💻候補");
+}

@@ -3,6 +3,7 @@ mod category_catalog;
 mod connections;
 mod controls;
 mod data;
+mod push;
 
 use crate::{detail::edit_field, palette};
 use controls::{section_label, toggle};
@@ -144,6 +145,7 @@ fn content(vm: Rc<AppViewModel>) -> Element {
         ))
         .child(account::view(vm.clone()))
         .child(connections::view(vm.clone()))
+        .child(push::view(vm.clone()))
         .child(data::view(vm.clone()));
     border()
         .background(p.background)

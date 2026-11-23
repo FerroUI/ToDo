@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::rc::Rc;
-use todo_domain::{Id, Theme};
+use todo_domain::{Date, Id, Theme};
 
 /// Explicit boundary between portable view models and browser/desktop capabilities.
 #[derive(Clone, Debug, Serialize)]
@@ -32,8 +32,18 @@ pub enum HostRequest {
     Notify {
         title: String,
         body: String,
+        task_id: Id,
+        date: Date,
+        minutes: u16,
     },
     RequestNotifications,
+    EnablePush {
+        service_url: String,
+        public_key: String,
+        enrollment_key: String,
+    },
+    DisablePush,
+    RefreshPush,
     CompletionSound,
     SetTheme {
         theme: Theme,

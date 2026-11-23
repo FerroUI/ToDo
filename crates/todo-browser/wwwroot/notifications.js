@@ -5,8 +5,8 @@ export async function requestNotifications() {
   if (permission !== "granted") throw new Error("Notification permission was not granted. Choose Enable notifications to try again.");
 }
 
-export async function notify(title, body) {
-  if (!("Notification" in window) || Notification.permission !== "granted") return;
+export async function notify(title, body, delivery = {}) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return false;
   const current = new URL(location.href), target = new URL(".", current);
   const demo = current.searchParams.get("demo") === "1";
   if (demo) target.searchParams.set("demo", "1");
@@ -14,14 +14,16 @@ export async function notify(title, body) {
   // become persistent notification data or be replayed when opening the app.
   const scope = new URL(".", target);
   const registration = await navigator.serviceWorker?.getRegistration(scope.href);
+  if (delivery.shouldShow && !delivery.shouldShow()) return false;
   const options = { body, icon: new URL("icon.svg", scope).href,
-    tag: `todo-${demo ? "demo" : "personal"}-${title}`, data: { url: target.href } };
+    tag: delivery.tag || `todo-${demo ? "demo" : "personal"}-${title}`, renotify: false, data: { url: target.href } };
   if (registration?.scope === scope.href && registration.active) {
-    await registration.showNotification(title, options);
+    await registration.showNotification(delivery.getTitle?.() || title, options);
   } else {
-    const notification = new Notification(title, options);
+    const notification = new Notification(delivery.getTitle?.() || title, options);
     notification.onclick = () => { notification.close(); window.focus(); };
   }
+  return true;
 }
 
 let audio;

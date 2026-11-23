@@ -19,9 +19,11 @@ import { verifyPstRoundTrip } from "./ui/pst-roundtrip.mjs";
 import { verifyHashtags } from "./ui/hashtags.mjs";
 import { verifyRichNotes } from "./ui/rich-notes.mjs";
 import { verifyBulkParity } from "./ui/bulk-parity.mjs";
+import { verifyExternalDrop } from "./ui/external-drop.mjs";
 import { verifyCategoryManagement } from "./ui/category-management.mjs";
 import { verifyWallpapers } from "./ui/wallpapers.mjs";
 import { verifyRecurrence } from "./ui/recurrence.mjs";
+import { verifyPushSettings } from "./ui/push-settings.mjs";
 
 const [site, output = "test-results/ui", ...extra] = process.argv.slice(2);
 if (!site || extra.length) throw new Error("usage: ui-smoke.mjs <built-site> [output-directory]");
@@ -155,7 +157,9 @@ try {
     { name: "hashtags", run: () => verifyHashtags(ui) },
     { name: "rich-notes", run: () => verifyRichNotes(ui) },
     { name: "bulk-parity", run: () => verifyBulkParity(ui) },
+    { name: "external-drop", run: () => verifyExternalDrop(ui) },
     { name: "category-management", run: () => verifyCategoryManagement(ui) },
+    { name: "push-settings", run: () => verifyPushSettings(ui) },
     { name: "wallpapers", run: () => verifyWallpapers(ui, output) },
     { name: "recurrence", run: () => verifyRecurrence(ui) },
     { name: "touch", run: () => verifyTouch(ui, output) },

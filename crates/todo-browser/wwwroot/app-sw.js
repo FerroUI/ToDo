@@ -6,6 +6,14 @@ const CACHE = PREFIX + VERSION;
 const INDEX = new URL("index.html", SCOPE).href;
 const resources = new Set(Array.isArray(ASSETS) ? ASSETS.map(([url]) => new URL(url, SCOPE).href) : []);
 
+// The classic worker and page share a dedicated private reminder sidecar. Both
+// companions use this exact deployment's immutable, precached asset revision.
+if (typeof importScripts === "function" && /^[a-f0-9]{16}$/.test(VERSION)) {
+  importScripts(new URL(`_app/${VERSION}/push-storage.js`, SCOPE).href,
+    new URL(`_app/${VERSION}/push-worker.js`, SCOPE).href);
+  globalThis.TodoPushWorker.install(self, new globalThis.TodoPushStore(SCOPE.href));
+}
+
 self.addEventListener("install", event => event.waitUntil((async () => {
   if (!Array.isArray(ASSETS)) throw new Error("Offline resources were not prepared.");
   try {

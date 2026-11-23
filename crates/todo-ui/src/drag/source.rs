@@ -127,17 +127,37 @@ fn attach(button: &Ref<Button>, vm: Rc<AppViewModel>, source: Source) {
             button.classes().set(DRAGGED, true);
             let current_epoch = epoch.get().wrapping_add(1);
             epoch.set(current_epoch);
-            let data = DataTransfer::new();
-            data.add(DataTransferItem::create(
+            let portable = match item {
+                DragItem::Task(_) => match vm
+                    .prepare_task_clipboard(session.origin.task_ids(), false)
+                    .and_then(|offer| crate::task_transfer::item(&offer.data))
+                {
+                    Ok(data) => Some(data),
+                    Err(error) => {
+                        vm.report_error(format!("External task drag is unavailable: {error}"));
+                        None
+                    }
+                },
+                DragItem::Sidebar(_) => None,
+            };
+            let effects = if portable.is_some() {
+                DragDropEffects::COPY | DragDropEffects::MOVE
+            } else {
+                DragDropEffects::MOVE
+            };
+            let exported = portable.unwrap_or_else(DataTransferItem::new);
+            exported.set(
                 &format(),
                 Some(ItemDrag {
                     item,
                     session: session.clone(),
                 }),
-            ));
+            );
+            let data = DataTransfer::new();
+            data.add(exported);
             // Clear Button.IsPressed even when no platform drag source is available.
             session.release_capture_for_drag();
-            let operation = DragDrop::do_drag_drop_async(&trigger, data, DragDropEffects::MOVE);
+            let operation = DragDrop::do_drag_drop_async(&trigger, data, effects);
             super::completion::observe(
                 operation,
                 session,

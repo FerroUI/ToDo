@@ -9,7 +9,7 @@ const attachment = (id, key, name = "plan.txt", size = 4) => ({ id, storage_key:
 function runtime(tasks = []) {
   let document = { schema_version: 1, tasks, lists: [{ id: 1, name: "Tasks" }], groups: [], next_id: 30,
     settings: { auto_sync: true, planner_enabled: true, outlook_categories_enabled: true,
-      presentation_sync_enabled: true, keep_running_in_background: true, account_name: "My account" } };
+      presentation_sync_enabled: true, keep_running_in_background: true, background_reminders: true, account_name: "My account" } };
   const calls = [];
   return {
     calls, exportData: () => JSON.stringify(document), get state() { return document; },
@@ -68,6 +68,7 @@ test("restore remaps shared files, commits once, and restores service tasks as i
   assert.equal(target.state.settings.outlook_categories_enabled, false);
   assert.equal(target.state.settings.presentation_sync_enabled, false);
   assert.equal(target.state.settings.keep_running_in_background, false);
+  assert.equal(target.state.settings.background_reminders, false);
   assert.equal(target.state.lists[0].cloud, undefined);
   assert.equal(target.state.tasks[0].external, undefined);
   assert.equal(target.state.tasks[0].assigned_to, null);

@@ -23,11 +23,12 @@ rejected without changing the current document.
 | Outlook data | Local result |
 | --- | --- |
 | Subject | Task title |
-| Plain-text body | Task note |
-| HTML-only body | Text projection using the existing Graph body conversion; original HTML retained |
+| Plain-text body | Searchable plain note; an explicit native plain-body edit takes precedence over a stale HTML alternative |
+| HTML body | Bounded safe rich note with formatting, lists and links, plus a searchable plain projection; original properties retained |
 | Task complete/status | Completed or active state; original status retained in source properties |
 | Importance | High importance becomes Important; original value retained |
-| Task due date | Civil due date |
+| Task start/due dates | Separate civil start and due dates |
+| Native Gregorian recurrence | Daily, weekly weekday sets, absolute/relative monthly/yearly patterns and finite ranges; unsupported forms remain in source properties |
 | Task completion date | Host-local date derived from the stored UTC completion instant |
 | Reminder set/time | Host-local date and time, resolving the UTC instant using the offset at that date |
 | Creation/modification/body modification times | Precise source timestamps retained alongside the local date projection |
@@ -42,9 +43,10 @@ and named strings through each PST's GUID/name map. It does not assume that a
 property ID equals a published MAPI LID. ANSI string properties use their
 codepage; invalid text and malformed maps produce an error.
 
-Native Outlook recurrence blobs and RTF-only bodies are retained as original
-properties but are not projected into the local recurrence editor or note.
-The import report explicitly warns about those cases. Embedded Outlook-item
+Supported native Outlook recurrence is projected into the shared recurrence
+editor. Unsupported calendars, sliding rules, exceptions and future recurrence
+structures remain in original properties with a warning. RTF-only bodies are
+retained, but the editor does not decode arbitrary RTF layout. Embedded Outlook-item
 attachments and external/linked attachments are rejected, because restoring
 them as ordinary local files would misrepresent their contents. Export those
 items as regular files in Outlook first.
@@ -67,7 +69,7 @@ offset at that future date, including daylight-saving rules.
 The shared browser/native exporter writes a new Unicode version 23 PST with
 `IPF.Task` folders, `IPM.Task` records, the store's named-property map, and
 by-value file attachments. Its task profile writes title, notes, completion,
-importance, due date, reminder, category names, and actual file bytes using
+importance, start/due dates, reminder, category names, and actual file bytes using
 standard properties. It emits an unencoded PST and does not modify an input
 PST in place. Export retains in-progress, waiting, or deferred status and low
 importance from the imported Graph/PST source when the corresponding local
@@ -84,15 +86,21 @@ contain their UTC equivalents using the host timezone.
 
 Steps appear as a checklist in the task note. Versioned
 `FerroUI.ToDo.Task` named metadata additionally preserves structured steps,
-My Day, local recurrence settings, and linked resources for restoration by
+My Day, rich notes, local recurrence settings, and linked resources for restoration by
 this app. If an Outlook user edits the exported note, reimport preserves that
 edited note instead of replacing it with the old private-metadata note.
 
-Outlook receives standalone occurrences for repeating tasks. The exporter
-warns that recurrence settings are preserved for FerroUI restore, rather than
-being encoded as a native Outlook recurring-task series. It also reports when
-steps are rendered into notes. Richer mailbox/task fields and unsupported native
-recurrence data are not all round-tripped by this exporter. Group names form
+Supported schedules are written as native `PidLidTaskRecurrence` rules with
+`PidLidTaskFRecurring` and `PidLidTaskDeadOccurrence`. Numbered series retain the
+remaining count; completed historical occurrences cannot generate another task.
+Version 3 app metadata preserves richer range/zone/occurrence information only
+while Outlook's native projection remains unchanged. Outlook repeat edits and
+explicit repeat removal take precedence. [Scheduling](scheduling.md) explains
+the distinction between Graph and Outlook multi-weekday ordinal semantics.
+
+Unrepresentable schedules remain in app metadata with an explicit export
+warning. The exporter also reports steps rendered into notes. Unsupported
+mailbox/RTF/exception forms are not all round-tripped by this exporter. Group names form
 folder paths, while presentation details such as themes and category colors
 remain application/cloud metadata.
 
@@ -188,7 +196,12 @@ timestamps, the To Do body-modification named property, and local completion/
 importance edits taking precedence. JavaScript tests additionally exercise
 start/due UTC companion values across a daylight-saving offset.
 
-The emitted WASM is built and exercised against the same PST fixture. Opening
+`recurrence.pst` verifies standard native recurring tasks, finite counts,
+progressed series, completed historical occurrences and external Outlook edits.
+`rich-notes.pst` verifies native HTML, safe formatting, plain-body precedence and
+edited Outlook notes taking precedence over app metadata.
+
+The emitted WASM is built and exercised against the same PST fixtures. Opening
 the result in a desktop Outlook installation remains manual acceptance work;
 independent parsing is strong format evidence but is not a claim of testing
 every Outlook version, ANSI encoding variant, or external PST producer.

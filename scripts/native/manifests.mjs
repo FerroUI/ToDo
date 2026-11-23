@@ -1,4 +1,5 @@
 import { architecture, version } from "./common.mjs";
+import { debianDependencies } from "./debian.mjs";
 
 function text(value) {
     value = String(value);
@@ -53,10 +54,10 @@ export function desktopEntry() {
     return `[Desktop Entry]\nType=Application\nName=To Do\nComment=Tasks, lists and reminders\nExec=/opt/ferroui-todo/todo-desktop\nIcon=ferroui-todo\nTerminal=false\nCategories=Office;ProjectManagement;\nStartupNotify=true\n`;
 }
 
-export function debControl(release, arch, installedKiB, minimumGlibc = "2.35") {
+export function debControl(release, arch, installedKiB, minimumGlibc = "2.35", linked = []) {
     if (!Number.isSafeInteger(installedKiB) || installedKiB < 0) throw new Error("Invalid installed package size");
     if (!/^\d+\.\d+(?:\.\d+)?$/.test(minimumGlibc)) throw new Error("Invalid minimum glibc version");
-    return `Package: ferroui-todo\nVersion: ${version(release)}\nArchitecture: ${architecture(arch) === "x64" ? "amd64" : "arm64"}\nMaintainer: FerroUI contributors <noreply@ferroui.com>\nSection: utils\nPriority: optional\nInstalled-Size: ${installedKiB}\nDepends: libc6 (>= ${minimumGlibc}), libstdc++6, libgcc-s1, libfontconfig1, libfreetype6, libx11-6, libxi6, libxrandr2, libxcursor1, libxrender1, libxext6, libegl1, libgl1, libgtk-3-0\nRecommends: dbus-user-session, xdg-utils\nHomepage: https://github.com/FerroUI/ToDo\nDescription: Native FerroUI task manager\n Tasks, lists, reminders, portable archives and optional Microsoft integration.\n Includes the Node.js runtime used by the isolated native service worker.\n`;
+    return `Package: ferroui-todo\nVersion: ${version(release)}\nArchitecture: ${architecture(arch) === "x64" ? "amd64" : "arm64"}\nMaintainer: FerroUI contributors <noreply@ferroui.com>\nSection: utils\nPriority: optional\nInstalled-Size: ${installedKiB}\nDepends: ${debianDependencies(minimumGlibc, linked)}\nRecommends: dbus-user-session, xdg-utils\nHomepage: https://github.com/FerroUI/ToDo\nDescription: Native FerroUI task manager\n Tasks, lists, reminders, portable archives and optional Microsoft integration.\n Includes the Node.js runtime used by the isolated native service worker.\n`;
 }
 
 export function windowsInstaller({ release, source, output }) {

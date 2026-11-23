@@ -12,6 +12,7 @@ mod naming;
 mod navigation;
 mod persistence;
 mod presentation;
+mod push;
 mod refresh;
 mod repeat_draft;
 mod scheduling;
@@ -23,6 +24,7 @@ pub use integration::OutlookCategory;
 pub use layout::{PaneLayout, COMPACT_WIDTH, DETAIL_WIDTH, MINIMUM_LIST_WIDTH, NAVIGATION_WIDTH};
 pub use naming::{RenameSession, RenameTarget};
 pub use navigation::{view_title, Panel};
+pub use push::PushState;
 pub use repeat_draft::{RepeatDraft, RepeatValidation};
 pub use scheduling::{parse_reminder_time, reminder_in_one_hour};
 pub use services::{HostRequest, HostServices, SaveCallback};
@@ -71,6 +73,7 @@ pub struct AppViewModel {
     background_supported: Cell<bool>,
     background_reminders_supported: Cell<bool>,
     background_reminders_status: RefCell<String>,
+    push_state: RefCell<PushState>,
     outlook_categories: RefCell<Vec<OutlookCategory>>,
     completed_expanded: Cell<bool>,
     sort: Cell<SortOrder>,
@@ -129,6 +132,7 @@ impl AppViewModel {
                 background_supported: Cell::new(false),
                 background_reminders_supported: Cell::new(false),
                 background_reminders_status: RefCell::new(String::new()),
+                push_state: RefCell::new(PushState::default()),
                 outlook_categories: RefCell::new(Vec::new()),
                 completed_expanded: Cell::new(true),
                 sort: Cell::new(SortOrder::Manual),

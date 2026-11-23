@@ -42,13 +42,40 @@ pub fn linux_timer(plan: &Registration) -> String {
 }
 
 pub fn macos_agent(plan: &Registration) -> Result<String, String> {
+    macos_agent_with_catch_up(plan, true)
+}
+
+pub struct MacosInstallation {
+    pub persistent: String,
+    pub bootstrap: String,
+}
+
+/// Login catch-up runs once when a previously unloaded job is installed. Replacing
+/// a loaded job must not immediately run the helper again (including failed deliveries).
+pub fn macos_installation(
+    plan: &Registration,
+    loaded: bool,
+    existing: Option<&str>,
+) -> Result<Option<MacosInstallation>, String> {
+    let persistent = macos_agent(plan)?;
+    if loaded && existing == Some(persistent.as_str()) {
+        return Ok(None);
+    }
+    let bootstrap = macos_agent_with_catch_up(plan, !loaded)?;
+    Ok(Some(MacosInstallation {
+        persistent,
+        bootstrap,
+    }))
+}
+
+fn macos_agent_with_catch_up(plan: &Registration, catch_up: bool) -> Result<String, String> {
     Ok(format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>Label</key><string>{}</string>
 <key>ProgramArguments</key><array><string>{}</string><string>--deliver-reminders</string><string>--data-dir</string><string>{}</string></array>
-<key>RunAtLoad</key><true/>
+<key>RunAtLoad</key><{}/>
 <key>ProcessType</key><string>Background</string>
 <key>StartCalendarInterval</key><dict><key>Month</key><integer>{}</integer><key>Day</key><integer>{}</integer><key>Hour</key><integer>{}</integer><key>Minute</key><integer>{}</integer></dict>
 </dict></plist>
@@ -56,6 +83,7 @@ pub fn macos_agent(plan: &Registration) -> Result<String, String> {
         xml(&plan.id),
         xml(path(&plan.executable)?),
         xml(path(&plan.directory)?),
+        if catch_up { "true" } else { "false" },
         plan.next.month(),
         plan.next.day(),
         plan.next.hour(),

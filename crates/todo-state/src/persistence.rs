@@ -33,7 +33,12 @@ impl AppViewModel {
 
     fn prepare_document(&self, json: &str, record_undo: bool) -> Result<AppState, String> {
         let mut document = AppState::from_json(json).map_err(|error| error.to_string())?;
-        if !record_undo {
+        if record_undo {
+            // Imported data cannot opt this installation into resident or scheduled OS work.
+            // Account workspace activation uses its own replacement path and retains local consent.
+            document.settings.keep_running_in_background = false;
+            document.settings.background_reminders = false;
+        } else {
             // Root navigation order is local-only even when an older Graph adapter omits it.
             document.sidebar_order = self.document.borrow().sidebar_order.clone();
             document.repair_sidebar_order();
@@ -158,6 +163,9 @@ impl AppViewModel {
                     requests.push(HostRequest::Notify {
                         title,
                         body: "Your task reminder".into(),
+                        task_id: id,
+                        date: key.1,
+                        minutes: key.2,
                     });
                 }
             }

@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { run } from "./common.mjs";
 import { directorySize } from "./bundle.mjs";
 import { debControl, desktopEntry, macInfoPlist, msixManifest, nodeEntitlements, windowsInstaller } from "./manifests.mjs";
+import { inspectDebianDependencies } from "./debian.mjs";
 
 async function file(source, target) {
     await mkdir(dirname(target), { recursive: true });
@@ -53,15 +54,17 @@ export async function packageLinux({ bundle, repo, work, out, name, release, arc
         await writeFile(join(root, "usr/share/applications/ferroui-todo.desktop"), desktopEntry());
         await file(join(repo, "LICENSE"), join(root, "usr/share/doc/ferroui-todo/copyright"));
         await file(join(repo, "NOTICE.md"), join(root, "usr/share/doc/ferroui-todo/NOTICE.md"));
-        const symbols = await Promise.all([bundle.executable, join(bundle.resources, "runtime/node")].map(path =>
+        const executables = [bundle.executable, join(bundle.resources, "runtime/node")];
+        const symbols = await Promise.all(executables.map(path =>
             runner("readelf", ["--version-info", path], { env, capture: true })));
         const minimum = minimumGlibc(symbols);
+        const linked = await inspectDebianDependencies(executables, work, env, runner);
         const installedKiB = Math.ceil(await directorySize(root) / 1024);
         await mkdir(join(root, "DEBIAN"), { mode: 0o755 });
-        await writeFile(join(root, "DEBIAN/control"), debControl(release, arch, installedKiB, minimum), { mode: 0o644 });
+        await writeFile(join(root, "DEBIAN/control"), debControl(release, arch, installedKiB, minimum, linked), { mode: 0o644 });
         const path = join(out, `${name}.deb`);
         await runner("dpkg-deb", ["--build", "--root-owner-group", root, path], { env });
-        artifacts.push({ path, signed: false, applicationSigned: false, minimumGlibc: minimum });
+        artifacts.push({ path, signed: false, applicationSigned: false, minimumGlibc: minimum, linkedDependencies: linked });
     }
     return artifacts;
 }
@@ -408,7 +411,8 @@ export async function packageWindows({ bundle, repo, work, out, name, release, a
     if (requested.has("installer")) {
         const path = join(out, `${name}-setup.exe`);
         const script = join(work, "installer.nsi");
-        await writeFile(script, windowsInstaller({ release, source: bundle.app, output: path }));
+        // NSIS otherwise decodes BOM-less source with the Windows ANSI code page.
+        await writeFile(script, "\ufeff" + windowsInstaller({ release, source: bundle.app, output: path }));
         let makensis = env.TODO_MAKENSIS;
         if (!makensis) {
             const installed = join(env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "NSIS", "makensis.exe");

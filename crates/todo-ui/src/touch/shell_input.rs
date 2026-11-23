@@ -4,7 +4,7 @@ use ferroui_base::input::{
     IPointer, PointerEventArgs, PointerPressedEventArgs, PointerReleasedEventArgs, PointerType,
 };
 use ferroui_controls::primitives::ScrollBar;
-use ferroui_controls::{Control, Grid, ListBox, ScrollViewer, TextBox};
+use ferroui_controls::{Control, Grid, ListBox, RichEditBox, ScrollViewer, TextBox};
 use std::rc::Rc;
 use todo_state::{
     gestures::{Axis, TouchTrack},
@@ -191,15 +191,15 @@ impl GestureRecognizerImpl for ShellRecognizer {
 }
 
 fn is_native_drag_source(event: &PointerEventArgs) -> bool {
-    // TextBox claims touch selection only after its own movement threshold. The shell's
-    // smaller threshold must not steal that capture; scrolling chrome also owns its drags.
+    // Native text editors claim touch selection after their own movement threshold.
+    // The shell must not steal their capture; scrolling chrome also owns its drags.
     event
         .source()
         .and_then(|source| source.cast::<Control>())
         .is_some_and(|source| {
-            source
-                .get_self_and_visual_ancestors()
-                .any(|visual| visual.is::<TextBox>() || visual.is::<ScrollBar>())
+            source.get_self_and_visual_ancestors().any(|visual| {
+                visual.is::<TextBox>() || visual.is::<RichEditBox>() || visual.is::<ScrollBar>()
+            })
         })
 }
 

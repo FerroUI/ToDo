@@ -68,7 +68,14 @@ impl Transport {
         std::thread::spawn(move || {
             let binary = todo_desktop::node_runtime::binary();
             let setup = prepare_runtime(&directory).and_then(|script| {
-                let version = Command::new(&binary).arg("--version").env_remove("NODE_OPTIONS").env_remove("NODE_PATH").output()
+                let mut command = Command::new(&binary);
+                command.arg("--version").env_remove("NODE_OPTIONS").env_remove("NODE_PATH");
+                #[cfg(windows)]
+                {
+                    use std::os::windows::process::CommandExt;
+                    command.creation_flags(0x08000000);
+                }
+                let version = command.output()
                     .map_err(|_| "Native services require Node.js 22 or newer. Install Node.js or set TODO_NODE_BINARY to its executable.".to_owned())?;
                 let major = String::from_utf8_lossy(&version.stdout).trim().trim_start_matches('v').split('.').next().and_then(|v| v.parse::<u32>().ok()).unwrap_or(0);
                 if !version.status.success() || major < 22 { return Err("Native services require Node.js 22 or newer. Update Node.js or set TODO_NODE_BINARY.".into()); }

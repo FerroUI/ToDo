@@ -14,3 +14,4 @@ ferroui-reactiveui.workspace = true
 ferroui-dynamic-data.workspace = true
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+getrandom.workspace = true

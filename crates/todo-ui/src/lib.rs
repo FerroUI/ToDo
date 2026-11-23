@@ -12,6 +12,7 @@ mod settings;
 mod shell;
 mod sidebar;
 mod suggestions;
+mod task_transfer;
 mod touch;
 
 use ferroui_base::Ref;

@@ -34,6 +34,8 @@ jobs:
           cargo test --locked -p todo-domain -p todo-state -p todo-interop -p todo-credentials
           cargo test --locked -p todo-ui --lib
           node --test scripts/*.test.mjs
+          npm --prefix services/reminders ci --ignore-scripts --no-audit --no-fund
+          npm --prefix services/reminders test
       - name: Build browser app
         id: browser_build
         env:

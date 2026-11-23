@@ -88,4 +88,6 @@ runs:
       with:
         node-version: 24
         cache: npm
-        cache-dependency-path: FerroUI/src/Browser/FerroUI.Browser/webapp/package-lock.json
+        cache-dependency-path: |
+          services/reminders/package-lock.json
+          FerroUI/src/Browser/FerroUI.Browser/webapp/package-lock.json

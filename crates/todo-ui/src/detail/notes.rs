@@ -41,25 +41,9 @@ fn editor(vm: Rc<AppViewModel>, id: Id) -> Element {
     let refresh_baseline = baseline.clone();
     use_effect_with(original.clone(), move |incoming| {
         if let Some(field) = field.get_untracked() {
-            let previous = refresh_baseline.borrow().clone();
-            let current = document::read(&field);
-            let dirty = current.text() != previous.0 || canonical(&current) != previous.1;
-            if !dirty && previous != *incoming && !field.editor().is_composing() {
-                let note = incoming
-                    .1
-                    .as_deref()
-                    .and_then(|s| RichNote::from_html(s).ok())
-                    .unwrap_or_else(|| RichNote::plain(&incoming.0));
-                if field
-                    .rich_document()
-                    .restore(&document::snapshot(&note))
-                    .is_ok()
-                {
-                    field.editor().clear_history();
-                    preview.set(note);
-                }
+            if let Some(note) = refresh_draft(&field, &refresh_baseline, incoming) {
+                preview.set(note);
             }
-            *refresh_baseline.borrow_mut() = incoming.clone();
         }
     });
     let save: Rc<dyn Fn(&RichEditBox)> = {
@@ -69,10 +53,7 @@ fn editor(vm: Rc<AppViewModel>, id: Id) -> Element {
             if field.editor().is_composing() {
                 return;
             }
-            let note = document::read(field);
-            *baseline.borrow_mut() = (note.text(), canonical(&note));
-            preview.set(note.clone());
-            commit(&vm, id, field);
+            preview.set(save_draft(&vm, id, field, &baseline));
         })
     };
     let mut toolbar = wrap_panel()
@@ -294,12 +275,20 @@ fn canonical(note: &RichNote) -> Option<String> {
     note.has_formatting().then(|| note.to_html())
 }
 
-pub(crate) fn commit(vm: &AppViewModel, id: Id, field: &RichEditBox) {
+type NoteVersion = (String, Option<String>);
+
+fn save_draft(
+    vm: &AppViewModel,
+    id: Id,
+    field: &RichEditBox,
+    baseline: &RefCell<NoteVersion>,
+) -> RichNote {
     let note = document::read(field);
+    let submitted = (note.text(), canonical(&note));
     let state = vm.state();
     let changed = state
         .task(id)
-        .is_some_and(|task| task.notes != note.text() || task.notes_html != canonical(&note));
+        .is_some_and(|task| task.notes != submitted.0 || task.notes_html != submitted.1);
     drop(state);
     if changed {
         vm.dispatch(Action::SetRichNotes {
@@ -307,4 +296,46 @@ pub(crate) fn commit(vm: &AppViewModel, id: Id, field: &RichEditBox) {
             html: note.to_html(),
         });
     }
+    // Rejected or queued commands must not turn an unaccepted draft into the
+    // clean baseline: a later incoming update could otherwise replace it.
+    if vm
+        .state()
+        .task(id)
+        .is_some_and(|task| task.notes == submitted.0 && task.notes_html == submitted.1)
+    {
+        *baseline.borrow_mut() = submitted;
+    }
+    note
 }
+
+fn refresh_draft(
+    field: &RichEditBox,
+    baseline: &RefCell<NoteVersion>,
+    incoming: &NoteVersion,
+) -> Option<RichNote> {
+    let previous = baseline.borrow().clone();
+    let current = document::read(field);
+    let dirty = current.text() != previous.0 || canonical(&current) != previous.1;
+    let mut refreshed = None;
+    if !dirty && previous != *incoming && !field.editor().is_composing() {
+        let note = incoming
+            .1
+            .as_deref()
+            .and_then(|s| RichNote::from_html(s).ok())
+            .unwrap_or_else(|| RichNote::plain(&incoming.0));
+        if field
+            .rich_document()
+            .restore(&document::snapshot(&note))
+            .is_ok()
+        {
+            field.editor().clear_history();
+            refreshed = Some(note);
+        }
+    }
+    *baseline.borrow_mut() = incoming.clone();
+    refreshed
+}
+
+#[cfg(test)]
+#[path = "notes_tests.rs"]
+mod tests;

@@ -122,25 +122,42 @@ fn macos(directory: &Path, registration: Option<&Registration>) -> Result<(), St
         .join(format!("{id}.plist"));
     let domain = format!("gui/{}", unsafe { libc::getuid() });
     let target = format!("{domain}/{id}");
-    let exists = agent.exists();
-    if registration.is_none() && !exists {
-        return Ok(());
-    }
     let loaded = commands::output(Command::new("/bin/launchctl").args(["print", &target]))?
         .status
         .success();
-    if loaded {
-        commands::run(Command::new("/bin/launchctl").args(["bootout", &target]))?;
-    }
     if let Some(plan) = registration {
-        write_atomic(&agent, &templates::macos_agent(plan)?)?;
-        commands::run(
+        let existing = match std::fs::read_to_string(&agent) {
+            Ok(value) => Some(value),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error.to_string()),
+        };
+        let Some(installation) = templates::macos_installation(plan, loaded, existing.as_deref())?
+        else {
+            return Ok(());
+        };
+        if loaded {
+            commands::run(Command::new("/bin/launchctl").args(["bootout", &target]))?;
+        }
+        // launchd retains the loaded configuration. Its login file keeps RunAtLoad,
+        // while this one-time bootstrap suppresses another immediate catch-up loop.
+        let bootstrap = directory.join("background-reminder-bootstrap.plist");
+        write_atomic(&bootstrap, &installation.bootstrap)?;
+        let result = commands::run(
             Command::new("/bin/launchctl")
                 .arg("bootstrap")
                 .arg(&domain)
-                .arg(&agent),
-        )
+                .arg(&bootstrap),
+        );
+        let _ = std::fs::remove_file(bootstrap);
+        result?;
+        // Publish the desired login file only after launchd accepts it. Otherwise a
+        // failed replacement could leave the old job loaded beside a new file and
+        // make the next idempotence check incorrectly skip the necessary retry.
+        write_atomic(&agent, &installation.persistent)
     } else {
+        if loaded {
+            commands::run(Command::new("/bin/launchctl").args(["bootout", &target]))?;
+        }
         match std::fs::remove_file(&agent) {
             Ok(()) => Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),

@@ -2271,6 +2271,7 @@ dependencies = [
  "ferroui-reactive",
  "ferroui-reactiveui",
  "ferroui-system",
+ "getrandom",
  "serde",
  "serde_json",
  "todo-domain",

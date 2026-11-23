@@ -32,7 +32,12 @@ export async function verifySettingsPresentation(ui) {
     await page.wheel(width - 80, 600, 0, 520);
     await until(async () => (await snapshot()).elements.some(element => element.hit && element.type === "ToggleSwitch"), "settings preferences remain visible after scrolling");
     await capture(`settings-${label}-preferences`);
-    const account = (await snapshot()).elements.find(element => element.type.endsWith("TextBlock") && element.text === "Microsoft account");
+    let account;
+    for (let step = 0; step < 20; step++) {
+      account = (await snapshot()).elements.find(element => element.type.endsWith("TextBlock") && element.text === "Microsoft account");
+      if (account) break;
+      await page.wheel(width - 80, 600, 0, 160);
+    }
     assert(account, "Settings includes the Microsoft account section");
     await page.wheel(width - 80, 600, 0, account.y - 100);
     bounded(await control(button("Connect Microsoft account"), "Microsoft sign-in action"), width, "Microsoft sign-in");

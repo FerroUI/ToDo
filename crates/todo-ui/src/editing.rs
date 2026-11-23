@@ -32,7 +32,17 @@ pub fn commit_pending_edits(vm: &AppViewModel, root: &Control) {
         {
             // The editor stays mounted in preview mode so native undo/selection
             // survive. It is still the authoritative pending document.
-            if let Some(task) = task {
+            let owner = field
+                .get_self_and_visual_ancestors()
+                .filter_map(|visual| visual.cast::<Control>())
+                .filter_map(|control| control.name())
+                .find_map(|name| {
+                    name.strip_prefix("NoteArea")
+                        .and_then(|id| id.parse::<u64>().ok())
+                });
+            // Selection may already have changed while reconciliation still
+            // retains the previous pane. Never assign that old editor to a new task.
+            if let Some(task) = task.filter(|task| Some(task.id) == owner) {
                 if crate::detail::notes_document::settle_composition(&field).is_err() {
                     continue;
                 }

@@ -4,6 +4,7 @@ import { cp, mkdir, mkdtemp, readFile, readlink, rm, writeFile } from "node:fs/p
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { minimumGlibc, minimumMacOS, packageLinux, packageMac, packageWindows, peImports, standaloneWindowsImports, windowsSdkTool, windowsSigning } from "./native/platforms.mjs";
+import { debianDependencies, inspectDebianDependencies, linkedDebianDependencies } from "./native/debian.mjs";
 
 const MACHO_LEGACY = "Load command 4\n      cmd LC_VERSION_MIN_MACOSX\n  cmdsize 16\n  version 11.0\n      sdk 15.0\n";
 const MACHO_NODE = "Load command 8\n      cmd LC_BUILD_VERSION\n  cmdsize 32\n platform 1\n    minos 13.5\n      sdk 15.4\n   ntools 1\n     tool 3\n  version 1115.7.3\n";
@@ -32,7 +33,7 @@ function peImage({ imports = ["KERNEL32.dll", "api-ms-win-crt-runtime-l1-1-0.dll
 }
 
 async function fixture(t, platform) {
-    const root = await mkdtemp(join(tmpdir(), "todo packaging $ ' "));
+    const root = await mkdtemp(join(tmpdir(), "todo packaging $ ' 日本語 café "));
     t.after(() => rm(root, { recursive: true, force: true }));
     const repo = join(root, "repo"), work = join(root, "work"), out = join(root, "out");
     const directory = join(work, "FerroUI-ToDo-1.2.3");
@@ -60,18 +61,42 @@ test("Linux package staging preserves runtime bytes and raises the libc dependen
     const options = await fixture(t, "linux"), calls = [];
     const artifacts = await packageLinux({ ...options, formats: ["tar", "deb"], env: {}, runner: async (command, args, extra) => {
         calls.push({ command, args, extra });
+        if (command === "dpkg-shlibdeps") return "shlibs:Depends=libc6 (>= 2.38), libstdc++6 (>= 14), libgcc-s1 (>= 4.2)\n";
         return command === "readelf" ? args[1].endsWith("/node") ? "GLIBC_2.9 GLIBC_2.40" : "GLIBC_2.37 GLIBCXX_3.4.30" : "";
     } });
     const staged = join(options.work, "deb");
     assert.equal(await readFile(join(staged, "opt/ferroui-todo/runtime/node"), "utf8"), "test runtime");
     assert.equal(await readlink(join(staged, "usr/bin/ferroui-todo")), "/opt/ferroui-todo/todo-desktop");
     assert.match(await readFile(join(staged, "DEBIAN/control"), "utf8"), /libc6 \(>= 2\.40\)/);
+    assert.match(await readFile(join(staged, "DEBIAN/control"), "utf8"), /libstdc\+\+6 \(>= 14\)/);
+    assert.match(await readFile(join(staged, "DEBIAN/control"), "utf8"), /libgcc-s1 \(>= 4\.2\)/);
     assert.match(await readFile(join(staged, "usr/share/applications/ferroui-todo.desktop"), "utf8"), /Exec=\/opt\/ferroui-todo\/todo-desktop/);
     assert.equal(artifacts[1].minimumGlibc, "2.40");
     assert.ok(artifacts.every(artifact => artifact.signed === false));
-    assert.deepEqual(calls.map(call => call.command), ["tar", "readelf", "readelf", "dpkg-deb"]);
-    assert.ok(calls[3].args.includes("--root-owner-group"));
+    assert.deepEqual(calls.map(call => call.command), ["tar", "readelf", "readelf", "dpkg-shlibdeps", "dpkg-deb"]);
+    assert.deepEqual(calls[3].args, ["-O", `-e${options.bundle.executable}`, `-e${join(options.bundle.resources, "runtime/node")}`]);
+    assert.ok(calls[4].args.includes("--root-owner-group"));
     assert.ok(calls[0].args.includes(options.bundle.app.split("/").at(-1)));
+});
+
+test("Debian dependency inspection preserves versioned and alternative requirements and fails closed", async t => {
+    const linked = linkedDebianDependencies("shlibs:Depends=libc6 (>= 2.35), libstdc++6 (>= 14), libblas3 | libblas.so.3\n");
+    const merged = debianDependencies("2.35", linked);
+    assert.equal((merged.match(/libc6 \(>= 2\.35\)/g) || []).length, 1);
+    assert.equal((merged.match(/libstdc\+\+6/g) || []).length, 1);
+    assert.ok(merged.includes("libblas3 | libblas.so.3"));
+    assert.ok(merged.includes("libgtk-3-0"), "runtime-loaded GUI libraries retain explicit dependencies");
+    assert.throws(() => linkedDebianDependencies(""), /dependency declaration/);
+    assert.throws(() => linkedDebianDependencies("shlibs:Depends=\n"), /dependency declaration/);
+    assert.throws(() => linkedDebianDependencies("shlibs:Depends=libc6\nshlibs:Depends=libc6\n"), /one dependency/);
+    assert.throws(() => debianDependencies("2.35", ["libc6\nInjected: yes"]), /dependency declaration/);
+    assert.throws(() => debianDependencies("2.35", ["libc6\n"]), /dependency declaration/);
+    const options = await fixture(t, "linux");
+    await assert.rejects(inspectDebianDependencies([options.bundle.executable], options.work, {}, async (command, args) => {
+        assert.equal(command, "dpkg-shlibdeps");
+        assert.ok(!args.includes("--ignore-missing-info"));
+        throw new Error("no dependency information found for a linked library");
+    }), /no dependency information/);
 });
 
 test("GLIBC requirements compare numeric version components and ignore C++ namespace versions", () => {
@@ -146,6 +171,7 @@ test("Windows packaging keeps source paths out of PowerShell source and validate
     assert.match(manifest, /Publisher="CN=Test &amp; Example"/);
     assert.match(manifest, /packagedClassicApp/);
     const installer = await readFile(join(options.work, "installer.nsi"), "utf8");
+    assert.equal(installer.codePointAt(0), 0xfeff, "NSIS must decode UTF-8 paths independently of the Windows ANSI code page");
     assert.match(installer, /RequestExecutionLevel user/);
     assert.match(installer, /--disable-background-reminders/);
     assert.ok(installer.includes(options.bundle.app.replaceAll("$", () => "$$")), "NSIS paths must preserve literal dollar signs");

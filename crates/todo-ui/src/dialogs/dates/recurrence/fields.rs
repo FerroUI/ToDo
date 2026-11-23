@@ -4,7 +4,7 @@ use ferroui_base::input::Key;
 use ferroui_base::layout::HorizontalAlignment;
 use ferroui_base::media::TextWrapping;
 use ferroui_base::utilities::{DateTime, DayOfWeek};
-use ferroui_controls::{CalendarDatePicker, CalendarDatePickerFormat, TextBox};
+use ferroui_controls::{CalendarDatePickerFormat, TextBox};
 use ferroui_view::prelude::*;
 use std::rc::Rc;
 use todo_domain::{Date, RepeatDay};
@@ -55,7 +55,7 @@ pub fn date(
     value: Signal<String>,
     error: Signal<String>,
 ) -> Element {
-    let selected = value.get().parse::<Date>().unwrap_or(vm.today());
+    let selected = value.get_untracked().parse::<Date>().unwrap_or(vm.today());
     calendar_date_picker()
         .name(name)
         .automation_properties_name(label)
@@ -77,16 +77,7 @@ pub fn date(
         } else {
             DayOfWeek::Sunday
         })
-        .text(value.two_way())
-        .on_changed(CalendarDatePicker::text_property(), move |_| {
-            error.set(String::new())
-        })
-        .with(move |picker| {
-            let subscription = picker.date_validation_error(move |_| {
-                error.set("Enter a valid calendar date in YYYY-MM-DD format.".into())
-            });
-            on_cleanup(move || drop(subscription));
-        })
+        .with(move |picker| super::super::date_field::attach(picker, value, error))
         .into()
 }
 

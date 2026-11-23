@@ -1,6 +1,7 @@
 import { deleteAttachment, openAttachment, downloadBlob, chooseFile, storeAttachment } from "./attachments.js";
 import { attachFiles } from "./attachment-upload.js";
-import { requestNotifications, notify, completionSound } from "./notifications.js";
+import { requestNotifications, completionSound } from "./notifications.js";
+import { pushDocumentChanged, pushDocumentImported, pushRequest, notifyWithPush } from "./push.js";
 import { microsoftRequest, microsoftDocumentChanged, microsoftExclusive, microsoftAccountId } from "./graph.js";
 import { openCloudAttachment, materializeCloudAttachment } from "./cloud/attachment-content.js";
 import { downloadPortable, readBackupFile } from "./backup/host.js";
@@ -20,7 +21,7 @@ export function attachRuntime(value) {
   runtime = Object.create(value);
   Object.defineProperty(runtime, "importData", { value: json => demo ? value.importData(json)
     : commitWorkspaceImport(value, json, prepared => value.importData(prepared), {
-      beforeCommit: revokeResume, afterCommit: acceptWorkspaceStorage,
+      beforeCommit: revokeResume, afterCommit: contents => { pushDocumentImported(); acceptWorkspaceStorage(contents); },
     }) });
   // Demo startup builds a sample directly in Rust and does not call load().
   if (demo) {
@@ -29,9 +30,9 @@ export function attachRuntime(value) {
   }
 }
 export function load() { return documentStorage.load(); }
-export function acceptWorkspaceStorage(contents) { documentStorage.acceptWorkspace(contents); }
+export function acceptWorkspaceStorage(contents) { documentStorage.acceptWorkspace(contents); pushDocumentChanged(); }
 export function save(contents) {
-  try { documentStorage.save(contents); microsoftDocumentChanged(contents); }
+  try { documentStorage.save(contents); microsoftDocumentChanged(contents); pushDocumentChanged(); }
   // The existing wasm boundary reads JsValue::as_string; preserve the actionable message.
   catch (error) { throw error?.message || String(error); }
 }
@@ -154,7 +155,10 @@ async function handle(action) {
       break;
     case "deleteAttachment": await deleteAttachment(action.key); break;
     case "requestNotifications": await requestNotifications(); break;
-    case "notify": await notify(action.title, action.body); break;
+    case "notify": await notifyWithPush(action); break;
+    case "enablePush":
+    case "disablePush":
+    case "refreshPush": await pushRequest(action); break;
     case "completionSound": await completionSound(); break;
     case "setTheme": {
       const theme = String(action.theme).toLowerCase();

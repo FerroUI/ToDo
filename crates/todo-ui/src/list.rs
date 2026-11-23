@@ -42,7 +42,13 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>, drafts: Rc<crate::shell::Draft
     let is_empty = rows.is_empty();
     let key_vm = vm.clone();
     let key_rows = rows.clone();
-    let mut center = grid().grid_row(1).margin((inset, 0.0, inset, 12.0));
+    let drop_vm = vm.clone();
+    let mut center = grid()
+        .name("TaskDropSurface")
+        .grid_row(1)
+        .margin((inset, 0.0, inset, 12.0))
+        .background("Transparent")
+        .with(move |control| crate::drag::attach_external_body(control, drop_vm.clone()));
     center = center.child(
         list_box()
             .name("TaskList")
@@ -61,6 +67,16 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>, drafts: Rc<crate::shell::Draft
     if is_empty {
         center = center.child(empty::view(vm.clone(), foreground));
     }
+    center = center.child(
+        border()
+            .name("ExternalTaskDropHint")
+            .border_brush("#3D73DD")
+            .border_thickness(2.0)
+            .corner_radius(5.0)
+            .background("#163D73DD")
+            .is_hit_test_visible(false)
+            .is_visible(false),
+    );
     let mut layout = grid()
         .row_definitions("Auto,*,Auto")
         .background(background.as_str())

@@ -109,7 +109,7 @@ async fn handle(
         }
         HostRequest::SetTheme { .. } => {}
         HostRequest::CompletionSound => crate::native::audio::play(&directory),
-        HostRequest::Notify { title, body } => {
+        HostRequest::Notify { title, body, .. } => {
             vm.set_status(format!("{title}: {body}"));
             crate::native::notifications::show(vm, window, title, body, false);
         }
@@ -121,6 +121,9 @@ async fn handle(
                 "Your task reminders can appear here while To Do is running.".into(),
                 true,
             );
+        }
+        HostRequest::EnablePush { .. } | HostRequest::DisablePush | HostRequest::RefreshPush => {
+            return Err("Web Push is configured in the browser app. Use this desktop app's background reminder setting instead.".into());
         }
         HostRequest::ConnectMicrosoft { .. }
         | HostRequest::ReconnectMicrosoft

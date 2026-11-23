@@ -221,6 +221,132 @@ fn delayed_paste_and_document_replacement_cannot_retarget_old_cut_ids() {
 }
 
 #[test]
+fn serialized_offer_child() {
+    if std::env::var_os("TODO_CLIPBOARD_OFFER_CHILD").is_none() {
+        return;
+    }
+    let (vm, ids, _) = fixture();
+    println!(
+        "TODO_CLIPBOARD_OFFER:{}",
+        vm.prepare_task_clipboard(&ids, true)
+            .unwrap()
+            .data
+            .to_json()
+            .unwrap()
+    );
+}
+
+#[test]
+fn identical_documents_in_another_process_cannot_reuse_a_cut_or_file_lease() {
+    let (vm, ids, destination) = fixture();
+    let offer = vm.prepare_task_clipboard(&ids, true).unwrap();
+    let local = serde_json::from_str::<serde_json::Value>(&offer.data.to_json().unwrap()).unwrap();
+    vm.accept_task_clipboard(offer).unwrap();
+    let child = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "serialized_offer_child", "--nocapture"])
+        .env("TODO_CLIPBOARD_OFFER_CHILD", "1")
+        .output()
+        .unwrap();
+    assert!(child.status.success());
+    let output = String::from_utf8(child.stdout).unwrap();
+    let foreign = output
+        .lines()
+        .find_map(|line| {
+            line.split_once("TODO_CLIPBOARD_OFFER:")
+                .map(|(_, json)| json)
+        })
+        .unwrap();
+    let mut parsed = serde_json::from_str::<serde_json::Value>(foreign).unwrap();
+    assert_eq!(parsed["token"].as_str().unwrap().len(), 64);
+    assert_ne!(parsed["token"], local["token"]);
+    parsed["token"] = local["token"].clone();
+    assert_eq!(
+        parsed, local,
+        "the fixtures differ only in the unpredictable offer token"
+    );
+    let before = vm.state().clone();
+    assert!(vm
+        .paste_task_clipboard(
+            vm.task_paste_target(View::List(destination)),
+            Some(TaskClipboard::from_json(foreign).unwrap()),
+            ""
+        )
+        .is_err());
+    assert_eq!(*vm.state(), before);
+}
+
+#[test]
+fn external_drop_cannot_consume_an_exact_local_cut_or_reuse_its_attachment_keys() {
+    let (vm, ids, destination) = fixture();
+    let offer = vm.prepare_task_clipboard(&ids, true).unwrap();
+    let payload = offer.data.clone();
+    vm.accept_task_clipboard(offer).unwrap();
+    let before = vm.state().clone();
+    vm.paste_external_tasks(
+        vm.task_paste_target(View::List(destination)),
+        Some(payload.clone()),
+        "",
+    )
+    .unwrap();
+    assert_eq!(vm.state().tasks.len(), 4);
+    for id in &ids {
+        assert_eq!(vm.state().task(*id), before.task(*id));
+    }
+    assert!(vm
+        .state()
+        .tasks
+        .iter()
+        .filter(|task| task.list_id == destination)
+        .all(|task| task.attachments.is_empty()));
+    vm.undo();
+    assert_eq!(vm.state().tasks, before.tasks);
+    vm.paste_task_clipboard(
+        vm.task_paste_target(View::List(destination)),
+        Some(payload),
+        "",
+    )
+    .unwrap();
+    assert_eq!(
+        vm.state().tasks.len(),
+        2,
+        "the explicit clipboard cut remains available after an external copy"
+    );
+    assert!(vm
+        .state()
+        .tasks
+        .iter()
+        .all(|task| task.list_id == destination));
+}
+
+#[test]
+fn external_drop_rejects_a_destination_from_an_old_account_even_with_matching_ids() {
+    let (vm, _, destination) = fixture();
+    let target = vm.task_paste_target(View::List(destination));
+    vm.replace_account_document(&vm.export_json().unwrap())
+        .unwrap();
+    let before = vm.state().clone();
+    assert!(vm.paste_external_tasks(target, None, "One\nTwo").is_err());
+    assert_eq!(*vm.state(), before);
+}
+
+#[test]
+fn numeric_legacy_clipboards_remain_readable_as_copies_without_local_cut_authority() {
+    let (vm, ids, destination) = fixture();
+    let offer = vm.prepare_task_clipboard(&ids, false).unwrap();
+    let mut old =
+        serde_json::from_str::<serde_json::Value>(&offer.data.to_json().unwrap()).unwrap();
+    old["token"] = 1.into();
+    let old = TaskClipboard::from_json(&old.to_string()).unwrap();
+    assert_eq!(
+        TaskClipboard::from_json(&old.to_json().unwrap()).unwrap(),
+        old
+    );
+    vm.paste_task_clipboard(vm.task_paste_target(View::List(destination)), Some(old), "")
+        .unwrap();
+    assert_eq!(vm.state().tasks.len(), 4);
+}
+
+#[test]
 fn multiline_paste_handles_crlf_bullets_blank_lines_and_one_undo() {
     let vm = vm();
     let text = "\r\n - [ ] First\r\n• Second\n\n* Third\rFourth\n  -1 is a title\n";

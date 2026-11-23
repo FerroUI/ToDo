@@ -50,6 +50,7 @@ export function independentCopy(document) {
   document.settings.outlook_categories_write_enabled = false;
   document.settings.presentation_sync_enabled = false;
   document.settings.keep_running_in_background = false;
+  document.settings.background_reminders = false;
   for (const list of document.lists) delete list.cloud;
   for (const task of document.tasks) {
     const external = task.external;

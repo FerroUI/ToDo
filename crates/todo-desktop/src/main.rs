@@ -1,3 +1,5 @@
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 mod native;
 mod reminders_host;
 mod services;
@@ -131,12 +133,23 @@ fn main() {
                     .detach();
                 let closing_vm = Rc::downgrade(&vm);
                 let closing_window = window.downgrade();
+                let closing_scheduler = scheduler.clone();
+                let closing_directory = directory.clone();
                 window
                     .closing(move |_| {
                         if let (Some(vm), Some(window)) =
                             (closing_vm.upgrade(), closing_window.upgrade())
                         {
                             todo_ui::commit_pending_edits(&vm, &window);
+                            if let (Some(scheduler), Ok(json)) = (
+                                &closing_scheduler,
+                                std::fs::read_to_string(closing_directory.join("tasks.json")),
+                            ) {
+                                // A timer may have fired while this process owned the lock.
+                                // Re-evaluate the persisted document even when closing made
+                                // no edit. A failed save must not cancel its old reminders.
+                                scheduler.submit(&json);
+                            }
                         }
                     })
                     .detach();

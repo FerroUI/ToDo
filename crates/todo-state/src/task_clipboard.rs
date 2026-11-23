@@ -3,20 +3,61 @@
 //! or reuse attachment keys from this document's attachment store.
 use crate::{AppViewModel, Panel};
 use serde::{Deserialize, Serialize};
-use std::cell::Cell;
 use todo_domain::{Action, Id, Task, TaskEntry, View};
 
 pub const MAX_TASK_CLIPBOARD_BYTES: usize = 4 * 1024 * 1024;
 const MAX_TASKS: usize = 1000;
-thread_local! { static NEXT_OFFER: Cell<u64> = const { Cell::new(1) }; }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TaskClipboard {
     kind: String,
     version: u32,
-    token: u64,
+    #[serde(deserialize_with = "read_token", serialize_with = "write_token")]
+    token: String,
     cut: bool,
     tasks: Vec<Task>,
+}
+
+fn read_token<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Token {
+        Current(String),
+        Legacy(u64),
+    }
+    match Token::deserialize(deserializer)? {
+        Token::Current(value)
+            if value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()) =>
+        {
+            Ok(value)
+        }
+        // Legacy copies remain portable. This representation can never equal a new
+        // cryptographic offer, so an old cut cannot acquire local move authorization.
+        Token::Legacy(value) => Ok(format!("legacy-{value}")),
+        _ => Err(serde::de::Error::custom(
+            "Invalid task clipboard offer token",
+        )),
+    }
+}
+
+fn write_token<S: serde::Serializer>(token: &str, serializer: S) -> Result<S::Ok, S::Error> {
+    if let Some(legacy) = token.strip_prefix("legacy-") {
+        serializer.serialize_u64(legacy.parse().map_err(serde::ser::Error::custom)?)
+    } else {
+        serializer.serialize_str(token)
+    }
+}
+
+fn offer_token() -> Result<String, String> {
+    use std::fmt::Write;
+    let mut bytes = [0; 32];
+    getrandom::fill(&mut bytes)
+        .map_err(|error| format!("Could not create a private clipboard offer: {error}"))?;
+    let mut token = String::with_capacity(64);
+    for byte in bytes {
+        let _ = write!(token, "{byte:02x}");
+    }
+    Ok(token)
 }
 
 impl TaskClipboard {
@@ -183,11 +224,7 @@ impl AppViewModel {
         for task in &mut payload {
             portable(task);
         }
-        let token = NEXT_OFFER.with(|next| {
-            let token = next.get();
-            next.set(token.wrapping_add(1));
-            token
-        });
+        let token = offer_token()?;
         let offer = TaskClipboardOffer {
             data: TaskClipboard {
                 kind: "ferroui.todo.tasks".into(),
@@ -253,6 +290,27 @@ impl AppViewModel {
         data: Option<TaskClipboard>,
         text: &str,
     ) -> Result<(), String> {
+        self.paste_task_input(target, data, text, true)
+    }
+
+    /// An external drag is always a portable copy, even if its bytes exactly match
+    /// a pending cut in this process. OS drop effects never authorize task deletion.
+    pub fn paste_external_tasks(
+        &self,
+        target: TaskPasteTarget,
+        data: Option<TaskClipboard>,
+        text: &str,
+    ) -> Result<(), String> {
+        self.paste_task_input(target, data, text, false)
+    }
+
+    fn paste_task_input(
+        &self,
+        target: TaskPasteTarget,
+        data: Option<TaskClipboard>,
+        text: &str,
+        allow_local_offer: bool,
+    ) -> Result<(), String> {
         if target.epoch != self.clipboard_epoch.get()
             || target.route != self.view()
             || target.panel != self.panel()
@@ -266,13 +324,18 @@ impl AppViewModel {
             return Err("The destination list no longer exists".into());
         }
         if let Some(data) = data {
-            let local = self
-                .task_clipboard
-                .borrow()
-                .as_ref()
-                .filter(|saved| saved.offer.data == data && saved.offer.epoch == target.epoch)
-                .map(|saved| (saved.offer.tasks.clone(), saved.cut_pending));
-            if data.cut && local.is_none() {
+            let local = allow_local_offer
+                .then(|| {
+                    self.task_clipboard
+                        .borrow()
+                        .as_ref()
+                        .filter(|saved| {
+                            saved.offer.data == data && saved.offer.epoch == target.epoch
+                        })
+                        .map(|saved| (saved.offer.tasks.clone(), saved.cut_pending))
+                })
+                .flatten();
+            if allow_local_offer && data.cut && local.is_none() {
                 return Err("These cut tasks are no longer available in this document. Copy or cut them again.".into());
             }
             if let Some((tasks, true)) = &local {

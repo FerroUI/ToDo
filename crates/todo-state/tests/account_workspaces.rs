@@ -112,3 +112,25 @@ fn incoming_sidebar_order_is_preserved_across_account_entity_collisions() {
     assert_eq!(vm.state().sidebar_order, incoming.sidebar_order);
     assert_eq!(vm.state().lists[1].name, "Bob second");
 }
+
+#[test]
+fn backup_import_requires_fresh_machine_opt_in_but_account_activation_retains_it() {
+    let vm = vm();
+    let mut incoming = AppState::new();
+    incoming.settings.keep_running_in_background = true;
+    incoming.settings.background_reminders = true;
+    let backup = incoming.to_json().unwrap();
+
+    // Preflight and commit must produce exactly the same durable journal bytes.
+    let prepared = vm.prepare_import_json(&backup).unwrap();
+    let safe = AppState::from_json(&prepared).unwrap();
+    assert!(!safe.settings.keep_running_in_background);
+    assert!(!safe.settings.background_reminders);
+    vm.import_json(&backup).unwrap();
+    assert_eq!(vm.export_json().unwrap(), prepared);
+
+    vm.replace_account_document(&backup).unwrap();
+    assert!(vm.state().settings.keep_running_in_background);
+    assert!(vm.state().settings.background_reminders);
+    assert_eq!(vm.prepare_cloud_json(&backup).unwrap(), backup);
+}

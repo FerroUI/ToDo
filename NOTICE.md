@@ -43,3 +43,21 @@ not replace the font license.
 ## Rust dependencies
 
 `Cargo.lock` identifies the resolved dependency versions. Each dependency retains its package license and notices. The browser's Emscripten, Skia, HarfBuzz, font, and JavaScript runtime dependencies are also covered by the notices supplied with their upstream distributions and the FerroUI submodule.
+
+## Optional Web Push reminder service
+
+`services/reminders/package-lock.json` pins `web-push` **4.0.0** and its resolved
+dependencies for the separately deployed reminder service. `web-push` supplies
+the Web Push encryption and VAPID implementation; its upstream code is not
+modified by this application.
+
+- Project: [web-push-libs/web-push](https://github.com/web-push-libs/web-push)
+- Package: [web-push 4.0.0](https://www.npmjs.com/package/web-push/v/4.0.0)
+- License: Mozilla Public License 2.0, included in
+  [WEB-PUSH-LICENSE.txt](services/reminders/WEB-PUSH-LICENSE.txt)
+
+The service's npm installation and container preserve dependency license files.
+Its transitive packages retain their own licenses as recorded in the lockfile
+and installed packages. The application's MIT license does not replace those
+licenses. The static browser app does not bundle this server dependency or its
+private VAPID key.

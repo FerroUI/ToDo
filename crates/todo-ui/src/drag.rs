@@ -1,6 +1,7 @@
 //! Task and navigation drags share one gesture engine and private typed in-process payload.
 mod cancellation;
 mod completion;
+mod external;
 mod feedback;
 mod native;
 mod registry;
@@ -11,6 +12,7 @@ mod target;
 mod touch;
 mod touch_plan;
 
+pub(crate) use external::attach_body as attach_external_body;
 pub(crate) use feedback::marker;
 pub(crate) use registry::{cancel_active, capture_handoff_active, has_active};
 pub(crate) use sidebar::{attach_sidebar_target, sidebar_marker, SidebarTarget};

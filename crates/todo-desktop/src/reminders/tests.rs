@@ -162,6 +162,48 @@ fn task_identity_is_stable_per_directory_and_windows_quotes_trailing_slashes() {
     assert_eq!(templates::windows_argument("a\"b"), "\"a\\\"b\"");
 }
 
+#[test]
+fn macos_login_catch_up_settles_and_failed_one_shots_rearm_without_run_at_load_loops() {
+    let mut future = plan();
+    future.next = "2026-11-23T10:30:00".parse().unwrap();
+    let initial = templates::macos_installation(&future, false, None)
+        .unwrap()
+        .unwrap();
+    assert!(initial.bootstrap.contains("<key>RunAtLoad</key><true/>"));
+    // The RunAtLoad helper finds no due tasks. Its same-plan reconciliation is inert.
+    assert!(
+        templates::macos_installation(&future, true, Some(&initial.persistent))
+            .unwrap()
+            .is_none()
+    );
+
+    let document = state();
+    let mut retry = future.clone();
+    retry.next = next_reminder(&document, "2026-11-23T10:31:00".parse().unwrap()).unwrap();
+    let rearmed = templates::macos_installation(&retry, true, Some(&initial.persistent))
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        retry.next,
+        "2026-11-23T10:32:00".parse::<NaiveDateTime>().unwrap()
+    );
+    assert!(rearmed.bootstrap.contains("<key>RunAtLoad</key><false/>"));
+    assert!(rearmed.persistent.contains("<key>RunAtLoad</key><true/>"));
+    assert!(
+        templates::macos_installation(&retry, true, Some(&rearmed.persistent))
+            .unwrap()
+            .is_none()
+    );
+    // At the next login the persisted plan still catches up any reminders missed offline.
+    assert!(
+        templates::macos_installation(&retry, false, Some(&rearmed.persistent))
+            .unwrap()
+            .unwrap()
+            .bootstrap
+            .contains("<key>RunAtLoad</key><true/>")
+    );
+}
+
 struct Directory(PathBuf);
 impl Directory {
     fn new() -> Self {
