@@ -29,7 +29,7 @@ fn sessions(root: &Control) -> Vec<Rc<NativeDrag>> {
 }
 
 pub(crate) fn has_active(root: &Control) -> bool {
-    !sessions(root).is_empty()
+    !sessions(root).is_empty() || super::external::has_active(root)
 }
 
 pub(crate) fn capture_handoff_active(root: &Control) -> bool {
@@ -45,5 +45,5 @@ pub(crate) fn cancel_active(root: &Control) -> bool {
     for session in sessions {
         session.cancel();
     }
-    canceled
+    super::external::cancel_active(root) | canceled
 }

@@ -22,6 +22,7 @@ async function site(t) {
     writeFile(path.join(root, "manifest.webmanifest"), '{"start_url":"./"}'),
     writeFile(path.join(root, "fonts", "Noto-COLRv1.ttf"), Buffer.from([0, 1, 0, 0, 10, 20, 30, 40])),
     writeFile(path.join(root, "fonts", "OFL.txt"), "SIL OPEN FONT LICENSE Version 1.1"),
+    ...["WenQuanYiMicroHei.ttf", "WenQuanYiMicroHei-LICENSE.txt", "WenQuanYiMicroHei-AUTHORS.txt", "WenQuanYiMicroHei-README.txt"].map(name => writeFile(path.join(root, "fonts", name), name)),
     ...["bootstrap.js", "offline.js", "push-storage.js", "push-worker.js", "todo-browser.js", "ferroui.js", "ferroui-loader.js", "app.css", "fonts.js"].map(name => writeFile(path.join(root, name), name)),
   ]);
   return root;
@@ -37,7 +38,7 @@ test("each index references one immutable runtime tree with integrity for every 
   for (const [url, digest] of result.assets) assert.equal(digest, integrity(await readFile(path.join(root, decodeURIComponent(url)))));
   assert(result.assets.every(([url]) => url.startsWith(`./_app/${result.version}/`) || ["./index.html", "./icon.svg", "./manifest.webmanifest"].includes(url)));
   assert(!(await readFile(path.join(root, "app-sw.js"), "utf8")).includes("__BUILD_VERSION__"));
-  for (const name of ["fonts/Noto-COLRv1.ttf", "fonts/OFL.txt", "attachments.js", "attachment-store.js", "push-storage.js", "push-worker.js"]) {
+  for (const name of ["fonts/Noto-COLRv1.ttf", "fonts/OFL.txt", "fonts/WenQuanYiMicroHei.ttf", "fonts/WenQuanYiMicroHei-LICENSE.txt", "fonts/WenQuanYiMicroHei-AUTHORS.txt", "fonts/WenQuanYiMicroHei-README.txt", "attachments.js", "attachment-store.js", "push-storage.js", "push-worker.js"]) {
     assert(result.assets.some(([url]) => url === `./_app/${result.version}/${name}`), `${name} is available offline with the same runtime revision`);
     assert.deepEqual(await readFile(path.join(root, "_app", result.version, name)), await readFile(path.join(root, name)));
   }
@@ -63,6 +64,14 @@ test("an emoji font missing from the staged site prevents publication", async t 
   const root = await site(t);
   await rm(path.join(root, "fonts", "Noto-COLRv1.ttf"));
   await assert.rejects(prepareSite(root), /missing fonts\/Noto-COLRv1.ttf/);
+});
+
+test("a missing CJK font or upstream notice prevents publication", async t => {
+  for (const name of ["WenQuanYiMicroHei.ttf", "WenQuanYiMicroHei-LICENSE.txt", "WenQuanYiMicroHei-AUTHORS.txt", "WenQuanYiMicroHei-README.txt"]) {
+    const root = await site(t);
+    await rm(path.join(root, "fonts", name));
+    await assert.rejects(prepareSite(root), new RegExp(`missing fonts/${name.replaceAll(".", "\\.")}`));
+  }
 });
 
 test("missing immutable push companions prevent an apparently installable service worker", async t => {

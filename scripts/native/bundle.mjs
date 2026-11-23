@@ -38,6 +38,9 @@ export async function copyLicenses(repo, destination, metadata) {
         ["LICENSE", "application/LICENSE"], ["NOTICE.md", "application/NOTICE.md"],
         ["Cargo.lock", "Cargo.lock"], ["FerroUI/LICENSE", "FerroUI/LICENSE"], ["FerroUI/NOTICE.md", "FerroUI/NOTICE.md"],
         ["crates/todo-controls/assets/fonts/OFL.txt", "Noto-Color-Emoji/OFL.txt"],
+        ...["LICENSE", "AUTHORS", "README"].map(name => [
+            `crates/todo-controls/assets/fonts/WenQuanYiMicroHei-${name}.txt`, `WenQuanYi-Micro-Hei/${name}.txt`,
+        ]),
         ["crates/todo-browser/wwwroot/vendor/MSAL-LICENSE.txt", "MSAL-LICENSE.txt"],
         ["crates/todo-browser/wwwroot/vendor/UNICODE-LICENSE.txt", "UNICODE-LICENSE.txt"],
     ];

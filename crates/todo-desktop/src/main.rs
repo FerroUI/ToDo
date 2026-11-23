@@ -67,6 +67,11 @@ fn main() {
                 include_bytes!("../../todo-controls/assets/fonts/Noto-COLRv1.ttf"),
             )
             .expect("the bundled Noto emoji font loads");
+            todo_controls::install_cjk_font(
+                manager,
+                include_bytes!("../../todo-controls/assets/fonts/WenQuanYiMicroHei.ttf"),
+            )
+            .expect("the bundled CJK font loads");
         })
         .start(
             move |app, _| {

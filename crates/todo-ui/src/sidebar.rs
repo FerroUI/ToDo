@@ -30,6 +30,7 @@ pub fn view(vm: Rc<AppViewModel>, drafts: Rc<crate::shell::Drafts>) -> Element {
                 .child(search::view(vm.clone(), drafts).grid_row(1))
                 .child(
                     scroll_viewer()
+                        .name("SidebarScroll")
                         .grid_row(2)
                         .horizontal_scroll_bar_visibility(ScrollBarVisibility::Disabled)
                         .child(navigation::view(vm.clone())),

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { button, center, named, noDetails, noRail } from "./touch-input.mjs";
+import { revealSidebarControl } from "./sidebar-viewport.mjs";
 
 export const dropMarker = element => /^(?:Task|Sidebar)Drop(?:Before|After)$/.test(element.name || "");
 
@@ -50,9 +51,10 @@ export async function browserBack(page) {
 }
 
 export async function navigateList(ctx, list) {
-  if (!(await ctx.snapshot()).elements.some(element => element.hit && named(`NavigateList(${list.id})`)(element))) {
+  if (!(await ctx.snapshot()).elements.some(named("SidebarScroll"))) {
     await ctx.touch.tapControl(button("Show navigation"), "open navigation between gesture cases");
   }
+  await revealSidebarControl(ctx, named(`NavigateList(${list.id})`), `navigation to ${list.name}`, { touch: ctx.touch });
   await ctx.touch.tapControl(named(`NavigateList(${list.id})`), `open ${list.name} through navigation`);
   await ctx.control(named("NewTask"), "composer after ordinary list navigation");
 }

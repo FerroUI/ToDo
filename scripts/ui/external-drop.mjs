@@ -38,6 +38,12 @@ export async function verifyExternalDrop(ui) {
     if (hover) {
       await until(async () => (await snapshot()).elements.some(named("ExternalTaskDropHint")), "native external-drop destination feedback");
     }
+    if (!accept) {
+      // CDP dragCancel ends only the drag source; a synthetic external drag has
+      // no source to dispatch a target leave. Exercise the real native Escape
+      // cancellation path before releasing that CDP source state.
+      await page.press("Escape");
+    }
     const result = await page.send("Input.dispatchDragEvent", { type: accept ? "drop" : "dragCancel", ...point, data });
     assert(!result.error, result.error?.message);
     await page.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");

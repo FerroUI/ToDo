@@ -11,7 +11,7 @@ use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(js_name = runMain)]
-pub fn run_main(query: &str, emoji_font: Vec<u8>) -> Result<(), JsValue> {
+pub fn run_main(query: &str, emoji_font: Vec<u8>, cjk_font: Vec<u8>) -> Result<(), JsValue> {
     app::set_demo(
         query
             .split('&')
@@ -19,14 +19,15 @@ pub fn run_main(query: &str, emoji_font: Vec<u8>) -> Result<(), JsValue> {
     );
     let font_error = Rc::new(RefCell::new(None));
     let font_result = font_error.clone();
-    let font_bytes = RefCell::new(Some(emoji_font));
+    let font_bytes = RefCell::new(Some((emoji_font, cjk_font)));
     AppBuilder::configure::<app::App>()
         .with_inter_font()
         .with(Rc::new(todo_controls::font_options()))
         .configure_fonts(move |manager| {
-            if let Some(bytes) = font_bytes.borrow_mut().take() {
-                *font_result.borrow_mut() =
-                    todo_controls::install_emoji_font(manager, &bytes).err();
+            if let Some((emoji, cjk)) = font_bytes.borrow_mut().take() {
+                *font_result.borrow_mut() = todo_controls::install_emoji_font(manager, &emoji)
+                    .and_then(|()| todo_controls::install_cjk_font(manager, &cjk))
+                    .err();
             }
         })
         .start_browser_app(

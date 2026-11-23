@@ -16,7 +16,9 @@ pub use buttons::{
     action_button, colored_icon_button, icon_button, primary_button, star_action, star_button,
     task_card, task_check, text, text_button, toolbar_button,
 };
-pub use fonts::{font_options, install_emoji_font, EMOJI_FONT_FAMILY};
+pub use fonts::{
+    font_options, install_cjk_font, install_emoji_font, CJK_FONT_FAMILY, EMOJI_FONT_FAMILY,
+};
 pub use icons::{icon, inherited_icon, Icon};
 pub use palette::{ListTheme, Palette, ALL_LIST_THEMES};
 pub use theme::{install_theme, set_dark_mode};

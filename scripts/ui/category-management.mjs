@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { revealSettingsControl } from "./settings-input.mjs";
 
 const button = label => element => element.type.endsWith("Button") && element.automationName === label;
 const menu = label => element => element.type.endsWith("MenuItem") && element.automationName === label;
@@ -9,13 +10,7 @@ export async function verifyCategoryManagement(ui) {
   const { page, saved, snapshot, resize, control, clickControl, edit, until, capture } = ui;
   const original = (await saved()).settings;
   const category = { id: "category-review", name: "#Release, 2027", preset: "preset7", color: "#0078D4", color_name: "Blue" };
-  const visible = async (match, label, width) => {
-    for (let attempt = 0; attempt < 18; attempt++) {
-      if ((await snapshot()).elements.some(element => element.hit && match(element))) return control(match, label);
-      await page.wheel(width - 60, 650, 0, 250);
-    }
-    return control(match, label);
-  };
+  const visible = (match, label) => revealSettingsControl(ui, match, label);
   const bounded = (element, width) => {
     assert(element.x >= -1 && element.x + element.width <= width + 1, "category management stays inside its viewport");
     assert(element.height >= 32, "category action keeps a usable touch target");
@@ -32,10 +27,14 @@ export async function verifyCategoryManagement(ui) {
       await visible(element => element.name === "OutlookCategoryName", "native category name", width);
       await visible(button("Create Outlook category"), "create category", width);
       await clickControl(button("Create Outlook category"), "validate empty category");
-      await until(async () => (await snapshot()).elements.some(element => element.text?.startsWith("Enter a category name of 1–255")), "empty category validation is inline");
-      await page.wheel(width - 60, 400, 0, -220);
-      await edit("OutlookCategoryName", category.name, true);
-      await until(async () => (await snapshot()).elements.some(element => element.text === "An Outlook category with this name already exists."), "duplicate catalogue names are rejected before a service request");
+      await visible(element => element.text?.startsWith("Enter a category name of 1–255"), "empty category validation is inline");
+      await visible(element => element.name === "OutlookCategoryName", "category editor after empty-name validation");
+      await edit("OutlookCategoryName", category.name);
+      await until(async () => (await snapshot()).elements.some(element => element.name === "OutlookCategoryName"
+        && element.focused && element.text === category.name), "native category editor accepts the duplicate-name draft");
+      await page.press("Enter");
+      await visible(element => element.text === "An Outlook category with this name already exists.", "duplicate catalogue names are rejected before a service request");
+      await visible(button("New category color: Blue"), "new category color after validation");
       await clickControl(button("New category color: Blue"), "new category native color menu");
       bounded(await control(menu("Purple"), "Purple category preset"), width);
       await clickControl(menu("Purple"), "choose native color preset");
@@ -55,6 +54,10 @@ export async function verifyCategoryManagement(ui) {
       await clickControl(button("Close settings"), "close catalogue review");
       await page.evaluate("todoApp.setIntegrationPreference('outlook_categories_write_enabled',false)");
     }
+  } catch (error) {
+    // Preserve the form before cleanup closes Settings and removes its draft.
+    try { await capture("category-management-failure"); } catch {}
+    throw error;
   } finally {
     if ((await snapshot()).elements.some(element => element.hit && button("Close settings")(element)))
       await clickControl(button("Close settings"), "close category review after failure");

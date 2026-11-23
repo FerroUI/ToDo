@@ -1,0 +1,4 @@
+# Preserve pinned font bytes and upstream notices, including legacy encodings
+# and the original license whitespace, on every checkout platform.
+crates/todo-controls/assets/fonts/*.ttf binary
+crates/todo-controls/assets/fonts/WenQuanYiMicroHei-*.txt binary

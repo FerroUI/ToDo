@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { button, named, touchInput } from "./touch-input.mjs";
 import { reviewTouch } from "./touch-review.mjs";
+import { revealSidebarControl } from "./sidebar-viewport.mjs";
 
 export async function verifyTouch(ui, output) {
   const { page, saved, snapshot, control, clickControl, edit, until, resize } = ui;
@@ -40,6 +41,7 @@ export async function verifyTouch(ui, output) {
     await resize(1280, 800);
     // Remove only this scenario's lists so the following sidebar layout fixture stays unchanged.
     for (const list of [source, destination]) {
+      await revealSidebarControl(ui, named(`NavigateList(${list.id})`), `disposable ${list.name}`, { touch });
       await touch.tapControl(named(`NavigateList(${list.id})`), `open disposable ${list.name}`);
       await touch.tapControl(button("List options"), "fixture list options");
       await touch.tapControl(element => element.type.endsWith("MenuItem") && element.automationName === "Delete list", "delete the disposable fixture list");

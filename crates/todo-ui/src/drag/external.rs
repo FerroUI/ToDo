@@ -9,6 +9,12 @@ use std::rc::Rc;
 use todo_domain::View;
 use todo_state::{AppViewModel, Panel};
 
+mod lifetime;
+pub(crate) use lifetime::{cancel_active, has_active};
+
+#[cfg(test)]
+mod tests;
+
 pub(crate) const HINT: &str = "ExternalTaskDropHint";
 
 #[derive(Clone, Copy)]
@@ -71,51 +77,79 @@ fn show(control: &Control, visible: bool) {
 
 fn attach(control: &Ref<Control>, vm: Rc<AppViewModel>, kind: Destination) {
     DragDrop::set_allow_drop(control, true);
+    let target = lifetime::Target::new(control, &vm);
     let weak = control.downgrade();
     let hover_vm = vm.clone();
-    let hover = move |event: &DragEventArgs| {
+    let hover_target = target.clone();
+    let hover = move |event: &DragEventArgs, entering| {
+        if entering {
+            hover_target.enter();
+        }
         if !offered(event) {
+            hover_target.cancel();
             return;
         }
         let Some(control) = weak.upgrade() else {
+            hover_target.cancel();
             return;
         };
-        let enabled = destination(&control, &hover_vm, kind).is_some();
+        // A canceled transfer stays canceled until the platform delivers a new
+        // DragEnter. Late DragOver messages cannot bring its feedback back.
+        let enabled = hover_target.hovering() && destination(&control, &hover_vm, kind).is_some();
         event.set_drag_effects(if enabled {
             DragDropEffects::COPY
         } else {
             DragDropEffects::NONE
         });
-        show(&control, enabled);
+        if enabled {
+            show(&control, true);
+            if entering {
+                hover_target.synchronize();
+            }
+        } else {
+            hover_target.cancel();
+        }
         event.set_handled(true);
     };
     let entering = hover.clone();
-    let enter = DragDrop::add_drag_enter_handler(control, move |_, event| entering(event));
-    let over = DragDrop::add_drag_over_handler(control, move |_, event| hover(event));
-    let weak = control.downgrade();
+    let enter = DragDrop::add_drag_enter_handler(control, move |_, event| entering(event, true));
+    let over = DragDrop::add_drag_over_handler(control, move |_, event| hover(event, false));
+    let leaving = target.clone();
     let leave = DragDrop::add_drag_leave_handler(control, move |_, _| {
-        if let Some(control) = weak.upgrade() {
-            show(&control, false);
-        }
+        leaving.cancel();
     });
     let weak = control.downgrade();
+    let dropping = target.clone();
     let dropped = DragDrop::add_drop_handler(control, move |_, event| {
-        if !offered(event) {
+        if event.handled() || native_editor(event) {
+            dropping.cancel();
             return;
         }
+        event.set_drag_effects(DragDropEffects::NONE);
+        let Some(lease) = dropping.begin_drop() else {
+            return;
+        };
+        if !offered(event) || !lease.active() {
+            return;
+        }
+        event.set_handled(true);
         let Some(control) = weak.upgrade() else {
             return;
         };
         show(&control, false);
-        event.set_drag_effects(DragDropEffects::NONE);
-        event.set_handled(true);
         let Some(view) = destination(&control, &vm, kind) else {
             return;
         };
+        if !lease.active() {
+            return;
+        }
         let target = vm.task_paste_target(view.clone());
         // A native IDataObject can pump messages while fulfilling GetData. Revalidate
         // both the document epoch and the recycled visual identity after the read.
         let input = crate::task_transfer::read_drop(&**event.data_transfer());
+        if !lease.active() {
+            return;
+        }
         if !control.is_attached_to_visual_tree()
             || destination(&control, &vm, kind).as_ref() != Some(&view)
         {
@@ -132,22 +166,35 @@ fn attach(control: &Ref<Control>, vm: Rc<AppViewModel>, kind: Destination) {
             } else {
                 control.focus();
             }
+            if !lease.active() {
+                return Ok(false);
+            }
             if !control.is_attached_to_visual_tree()
                 || destination(&control, &vm, kind).as_ref() != Some(&view)
             {
                 return Err("The drop destination changed. Drop the tasks again.".into());
             }
-            vm.paste_external_tasks(target, data, &text)
+            lease.commit(|| vm.paste_external_tasks(target, data, &text))
         });
         match result {
-            Ok(()) => event.set_drag_effects(DragDropEffects::COPY),
+            // A successful transaction is already committed. Notifications may
+            // cancel its lease afterward, but the source must still see COPY.
+            Ok(true) => event.set_drag_effects(DragDropEffects::COPY),
+            Ok(false) => {}
             Err(error) => vm.report_error(error),
+        }
+    });
+    let detached_target = Rc::downgrade(&target);
+    let detached = control.detached_from_visual_tree(move |_| {
+        if let Some(target) = detached_target.upgrade() {
+            target.cancel();
         }
     });
     let weak = control.downgrade();
     on_cleanup(move || {
+        target.cancel();
+        detached.dispose();
         if let Some(control) = weak.upgrade() {
-            show(&control, false);
             DragDrop::remove_drag_enter_handler(&control, enter);
             DragDrop::remove_drag_over_handler(&control, over);
             DragDrop::remove_drag_leave_handler(&control, leave);

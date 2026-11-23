@@ -304,7 +304,12 @@ pub fn inspect_view() -> String {
         let origin = visual.translate_point(Point::new(0.0, 0.0), &top_level)?;
         if origin.x >= viewport.width || origin.y >= viewport.height || origin.x + bounds.width <= 0.0 || origin.y + bounds.height <= 0.0 { return None; }
         let center = Point::new(origin.x + bounds.width / 2.0, origin.y + bounds.height / 2.0);
-        let hit = top_level.input_hit_test_with(center, false).is_some_and(|hit| {
+        // A clipped child can hit an ancestor (for example the ScrollViewer),
+        // which is not evidence that this control's click point is reachable.
+        let visible_center = center.x >= 0.0 && center.y >= 0.0
+            && center.x < viewport.width && center.y < viewport.height
+            && visual.get_transformed_bounds().is_some_and(|bounds| bounds.clip.contains(center));
+        let hit = visible_center && top_level.input_hit_test_with(center, false).is_some_and(|hit| {
             let hit: &Visual = &hit;
             std::ptr::eq(hit, &*visual) || visual.is_visual_ancestor_of(hit) || hit.is_visual_ancestor_of(&visual)
         });

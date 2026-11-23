@@ -21,3 +21,6 @@ chrono = { version = "0.4", default-features = false, features = ["std"] }
 
 [build-dependencies]
 ferroui-build.workspace = true
+
+[dev-dependencies]
+ferroui-base = { workspace = true, features = ["testing"] }

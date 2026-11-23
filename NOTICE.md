@@ -25,6 +25,25 @@ The browser distributes the font and license as separate offline-capable assets;
 the desktop application embeds the same font. The application's MIT license does
 not replace the font license.
 
+## WenQuanYi Micro Hei
+
+`crates/todo-controls/assets/fonts/WenQuanYiMicroHei.ttf` is the complete
+proportional face from the official
+[WenQuanYi Micro Hei 0.2.0-beta release](https://sourceforge.net/projects/wqy/files/wqy-microhei/0.2.0-beta/),
+distributed under its **Apache License 2.0** option. The extraction preserves
+all glyphs and character maps; it only repacks the first face of the source TTC
+as a standalone TrueType font. The [font provenance](crates/todo-controls/assets/fonts/README.md)
+records the original archive and derived-font hashes and reproducible recipe.
+
+Digitized data © 2007 Google Corporation; © 2008–2009 WenQuanYi Project Board
+of Trustees. Preserve the upstream
+[Apache license](crates/todo-controls/assets/fonts/WenQuanYiMicroHei-LICENSE.txt),
+[authors and contributor credits](crates/todo-controls/assets/fonts/WenQuanYiMicroHei-AUTHORS.txt),
+and [release notes](crates/todo-controls/assets/fonts/WenQuanYiMicroHei-README.txt),
+which include attribution for Ume-Font punctuation. These files accompany the
+separate browser asset and native packages. The application's MIT license does
+not replace the font license.
+
 ## Microsoft Authentication Library
 
 `crates/todo-browser/wwwroot/vendor/msal-browser-5.30.0.min.js` is the bundled Microsoft Authentication Library for JavaScript browser package. It is used only for optional Microsoft account authentication.

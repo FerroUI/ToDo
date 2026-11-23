@@ -116,7 +116,9 @@ test("complete staging carries runtime, source licenses and transitive crate lic
     const root = await temporary(t), fixture = join(root, "repository"), runtime = join(root, "runtime");
     await runtimeFixture(runtime);
     for (const name of ["LICENSE", "NOTICE.md", "Cargo.lock", "FerroUI/LICENSE", "FerroUI/NOTICE.md",
-        "crates/todo-controls/assets/fonts/OFL.txt", "crates/todo-browser/wwwroot/vendor/MSAL-LICENSE.txt",
+        "crates/todo-controls/assets/fonts/OFL.txt", "crates/todo-controls/assets/fonts/WenQuanYiMicroHei-LICENSE.txt",
+        "crates/todo-controls/assets/fonts/WenQuanYiMicroHei-AUTHORS.txt", "crates/todo-controls/assets/fonts/WenQuanYiMicroHei-README.txt",
+        "crates/todo-browser/wwwroot/vendor/MSAL-LICENSE.txt",
         "crates/todo-browser/wwwroot/vendor/UNICODE-LICENSE.txt", "app/Cargo.toml", "app/LICENSE", "dependency/Cargo.toml", "dependency/COPYING"]) await put(fixture, name);
     for (const name of ["crates/todo-desktop/native/worker.mjs", "crates/todo-browser/wwwroot/cloud/module.js",
         "crates/todo-browser/wwwroot/backup/module.js", "crates/todo-browser/wwwroot/vendor/pst-writer/module.mjs",
@@ -130,6 +132,10 @@ test("complete staging carries runtime, source licenses and transitive crate lic
         targetPlatform: process.platform, targetArch: process.arch, cargoMetadata });
     assert.equal(await sha256(bundle.executable), await sha256(binary));
     assert.ok((await readFile(join(bundle.resources, "runtime/LICENSE.txt"))).length);
+    for (const name of ["LICENSE", "AUTHORS", "README"]) {
+        assert.deepEqual(await readFile(join(bundle.resources, `licenses/WenQuanYi-Micro-Hei/${name}.txt`)),
+            await readFile(join(fixture, `crates/todo-controls/assets/fonts/WenQuanYiMicroHei-${name}.txt`)));
+    }
     const index = JSON.parse(await readFile(join(bundle.resources, "licenses/rust-dependencies.json"), "utf8"));
     assert.deepEqual(index.map(package_ => package_.name), ["dependency", "todo-desktop"]);
     assert.ok(index.every(package_ => package_.notices.length === 1));

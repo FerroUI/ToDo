@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { button, center, named, noDetails } from "./touch-input.mjs";
 import { navigateList, noTransient, topTasks } from "./touch-combination-helpers.mjs";
+import { revealSidebarControl } from "./sidebar-viewport.mjs";
 
 export async function verifyNavigationReversal(ctx) {
-  const { touch, page, saved, control, snapshot, until, capture } = ctx;
+  const { touch, saved, control, snapshot, until, capture } = ctx;
   const tasks = await topTasks(ctx), baseline = await saved();
   await touch.tapControl(button(tasks[0].title), "details before a reversed edge Back");
   await control(named("TaskTitle"), "compact details for directional Back");
@@ -19,7 +20,8 @@ export async function verifyNavigationReversal(ctx) {
   await control(named("NewTask"), "a fresh edge Back still closes details");
 
   await touch.tapControl(button("Show navigation"), "drawer before wrong-direction motion");
-  const target = await control(named(`NavigateList(${ctx.destination.id})`), "unselected list beneath the rejected drag");
+  const target = await revealSidebarControl(ctx, named(`NavigateList(${ctx.destination.id})`),
+    "unselected list beneath the rejected drag", { touch });
   const start = { x: target.x + 40, y: center(target).y };
   await touch.swipe(start, { x: target.x + target.width - 36, y: start.y });
   await control(named("SearchTasks"), "rightward drawer drag cannot activate its underlying list");
@@ -31,13 +33,14 @@ export async function verifyNavigationReversal(ctx) {
   await touch.end();
   await control(named("SearchTasks"), "reversing dismissal preserves the drawer");
   await noTransient(ctx, "reversed drawer motion leaves no feedback or rail");
-  await page.press("Escape");
-  await ctx.row(tasks[0].title);
   await noDetails(ctx, "rejected navigation motion does not activate a task");
-  await navigateList(ctx, ctx.destination);
+  // Tap the already visible row immediately: scrolling or Escape here could
+  // clear stale capture and hide a rejected gesture's release bug.
+  await touch.tapControl(named(`NavigateList(${ctx.destination.id})`), "ordinary tap immediately after rejected navigation motion");
   await control(element => element.type === "TextBlock" && element.text === ctx.destination.name,
     "a fresh ordinary tap can still navigate to the destination");
   await navigateList(ctx, ctx.source);
+  await ctx.row(tasks[0].title);
   assert.deepEqual(await saved(), baseline, "reversed and rejected navigation gestures preserve all document data");
   console.log("ok: signed edge Back/drawer reversal, wrong-way row drag suppression and ordinary navigation recovery");
 }

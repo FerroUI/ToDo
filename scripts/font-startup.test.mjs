@@ -4,10 +4,76 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { EMOJI_FONT_FILE, EMOJI_FONT_INTEGRITY, EMOJI_FONT_SIZE, loadEmojiFont } from "../crates/todo-browser/wwwroot/fonts.js";
+import {
+  CJK_FONT_FILE, CJK_FONT_INTEGRITY, CJK_FONT_SIZE, loadCjkFont,
+  EMOJI_FONT_FILE, EMOJI_FONT_INTEGRITY, EMOJI_FONT_SIZE, loadEmojiFont,
+} from "../crates/todo-browser/wwwroot/fonts.js";
 import { copySiteFonts } from "./site-fonts.mjs";
 
 const font = await readFile(new URL("../crates/todo-controls/assets/fonts/Noto-COLRv1.ttf", import.meta.url));
+const cjk = await readFile(new URL(`../crates/todo-controls/assets/fonts/${CJK_FONT_FILE}`, import.meta.url));
+
+function table(bytes, name) {
+  for (let index = 0; index < bytes.readUInt16BE(4); index++) {
+    const record = 12 + index * 16;
+    if (bytes.toString("ascii", record, record + 4) === name) return bytes.readUInt32BE(record + 8);
+  }
+  assert.fail(`Missing font table ${name}`);
+}
+
+function unicodeMap(bytes) {
+  const cmap = table(bytes, "cmap");
+  for (let index = 0; index < bytes.readUInt16BE(cmap + 2); index++) {
+    const record = cmap + 4 + index * 8;
+    if (bytes.readUInt16BE(record) !== 3 || bytes.readUInt16BE(record + 2) !== 10) continue;
+    const subtable = cmap + bytes.readUInt32BE(record + 4);
+    assert.equal(bytes.readUInt16BE(subtable), 12, "complete supplementary Unicode cmap");
+    const result = new Map();
+    for (let group = 0; group < bytes.readUInt32BE(subtable + 12); group++) {
+      const offset = subtable + 16 + group * 12;
+      const first = bytes.readUInt32BE(offset), last = bytes.readUInt32BE(offset + 4), glyph = bytes.readUInt32BE(offset + 8);
+      for (let value = first; value <= last; value++) if (glyph + value - first) result.set(value, glyph + value - first);
+    }
+    return result;
+  }
+  assert.fail("Missing complete Unicode cmap");
+}
+
+test("the complete CJK face is pinned and covers its full documented Han and Hangul ranges", () => {
+  assert.equal(cjk.length, CJK_FONT_SIZE);
+  assert.equal(`sha256-${createHash("sha256").update(cjk).digest("base64")}`, CJK_FONT_INTEGRITY);
+  assert.equal(cjk.readUInt32BE(0), 0x00010000);
+  assert.equal(cjk.readUInt16BE(table(cjk, "maxp") + 4), 49_531, "all original proportional-face glyphs");
+  const cmap = unicodeMap(cjk);
+  assert.equal(cmap.size, 34_600);
+  for (const [first, last] of [[0x4e00, 0x9fc3], [0xac00, 0xd7a3], [0xff01, 0xff5e]]) {
+    for (let value = first; value <= last; value++) assert(cmap.has(value), `missing U+${value.toString(16)}`);
+  }
+  for (const character of "日本語 ひらがな カタカナ 简体中文 繁體中文 한국어 한글") assert(cmap.has(character.codePointAt(0)), character);
+});
+
+test("browser requests the CJK font with the exact integrity pin and bounded streamed bytes", async () => {
+  const bytes = await loadCjkFont(async (url, options) => {
+    assert(url.pathname.endsWith(`/fonts/${CJK_FONT_FILE}`));
+    assert.deepEqual(options, { credentials: "same-origin", integrity: CJK_FONT_INTEGRITY });
+    return new Response(new ReadableStream({ start(controller) {
+      controller.enqueue(cjk.subarray(0, 31)); controller.enqueue(cjk.subarray(31)); controller.close();
+    } }), { headers: { "Content-Length": "123" } }); // compression need not match decoded length
+  });
+  assert.deepEqual(Buffer.from(bytes), cjk);
+});
+
+test("CJK startup rejects missing, truncated, oversized and failed-integrity responses", async () => {
+  await assert.rejects(loadCjkFont(async () => new Response("missing", { status: 404 })), /CJK font could not be downloaded \(404\)/);
+  await assert.rejects(loadCjkFont(async () => new Response(cjk.subarray(0, 40))), /CJK font is incomplete/);
+  let cancelled = false;
+  await assert.rejects(loadCjkFont(async () => new Response(new ReadableStream({
+    start(controller) { controller.enqueue(cjk); controller.enqueue(new Uint8Array([1])); },
+    cancel() { cancelled = true; },
+  }))), /CJK font exceeds its expected size/);
+  assert(cancelled, "oversized body is cancelled before reading further");
+  await assert.rejects(loadCjkFont(async () => { throw new TypeError("integrity mismatch"); }), /integrity mismatch/);
+});
 
 test("the canonical complete emoji font matches the startup pin and has color and shaping tables", () => {
   assert.equal(font.length, EMOJI_FONT_SIZE);
@@ -44,7 +110,13 @@ test("site staging copies the canonical font and unmodified OFL notice before re
   t.after(() => rm(root, { recursive: true, force: true }));
   await copySiteFonts(root);
   assert.deepEqual(await readFile(path.join(root, "fonts", EMOJI_FONT_FILE)), font);
+  assert.deepEqual(await readFile(path.join(root, "fonts", CJK_FONT_FILE)), cjk);
   const license = await readFile(path.join(root, "fonts", "OFL.txt"), "utf8");
   assert(license.includes("SIL OPEN FONT LICENSE Version 1.1"));
   assert.equal(license, await readFile(new URL("../crates/todo-controls/assets/fonts/OFL.txt", import.meta.url), "utf8"));
+  for (const name of ["LICENSE", "AUTHORS", "README"]) {
+    const file = `WenQuanYiMicroHei-${name}.txt`;
+    assert.deepEqual(await readFile(path.join(root, "fonts", file)),
+      await readFile(new URL(`../crates/todo-controls/assets/fonts/${file}`, import.meta.url)));
+  }
 });

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { sleep } from "../../FerroUI/scripts/browser/harness.mjs";
 import { dragSidebar } from "./sidebar-input.mjs";
 import { button, named, center, touchInput } from "./touch-input.mjs";
+import { setSettingsPreference } from "./settings-input.mjs";
 
 const menu = name => element => element.type.endsWith("MenuItem") && element.automationName === name;
 
@@ -169,21 +170,8 @@ export async function verifyBulkParity(ui) {
 }
 
 async function smartVisibility(ui, original) {
-  const { page, saved, snapshot, clickControl, control, until } = ui;
-  const toggle = name => element => element.type === "ToggleSwitch" && element.automationName === name;
-  async function set(label, key, value) {
-    if ((await saved()).settings[key] === value) return;
-    for (let step = 0; step < 12; step++) {
-      const item = (await snapshot()).elements.find(toggle(label));
-      if (item?.hit) {
-        await page.click(item.x + 20, item.y + item.height - 20);
-        await until(async () => (await saved()).settings[key] === value, `${label} preference saved`);
-        return;
-      }
-      await page.wheel(1180, 580, 0, item && item.y < 80 ? -300 : 300);
-    }
-    await control(toggle(label), label);
-  }
+  const { saved, snapshot, clickControl } = ui;
+  const set = (label, key, value) => setSettingsPreference(ui, label, key, value);
   await clickControl(button("Settings"), "smart-list settings");
   await set("Important", "show_important", false);
   await set("Assigned to me", "show_assigned", true);

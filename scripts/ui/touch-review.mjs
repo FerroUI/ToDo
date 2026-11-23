@@ -13,6 +13,7 @@ import { verifyNavigationReversal, verifyNoopRelease } from "./touch-navigation-
 import { verifyMixedPointerCancellation } from "./touch-mixed-input.mjs";
 import { verifyWindowInterruption } from "./touch-window-lifecycle.mjs";
 import { verifyPenCancellation } from "./pen-input.mjs";
+import { revealSidebarControl } from "./sidebar-viewport.mjs";
 
 export async function reviewTouch(ctx, output) {
   const recover = async () => {
@@ -25,6 +26,7 @@ export async function reviewTouch(ctx, output) {
     for (const list of [ctx.source, ctx.destination]) {
       assert(document.lists.some(item => item.id === list.id), `the saved ${list.name} fixture survives recovery`);
     }
+    await revealSidebarControl(ctx, named(`NavigateList(${ctx.source.id})`), "return to the saved touch fixture");
     await ctx.clickControl(named(`NavigateList(${ctx.source.id})`), "return to the saved touch fixture");
     if ((await ctx.snapshot()).elements.some(element => element.hit && button("Remove sort")(element))) {
       await ctx.clickControl(button("Remove sort"), "restore the fixture's manual order");

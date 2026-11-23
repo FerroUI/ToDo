@@ -1,5 +1,7 @@
 mod account;
 mod category_catalog;
+#[cfg(test)]
+mod category_catalog_tests;
 mod connections;
 mod controls;
 mod data;

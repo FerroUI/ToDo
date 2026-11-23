@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { button, center, named } from "./touch-input.mjs";
+import { revealSidebarControls } from "./sidebar-viewport.mjs";
 
 async function hold(ctx, match, kind) {
   await ctx.touch.start(center(await ctx.control(match, `touch ${kind} source`)));
@@ -8,6 +9,7 @@ async function hold(ctx, match, kind) {
 }
 
 async function drop(ctx, from, kind, to, fraction = .5, cancel = false) {
+  await revealSidebarControls(ctx, [from, to], `touch ${kind} source and drop target`, { touch: ctx.touch });
   await hold(ctx, from, kind);
   const target = await ctx.control(to, `touch ${kind} drop target`);
   await ctx.touch.move({ x: target.x + target.width / 2, y: target.y + target.height * fraction });

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { centerY, close, one, sameBounds, textPresenter } from "./layout-geometry.mjs";
 import { dragSidebar, pressFunction, rightClick } from "./sidebar-input.mjs";
+import { revealSidebarControl, revealSidebarControls } from "./sidebar-viewport.mjs";
 
 const button = label => element => element.type.endsWith("Button") && element.automationName === label;
 const groupButton = id => element => element.name === `Group${id}`;
@@ -28,7 +29,7 @@ export async function verifySidebar(ui) {
   const task = await until(async () => (await saved()).tasks.find(task => task.title === "Sidebar retained task"), "a task for navigation durability");
   const second = await createList("Sidebar B");
   const group = await createGroup("Sidebar group");
-  await control(element => element.name === `EmptyGroup${group.id}`, "empty-group drop guidance");
+  await revealSidebarControl(ui, element => element.name === `EmptyGroup${group.id}`, "empty-group drop guidance");
   const other = await createGroup("Sidebar other");
 
   await dragSidebar(ui, listButton(first.id), groupButton(group.id));
@@ -65,6 +66,7 @@ export async function verifySidebar(ui) {
   assert(!rowLabels.some(element => element.text === "📚 Sidebar A"), "the emoji is not duplicated in the visible label");
   await capture("sidebar-groups");
 
+  await revealSidebarControls(ui, [groupButton(group.id), listButton(first.id), listButton(second.id)], "group and members before keyboard navigation");
   await ui.focusControl(groupButton(group.id), "group keyboard focus");
   await page.press("ArrowLeft");
   await until(async () => (await saved()).groups.find(item => item.id === group.id).collapsed, "Left collapses a group");
