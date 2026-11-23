@@ -4,6 +4,7 @@ import { installStorage, atomicWrite, readBounded } from "./storage.mjs";
 import { receive, send, ui } from "./bridge.mjs";
 import { runtime, beginImport, endImport } from "./runtime.mjs";
 import * as files from "./files.mjs";
+import { synchronizationFileKeys } from "./file-retention.mjs";
 import { NativeDOMParser } from "./html.mjs";
 import { configureCredentials } from "./credentials.mjs";
 
@@ -31,7 +32,7 @@ const { synchronize } = await import("../web/cloud/sync.js");
 const { synchronizePlanner, forgetPlannerMappings } = await import("../web/cloud/planner.js");
 const { exportPortable, restorePortable } = await import("../web/backup/archive.js");
 const { exportMicrosoftArchive, restoreMicrosoftArchive } = await import("../web/cloud/archive.js");
-const { materializeCloudAttachment } = await import("../web/cloud/attachment-content.js");
+const { materializeCloudAttachment, cloudAttachmentKey } = await import("../web/cloud/attachment-content.js");
 const { requiresSyncReview } = await import("../web/cloud/automatic.js");
 const connected = await import("../web/cloud/connected.js");
 let plannerPaused = false;
@@ -80,7 +81,14 @@ async function perform(action) {
   switch (action.kind) {
     case "initialize": {
       metadata.recoverCommit();
-      await files.cleanTrash(JSON.parse(runtime.exportData()));
+      try {
+        files.cleanTrash(JSON.parse(runtime.exportData()), synchronizationFileKeys(localStorage, cloudAttachmentKey));
+      } catch (error) {
+        // Cleanup is optional maintenance. Keep an unreadable record for
+        // recovery and expose its diagnostic without disabling unrelated files
+        // or account services. A pending document commit still fails above.
+        runtime.hostError(`Automatic attachment cleanup was paused. ${error?.message || "Stored file metadata could not be read."}`);
+      }
       await state(); return {};
     }
     case "connectMicrosoft":

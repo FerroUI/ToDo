@@ -3,7 +3,7 @@ use ferroui_base::input::{InputElement, Key, KeyEventArgs, KeyModifiers};
 use ferroui_base::interactivity::RoutingStrategies;
 use ferroui_base::threading::{Dispatcher, DispatcherPriority};
 use ferroui_base::{Ref, Visual};
-use ferroui_controls::{Button, Control, ListBox, ListBoxItem};
+use ferroui_controls::{Button, Control, ListBox, ListBoxItem, RichTextBlock};
 use ferroui_view::on_cleanup;
 use std::rc::Rc;
 use todo_domain::{Action, Id};
@@ -71,8 +71,10 @@ fn handle(list: &Ref<ListBox>, vm: &AppViewModel, rows: &Rows, event: &KeyEventA
     if matches!(event.key, Key::Space | Key::Return)
         && event
             .source()
-            .and_then(|source| source.cast::<Button>())
-            .is_some_and(|button| button.is_focused())
+            .and_then(|source| source.cast::<Control>())
+            .is_some_and(|control| {
+                control.is_focused() && (control.is::<Button>() || control.is::<RichTextBlock>())
+            })
     {
         return;
     }

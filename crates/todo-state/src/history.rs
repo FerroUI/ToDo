@@ -15,11 +15,33 @@ impl HistoryEntry {
         let mut topology = false;
         let mut settings = false;
         scope(action, state, &mut ids, &mut topology, &mut settings);
+        if can_append_task(action)
+            && state
+                .tasks
+                .iter()
+                .any(|task| task.can_move() && task.position == i64::MAX)
+        {
+            // A batch can move other tasks into a list before repairing its keys.
+            // Capture its possible repair scope before any command runs, then
+            // finish() retains only the records the transaction actually changed.
+            ids.extend(state.tasks.iter().map(|task| task.id));
+        }
+        // Bulk edits and order repair must not perform one full document search
+        // per affected ID. Early exit keeps single-task captures small too.
+        let mut tasks = HashMap::with_capacity(ids.len());
+        if !ids.is_empty() {
+            for task in &state.tasks {
+                if ids.remove(&task.id) {
+                    tasks.insert(task.id, Some(task.clone()));
+                }
+                if ids.is_empty() {
+                    break;
+                }
+            }
+            tasks.extend(ids.into_iter().map(|id| (id, None)));
+        }
         Self {
-            tasks: ids
-                .into_iter()
-                .map(|id| (id, state.task(id).cloned()))
-                .collect(),
+            tasks,
             topology: topology.then(|| {
                 (
                     state.lists.clone(),
@@ -158,6 +180,23 @@ impl HistoryEntry {
                     + sidebar_order.len() * std::mem::size_of::<Id>()
             });
         tasks + topology + self.tasks.len() * 32 + 256
+    }
+}
+
+fn can_append_task(action: &Action) -> bool {
+    match action {
+        Action::Batch(actions) => actions.iter().any(can_append_task),
+        Action::AddTask { .. }
+        | Action::AddTaskInView { .. }
+        | Action::AddTaskEntry { .. }
+        | Action::DuplicateTask(_)
+        | Action::PromoteStep { .. }
+        | Action::MoveTask { .. }
+        | Action::ToggleCompleted(_)
+        | Action::SetCompleted {
+            completed: true, ..
+        } => true,
+        _ => false,
     }
 }
 

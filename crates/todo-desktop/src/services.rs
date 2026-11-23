@@ -22,7 +22,13 @@ pub fn install(vm: &Rc<AppViewModel>, window: &Ref<Window>, directory: PathBuf, 
             let directory = directory.clone();
             let native = native.clone();
             Dispatcher::ui_thread().spawn_local(async move {
+                let refresh = matches!(request, HostRequest::Refresh { .. });
                 if let Err(error) = handle(&vm, &window, directory, native, request).await {
+                    // A rejected submission never receives a worker completion.
+                    // Release the single-flight state so refresh can be retried.
+                    if refresh {
+                        vm.finish_refresh();
+                    }
                     vm.report_error(error);
                 }
             });
@@ -46,6 +52,7 @@ async fn handle(
             vm.tick(now.date_naive(), (now.hour() * 60 + now.minute()) as u16);
             if sync {
                 native.submit(
+                    vm,
                     serde_json::json!({"kind":"syncMicrosoft","today":vm.today().to_string()}),
                 )?;
             } else {
@@ -134,10 +141,10 @@ async fn handle(
             }
             let mut action = serde_json::to_value(request).map_err(|error| error.to_string())?;
             action["today"] = serde_json::Value::String(vm.today().to_string());
-            native.submit(action)?;
+            native.submit(vm, action)?;
         }
         HostRequest::OpenMicrosoftToDo => {
-            native.submit(serde_json::json!({"kind":"openMicrosoftToDo"}))?;
+            native.submit(vm, serde_json::json!({"kind":"openMicrosoftToDo"}))?;
         }
     }
     Ok(())

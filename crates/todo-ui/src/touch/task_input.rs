@@ -33,6 +33,7 @@ impl GestureRecognizerImpl for TaskRecognizer {
         if hub::shell(&this.base).is_some_and(|shell| shell.contains_back_edge(event))
             || is_action(event)
             || is_editor_or_toggle(event)
+            || crate::list::task_title::is_link_press(event)
             || vm.panel() != Panel::None
             || vm.rename_session().is_some()
             || vm.state().task(id).is_none()

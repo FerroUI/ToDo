@@ -15,6 +15,8 @@ async function site(t) {
     writeFile(path.join(root, "index.html"), index),
     writeFile(path.join(root, "main.js"), 'import "./host.js";'),
     writeFile(path.join(root, "host.js"), "export const state = 1;"),
+    ...["attachments.js", "attachment-store.js"].map(async name => writeFile(path.join(root, name),
+      await readFile(new URL(`../crates/todo-browser/wwwroot/${name}`, import.meta.url)))),
     writeFile(path.join(root, "todo_browser.wasm"), "wasm bytes"),
     writeFile(path.join(root, "icon.svg"), "icon"),
     writeFile(path.join(root, "manifest.webmanifest"), '{"start_url":"./"}'),
@@ -35,7 +37,7 @@ test("each index references one immutable runtime tree with integrity for every 
   for (const [url, digest] of result.assets) assert.equal(digest, integrity(await readFile(path.join(root, decodeURIComponent(url)))));
   assert(result.assets.every(([url]) => url.startsWith(`./_app/${result.version}/`) || ["./index.html", "./icon.svg", "./manifest.webmanifest"].includes(url)));
   assert(!(await readFile(path.join(root, "app-sw.js"), "utf8")).includes("__BUILD_VERSION__"));
-  for (const name of ["fonts/Noto-COLRv1.ttf", "fonts/OFL.txt"]) {
+  for (const name of ["fonts/Noto-COLRv1.ttf", "fonts/OFL.txt", "attachments.js", "attachment-store.js"]) {
     assert(result.assets.some(([url]) => url === `./_app/${result.version}/${name}`), `${name} is available offline with the same runtime revision`);
     assert.deepEqual(await readFile(path.join(root, "_app", result.version, name)), await readFile(path.join(root, name)));
   }

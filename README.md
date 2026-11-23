@@ -11,7 +11,7 @@ The application includes the main personal task workflows and optional Microsoft
 - My Day, Important, Planned, All, Completed, custom lists, and collapsible list groups.
 - Task details with steps, step-to-task promotion, notes, importance, due dates, reminders, and repeat schedules.
 - English date/time recognition in new task titles, a live schedule preview, and configurable title retention.
-- Search across task names, notes, steps, and tags; suggestions; sorting; drag tasks to reorder or move between lists; task and list duplication.
+- Search across task names, notes, steps, and tags; native inline hashtag links in task titles; suggestions; sorting; drag tasks to reorder or move between lists; task and list duplication that retains manual order.
 - Multiple selection with modifier-click and ranges, native touch hold, select-all, and bulk completion, move, and deletion.
 - Touch swipe actions for Delete, My Day and Move; hold-and-drag task/list/group organization, scroll arbitration, and cancellation.
 - Browser/keyboard/edge Back, swipe-to-dismiss navigation, and pull-to-refresh without losing drafts or reloading the app.
@@ -21,7 +21,7 @@ The application includes the main personal task workflows and optional Microsoft
 - Calendar-aware daily, weekday, weekly, monthly, yearly, and custom interval recurrence.
 - Undo/redo, JSON backup and restore, portable backups with attachment bytes and checksums, Microsoft Graph data archives, Outlook task PST import/export, and print view.
 - Light, dark, and system themes; per-list colors; original vector icons and My Day landscape.
-- Adaptive one-, two-, and three-pane layouts, retained drafts and keyboard focus, virtualized task rows, and FerroUI accessibility support.
+- Adaptive one-, two-, and three-pane layouts, retained drafts and keyboard focus, virtualized task rows with current accessible names and status, and FerroUI accessibility support.
 - Browser storage, installable app metadata, and offline resources cached after a successful load.
 - Optional Microsoft sign-in with MSAL and PKCE, automatic foreground synchronization, explicit **Sync now**, cloud file attachments, categories, and linked source actions.
 - Optional **Assigned to me** integration for work-account Planner tasks, including title, completion, due date, notes, and checklist edits.

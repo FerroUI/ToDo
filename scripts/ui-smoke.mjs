@@ -16,6 +16,7 @@ import { verifyTouch } from "./ui/touch.mjs";
 import { runReviewGroups } from "./ui/review-groups.mjs";
 import { verifyDemo } from "./ui/demo.mjs";
 import { verifyPstRoundTrip } from "./ui/pst-roundtrip.mjs";
+import { verifyHashtags } from "./ui/hashtags.mjs";
 
 const [site, output = "test-results/ui", ...extra] = process.argv.slice(2);
 if (!site || extra.length) throw new Error("usage: ui-smoke.mjs <built-site> [output-directory]");
@@ -142,6 +143,7 @@ try {
     { name: "detail", run: () => verifyDetailPresentation(ui, task.id) },
     { name: "settings", run: () => verifySettingsPresentation(ui) },
     { name: "list", run: () => verifyListPresentation(ui) },
+    { name: "hashtags", run: () => verifyHashtags(ui) },
     { name: "touch", run: () => verifyTouch(ui, output) },
     { name: "sidebar", run: () => verifySidebar(ui) },
     { name: "demo", run: () => verifyDemo(ui, output) },

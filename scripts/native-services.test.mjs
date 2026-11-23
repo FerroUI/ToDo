@@ -120,3 +120,43 @@ test("native shared PST export writes a real Outlook store with file content",as
   await host.request({kind:"exportPst",path:output});
   const bytes=readFileSync(output);assert.equal(bytes.readUInt32LE(0),0x4e444221);assert.ok(bytes.length>512);assert.ok(host.state.statuses.some(value=>value.includes("Outlook tasks exported")));
 });
+
+test("native worker startup preserves cached files needed by a pending cloud move",async t=>{
+  const storageKey="graph:account:list:task:remote-file:";
+  const host=await nativeHost(document(),{prepare:({data})=>{
+    const key="ferroui.todo.graph.v1.account",sidecars=join(data,"service-state"),files=join(data,"files");
+    mkdirSync(sidecars);mkdirSync(files);
+    const metadata={version:1,lists:{},tasks:{},pendingTasks:{2:{move:{sourceListId:"list",sourceTaskId:"task",source:{attachments:[{id:"remote-file"}]}}}},pendingDeletes:[]};
+    writeFileSync(join(sidecars,`${keyName(key)}.json`),JSON.stringify({key,value:JSON.stringify(metadata)}));
+    writeFileSync(join(files,`${keyName(storageKey)}.json`),JSON.stringify({key:storageKey,name:"pending.txt",type:"text/plain",size:7,deletedAt:Date.now()-31*24*60*60*1000}));
+    writeFileSync(join(files,`${keyName(storageKey)}.bin`),"recover");
+  }});
+  t.after(()=>host.close());
+  const folder=join(host.data,"files");
+  assert.equal(readFileSync(join(folder,`${keyName(storageKey)}.bin`),"utf8"),"recover");
+  assert.equal(JSON.parse(readFileSync(join(folder,`${keyName(storageKey)}.json`))).deletedAt,undefined);
+});
+
+for(const corrupt of ["sync","file"]) test(`native worker pauses cleanup after corrupt ${corrupt} metadata and keeps other file services available`,async t=>{
+  const key="keep-for-recovery",before=document();
+  const host=await nativeHost(before,{prepare:({data})=>{
+    const files=join(data,"files");mkdirSync(files);
+    const metadata={key,name:"recovery.txt",type:"text/plain",size:7,deletedAt:Date.now()-31*24*60*60*1000};
+    writeFileSync(join(files,`${keyName(key)}.json`),corrupt==="file"?"unreadable":JSON.stringify(metadata));
+    writeFileSync(join(files,`${keyName(key)}.bin`),"recover");
+    if(corrupt==="sync"){
+      const sidecars=join(data,"service-state"),account="ferroui.todo.graph.v1.disconnected-account";
+      mkdirSync(sidecars);
+      writeFileSync(join(sidecars,`${keyName(account)}.json`),JSON.stringify({key:account,value:"unreadable"}));
+    }
+  }});
+  t.after(()=>host.close());
+  assert.deepEqual(host.state.document,before);
+  assert.equal(readFileSync(join(host.data,"files",`${keyName(key)}.bin`),"utf8"),"recover");
+  assert.ok(host.state.statuses.some(value=>value.includes("attachment cleanup was paused")));
+  const source=join(host.root,"new.txt"),output=join(host.root,"saved.txt");writeFileSync(source,"new attachment");
+  await host.request({kind:"attach",task_id:2,path:source,name:"new.txt"});
+  const added=host.state.document.tasks[0].attachments[0].storage_key;
+  await host.request({kind:"openAttachment",key:added,path:output});
+  assert.equal(readFileSync(output,"utf8"),"new attachment");
+});

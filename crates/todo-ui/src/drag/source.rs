@@ -70,6 +70,7 @@ fn attach(button: &Ref<Button>, vm: Rc<AppViewModel>, source: Source) {
                 || arm_vm.selection_mode()
                 || arm_vm.panel() != Panel::None
                 || arm_vm.rename_session().is_some()
+                || crate::list::task_title::is_link_press(event)
             {
                 return;
             }

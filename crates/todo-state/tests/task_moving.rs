@@ -52,15 +52,20 @@ fn moving_to_a_list_appends_once_and_undo_restores_the_source_position() {
         .find(|task| task.list_id == destination)
         .unwrap()
         .position = i64::MAX;
-    let unchanged = overflow.clone();
-    assert!(overflow
+    overflow
         .apply(
             Action::MoveTask {
                 id: source.id,
                 list_id: destination,
             },
-            today()
+            today(),
         )
-        .is_err());
-    assert_eq!(overflow, unchanged);
+        .unwrap();
+    assert_eq!(overflow.task(source.id).unwrap().list_id, destination);
+    assert_eq!(ordered(&overflow).last(), Some(&source.id));
+    assert!(overflow
+        .tasks
+        .iter()
+        .filter(|task| task.list_id == destination)
+        .all(|task| task.position < i64::MAX));
 }

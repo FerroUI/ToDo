@@ -47,7 +47,7 @@ pub async fn handle(
             action["name"] = json!(file.name());
             action["expected"] = json!(vm.export_json()?);
             action["today"] = json!(vm.today().to_string());
-            native.submit(action)?;
+            native.submit(vm, action)?;
         }
         HostRequest::ExportArchive
         | HostRequest::ExportMicrosoft
@@ -91,7 +91,7 @@ pub async fn handle(
                 .ok_or("Choose a destination on this computer.")?;
             let mut action = serde_json::to_value(request).map_err(|error| error.to_string())?;
             action["path"] = json!(path);
-            native.submit(action)?;
+            native.submit(vm, action)?;
         }
         _ => return Err("Unsupported file operation.".into()),
     }

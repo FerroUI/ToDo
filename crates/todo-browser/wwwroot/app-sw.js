@@ -66,12 +66,38 @@ self.addEventListener("fetch", event => {
   })());
 });
 
+// Notifications identify a document mode, not an arbitrary navigation target.
+// Accept older notifications with full page URLs while discarding callbacks,
+// hashes, foreign origins, and paths that are not this application's document.
+function notificationTarget(value) {
+  const target = new URL(SCOPE.href);
+  try {
+    const source = new URL(value);
+    if (source.origin === SCOPE.origin && !source.username && !source.password
+      && [SCOPE.pathname, new URL(INDEX).pathname].includes(source.pathname)
+      && source.searchParams.get("demo") === "1") target.searchParams.set("demo", "1");
+  } catch {}
+  return target;
+}
+
 self.addEventListener("notificationclick", event => {
   event.notification.close();
   event.waitUntil((async () => {
+    const target = notificationTarget(event.notification.data?.url);
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    const existing = clients.find(client => client.url.startsWith(SCOPE.href));
-    if (existing) await existing.focus();
-    else await self.clients.openWindow(SCOPE.href);
+    const matching = clients.filter(client => {
+      try {
+        const url = new URL(client.url);
+        return url.origin === SCOPE.origin && [SCOPE.pathname, new URL(INDEX).pathname].includes(url.pathname)
+          && notificationTarget(client.url).href === target.href;
+      } catch { return false; }
+    }).sort((a, b) => Number(!!b.focused) - Number(!!a.focused)
+      || Number(b.visibilityState === "visible") - Number(a.visibilityState === "visible"));
+    // Focusing leaves unsaved editors and navigation intact. A client may close
+    // between enumeration and focus; try another matching tab before opening.
+    for (const client of matching) {
+      try { if (await client.focus()) return; } catch {}
+    }
+    await self.clients.openWindow(target.href);
   })());
 });

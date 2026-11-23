@@ -4,6 +4,23 @@ Reviewed 22 November 2026 against the public Microsoft references in [the intera
 
 The target remains the Windows To Do composition: navigation at the left, a themed list, optional details at the right, and the same destinations presented separately when space is limited. The documentation and screenshots establish workflows and visual hierarchy. They do not establish Microsoft's current private implementation, exact breakpoints, pixel metrics across every release, or authenticated service behavior.
 
+## Continuation review — 23 November 2026
+
+This pass starts from `14428b372b1e97965515f597f68f91991b823c97`, whose existing build and deployment had succeeded. It continues the parity work with native title hashtags, accessible task options, imported-data ordering, and storage/refresh recovery.
+
+| Surface | Finding | Correction |
+| --- | --- | --- |
+| Hashtags | Search understood hashtag text, but selecting a hashtag in a task title did not navigate | Use FerroUI RichTextBlock and Hyperlink only for tagged titles; retain normal TextBlock rows, two-line wrapping, selection modifiers, native automation, keyboard activation and pointer cancellation. Link presses do not also arm task dragging or swiping |
+| Virtualized task options | The item container announced the internal Rust projection type despite named child controls | Assign the current item's name, metadata and completion/importance/selection status when preparing each container; clear them when recycling it |
+| Imported task order | Creation-date sorting compared only local IDs; list duplication used storage order; appends used a global unchecked maximum | Sort retained creation dates with stable ID ties, duplicate manual order, compute list-local appends and repair saturated imported positions in the same undoable transaction |
+| Search | Every task rebuilt the query and a combined copy of all searchable fields | Normalize the query once per projection, reuse field storage and stop once every term has matched; preserve Unicode lowercase and multi-field term behavior |
+| Browser files | Aborted removal/recovery could leave a promise pending; an open connection could indefinitely obstruct an upgrade | Settle on commit/abort, close on version changes, recover closed connections and close discarded late opens; preserve the existing stored schema and undo files |
+| Native files | Cleanup stopped at the first expired file; restored references could retain stale deletion timestamps; replacing bytes preceded metadata commit | Publish immutable content generations through atomic metadata replacement, verify checksums, preserve legacy reads and pending-sync references, reconcile undo retention, and reclaim all eligible interrupted generations |
+| Browser reminders | Clicking a personal reminder could focus a demo tab; notification data retained transient URL parameters | Choose a matching app/document mode, focus without replacing unsaved editors, use only the app's own worker registration and store a minimal destination URL |
+| Native refresh | An unavailable or failed worker could leave the refresh flag set and prevent later retries | Propagate rejected queue submissions, clear interrupted refresh/busy state and report the runtime error |
+
+The existing browser gate includes a hashtag review using real mouse, keyboard and touch input, native hyperlink geometry, note-search results, renamed-title recycling, and current task-option labels. Existing editing, gesture, archive and adaptive checks remain in the same workflow. Pure tests cover Unicode hashtag spans, storage abort/fault paths, ordering/undo and search equivalence. Native storage recovery covers process interruptions; filesystem power-loss durability and physical-device acceptance remain unverified.
+
 ## Fine alignment pass
 
 A second pass starts from `cf00e258d95b30f0f41ce9b90a6dd68e6b95a72e` and addresses the supplied composer screenshot. Microsoft's [Windows task-list reference](https://support.microsoft.com/en-us/todo/media/microsoft-to-do-001.png) establishes the shared completion/add and task-title/editor columns. Its [Windows settings reference](https://support.microsoft.com/en-us/todo/media/get-support-windows-c3-201722718418.png) supports retaining the existing label-above-switch composition. These public references, the deployed app, and the captured light, dark, narrow, detail, calendar, menu, settings, and touch states were reviewed together.
@@ -124,16 +141,16 @@ The gesture arbiter locks to a direction after touch slop. Vertical scrolling ca
 | --- | --- | --- |
 | Typography and artwork | Bundled Inter and complete Noto COLRv1 emoji fallback, original vector icons/landscape, palette-based themes | Exact platform typography/rendering and the full reference wallpaper/theme catalog |
 | Notes | Reliable plain text and multiline editing | Full web rich-text formatting, links, lists, and lossless rich HTML round trips |
-| Tags/categories | Search and model/Graph fields exist | Inline clickable hashtag navigation and a complete Outlook category-editing surface |
+| Tags/categories | Native task-title hashtag navigation, cross-field search, local categories and optional Outlook color catalogue | Interactive hashtags inside note/step editors and Outlook master-category administration |
 | Recurrence | Daily/weekday/weekly/monthly/yearly/custom intervals | Arbitrary weekday sets, ending dates/counts, and every server recurrence/time-zone combination |
 | Suggestions | Deterministic local suggestions | Microsoft's service-ranked personalization and complete suggestion behavior |
 | Smart-list preferences | Optional All/Completed/Assigned/Flagged visibility | Every reference auto-hide/visibility setting and account-specific default |
 | Bulk input/gestures | Multi-selection, documented task swipes, native hold selection, single-task and list/group touch drag, edge/drawer Back, and pull refresh | Multi-item drag, complete clipboard behavior, OS cross-app drag/drop, and physical-device/platform gesture certification |
-| Microsoft accounts | Optional own-client-ID MSAL/Graph connection and explicit sync | Live account round-trip verification, automatic sync, every account/tenant policy, and complete account switching |
-| Collaboration | Local list management and export; links to Microsoft's service | Invitation creation, permissions, assignment/Planner, presence, and live multi-user collaboration |
+| Microsoft accounts | Own-client-ID browser/native MSAL sign-in, encrypted native session persistence, automatic foreground sync, optional Planner/categories/OneDrive settings | Live account round-trip verification, every account/tenant policy and complete account switching |
+| Collaboration | Local list management/export, shared-list capability guards and optional assigned Planner task editing | Invitation creation, member/assignee administration, presence and live multi-user collaboration |
 | Flagged email | Graph-projected tasks when supplied | Outlook's full mail-task integration and service-specific behavior |
-| Files | Browser-local IndexedDB bytes and metadata; aggregate task budget | Microsoft attachment transfer, cross-device file sync, complete attachment backups, and native-host file support |
-| Reminders | Permission-based notifications while the app runs | Closed-app/background delivery with a push/service infrastructure |
+| Files | Browser/native bytes, Graph file transfer, portable/PST archives, interrupted-write recovery and undo retention | Live cross-device acceptance, full native Outlook fidelity and every host file-picker behavior |
+| Reminders | Browser/OS notifications while the app runs; optional supported native tray operation | Closed-process delivery with push or OS wake infrastructure and platform certification |
 | Native distribution | Shared desktop Rust host | Tested native host parity, signed installers, store packages, and platform certification |
 | Accessibility | Native control semantics, focus behavior, named actions, browser accessibility bridge | Comprehensive assistive-technology and input-method testing |
 

@@ -1,11 +1,13 @@
 # Microsoft To Do interaction reference
 
-Reviewed on 22 November 2026. The shared Rust interface targets the Windows To Do composition and retains the documented web/mobile navigation model when space is limited. This ledger records the basis for changes; it does not certify exact pixels or undocumented internal behavior.
+Reviewed on 22 November 2026, with hashtag and sorting references rechecked on 23 November 2026. The shared Rust interface targets the Windows To Do composition and retains the documented web/mobile navigation model when space is limited. This ledger records the basis for changes; it does not certify exact pixels or undocumented internal behavior.
 
 ## Verified workflows
 
 | Workflow | Microsoft primary reference | Application decision |
 | --- | --- | --- |
+| Hashtag navigation | [Add tags](https://support.microsoft.com/en-us/todo/add-steps-importance-notes-tags-and-categories-to-your-tasks) documents selecting a hashtag or searching it to find matching tasks, notes and steps | Render title hashtags as native inline hyperlinks and navigate through the existing cross-field search; keep note/step editors literal and category management separate |
+| Creation-date sorting | [Sort and search](https://support.microsoft.com/en-us/todo/sort-and-search-in-lists) lists Creation date as a sort choice | Compare stored creation dates, then local IDs for deterministic same-day ties; imported records use their retained dates rather than import order |
 | Navigation and details | [Explore and navigate To Do](https://support.microsoft.com/en-us/accessibility/todo/use-a-screen-reader-to-explore-and-navigate-to-do) describes a sidebar, task list, right-hand details, a Lists menu, and separate mobile navigation | Retain those surfaces; adapt their coexistence to available width |
 | List creation and rename | [Work with lists](https://support.microsoft.com/en-us/accessibility/todo/use-a-screen-reader-to-work-with-lists-in-to-do) describes immediate untitled-list creation and a Rename list button that becomes an editor | Create first, edit the header inline, commit on Enter; protect the built-in Tasks list |
 | Group creation and rename | [Group lists](https://support.microsoft.com/en-us/accessibility/todo/use-a-screen-reader-to-group-lists-in-to-do) describes immediate untitled groups, a focused title field, and keyboard context menus | Focus an inline group editor; expose Rename group through native context menus |

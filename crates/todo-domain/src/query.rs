@@ -55,7 +55,18 @@ impl View {
             Self::AssignedToMe => task.assigned_to.as_deref() == Some("me"),
             Self::FlaggedEmail => task.flagged_email,
             Self::List(id) => task.list_id == *id && !task.is_planner() && !task.flagged_email,
-            Self::Search(query) => matches_search(task, query),
+            Self::Search(query) => crate::search::SearchQuery::new(query).matches(task),
+        }
+    }
+
+    fn matcher(&self, today: Date) -> impl FnMut(&Task) -> bool + '_ {
+        let mut search = match self {
+            Self::Search(query) => Some(crate::search::SearchQuery::new(query)),
+            _ => None,
+        };
+        move |task| match &mut search {
+            Some(search) => search.matches(task),
+            None => self.matches(task, today),
         }
     }
 }
@@ -134,13 +145,14 @@ impl AppState {
         show_completed: bool,
         today: Date,
     ) -> Vec<&Task> {
+        let mut matches = view.matcher(today);
         let mut tasks: Vec<_> = self
             .tasks
             .iter()
             .filter(|task| {
                 (!task.is_planner() || self.settings.planner_enabled)
-                    && view.matches(task, today)
                     && (show_completed || !task.completed || *view == View::Completed)
+                    && matches(task)
             })
             .collect();
         if sort == SortOrder::Alphabetical {
@@ -176,7 +188,7 @@ impl AppState {
                     SortOrder::Alphabetical => {
                         unreachable!("alphabetical sorting uses cached keys")
                     }
-                    SortOrder::Created => b.id.cmp(&a.id),
+                    SortOrder::Created => b.created_on.cmp(&a.created_on).then(b.id.cmp(&a.id)),
                 })
                 .then(a.id.cmp(&b.id))
         });
@@ -184,11 +196,10 @@ impl AppState {
     }
 
     pub fn count(&self, view: &View, today: Date) -> TaskCount {
+        let mut matches = view.matcher(today);
         self.tasks
             .iter()
-            .filter(|task| {
-                (!task.is_planner() || self.settings.planner_enabled) && view.matches(task, today)
-            })
+            .filter(|task| (!task.is_planner() || self.settings.planner_enabled) && matches(task))
             .fold(TaskCount::default(), |mut count, task| {
                 if task.completed {
                     count.completed += 1;
@@ -262,28 +273,4 @@ pub fn planned_group(task: &Task, today: Date) -> PlannedGroup {
     } else {
         PlannedGroup::Later
     }
-}
-
-fn matches_search(task: &Task, query: &str) -> bool {
-    let query = query.trim().to_lowercase();
-    if query.is_empty() {
-        return false;
-    }
-    let haystack = format!(
-        "{} {} {} {}",
-        task.title,
-        task.notes,
-        task.steps
-            .iter()
-            .map(|step| step.title.as_str())
-            .collect::<Vec<_>>()
-            .join(" "),
-        task.tags
-            .iter()
-            .map(|tag| format!("#{tag}"))
-            .collect::<Vec<_>>()
-            .join(" ")
-    )
-    .to_lowercase();
-    query.split_whitespace().all(|word| haystack.contains(word))
 }

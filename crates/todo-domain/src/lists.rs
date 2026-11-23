@@ -70,18 +70,19 @@ impl AppState {
                 {
                     self.append_sidebar(list_id);
                 }
-                let tasks: Vec<_> = self
+                let mut tasks: Vec<_> = self
                     .tasks
                     .iter()
                     .filter(|task| task.list_id == id && !task.is_planner() && !task.flagged_email)
                     .cloned()
                     .collect();
+                tasks.sort_by_key(|task| (task.position, task.id));
                 let mut changes = Changes {
                     created_list: Some(list_id),
                     ..Changes::lists()
                 };
-                for original in tasks {
-                    let mut task = self.duplicate(original.clone(), today);
+                for (position, original) in tasks.into_iter().enumerate() {
+                    let mut task = self.duplicate(original.clone(), today, position as i64);
                     task.list_id = list_id;
                     task.completed = original.completed;
                     task.completed_on = original.completed_on;

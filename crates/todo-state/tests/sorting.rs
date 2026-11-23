@@ -83,3 +83,35 @@ fn legacy_lists_default_to_normal_direction_and_search_counts_the_visible_comple
             .sort_reversed
     );
 }
+
+#[test]
+fn creation_sort_uses_imported_creation_dates_and_reverses_completion_sections_independently() {
+    let mut state = AppState::new();
+    for (id, created, completed) in [
+        (2, "2026-11-20", false),
+        (3, "2020-01-01", false),
+        (4, "2026-11-20", false),
+        (5, "2026-11-19", true),
+        (6, "2018-01-01", true),
+    ] {
+        let mut task = Task::new(
+            id,
+            TASKS_LIST,
+            format!("Task {id}"),
+            created.parse().unwrap(),
+        );
+        task.completed = completed;
+        task.completed_on = completed.then_some(today());
+        state.tasks.push(task);
+    }
+    state.next_id = 7;
+    let imported = AppState::from_json(&state.to_json().unwrap()).unwrap();
+    let vm = todo_state::AppViewModel::new(imported, today(), std::rc::Rc::new(|_| Ok(())));
+    vm.navigate(View::List(TASKS_LIST));
+    vm.set_sort(SortOrder::Created);
+    assert_eq!(vm.visible_task_ids(), [4, 2, 3, 5, 6]);
+    vm.reverse_sort();
+    assert_eq!(vm.visible_task_ids(), [3, 2, 4, 6, 5]);
+    vm.undo();
+    assert_eq!(vm.visible_task_ids(), [4, 2, 3, 5, 6]);
+}

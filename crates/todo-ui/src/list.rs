@@ -1,3 +1,4 @@
+mod accessibility;
 mod background;
 mod composer;
 mod empty;
@@ -9,6 +10,7 @@ mod keyboard;
 mod selection;
 mod sort_status;
 mod task_row;
+pub(crate) mod task_title;
 
 pub(crate) use background::list_accent;
 pub use task_row::row;
@@ -43,6 +45,7 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>, drafts: Rc<crate::shell::Draft
             .padding(0.0)
             .items_source(rows.source())
             .item_template(rows.template.clone())
+            .with(accessibility::attach)
             .with(move |list| keyboard::attach(list, key_vm.clone(), key_rows.clone()))
             .scroll_viewer_horizontal_scroll_bar_visibility(ScrollBarVisibility::Disabled),
     );

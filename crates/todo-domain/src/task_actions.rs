@@ -14,8 +14,11 @@ impl AppState {
             Action::AddTask { title, list_id } => {
                 let title = nonempty(title)?;
                 self.list_index(list_id)?;
+                let position = self.next_task_position(list_id)?;
                 let id = self.allocate_id();
-                self.tasks.push(Task::new(id, list_id, title, today));
+                let mut task = Task::new(id, list_id, title, today);
+                task.position = position;
+                self.tasks.push(task);
                 Ok(Changes {
                     created_task: Some(id),
                     ..Changes::task(id)
@@ -114,19 +117,7 @@ impl AppState {
                 if self.tasks[self.task_index(id)?].list_id == list_id {
                     return Ok(Changes::default());
                 }
-                let position = self
-                    .tasks
-                    .iter()
-                    .filter(|task| task.list_id == list_id)
-                    .map(|task| task.position)
-                    .max()
-                    .unwrap_or(-1)
-                    .checked_add(1)
-                    .ok_or_else(|| {
-                        DomainError::InvalidValue(
-                            "The destination task order is out of range".into(),
-                        )
-                    })?;
+                let position = self.next_task_position(list_id)?;
                 self.edit_task(id, today, |task| {
                     task.list_id = list_id;
                     task.position = position;
@@ -134,7 +125,8 @@ impl AppState {
             }
             Action::DuplicateTask(id) => {
                 let original = self.tasks[self.task_index(id)?].clone();
-                let task = self.duplicate(original, today);
+                let position = self.next_task_position(original.list_id)?;
+                let task = self.duplicate(original, today, position);
                 let id = task.id;
                 self.tasks.push(task);
                 Ok(Changes {
@@ -206,32 +198,40 @@ impl AppState {
         if self.tasks[index].completed == completed {
             return Ok(Changes::default());
         }
+        let task = &self.tasks[index];
+        let next_due = if completed && !task.recurrence_generated {
+            task.recurrence
+                .as_ref()
+                .and_then(|recurrence| recurrence.next_after(task.due_date.unwrap_or(today), today))
+        } else {
+            None
+        };
+        // A failed append must not complete the original or consume a series occurrence.
+        let next_position = next_due
+            .map(|_| self.next_task_position(task.list_id))
+            .transpose()?;
         let task = &mut self.tasks[index];
         task.completed = completed;
         task.completed_on = completed.then_some(today);
         task.updated_on = today;
         let mut changes = Changes::task(id);
-        if completed && !task.recurrence_generated {
-            if let Some(recurrence) = task.recurrence.clone() {
-                if let Some(next) = recurrence.next_after(task.due_date.unwrap_or(today), today) {
-                    task.recurrence_generated = true;
-                    let original = task.clone();
-                    let old_due = original.due_date.unwrap_or(today);
-                    let mut next_task = self.duplicate(original, today);
-                    next_task.my_day = None;
-                    next_task.my_day_excluded = None;
-                    next_task.due_date = Some(next);
-                    if let Some(reminder) = &mut next_task.reminder {
-                        reminder.date = next
-                            .checked_add_signed(reminder.date - old_due)
-                            .unwrap_or(next);
-                        reminder.notified = false;
-                    }
-                    changes.changed_tasks.push(next_task.id);
-                    changes.created_task = Some(next_task.id);
-                    self.tasks.push(next_task);
-                }
+        if let (Some(next), Some(position)) = (next_due, next_position) {
+            task.recurrence_generated = true;
+            let original = task.clone();
+            let old_due = original.due_date.unwrap_or(today);
+            let mut next_task = self.duplicate(original, today, position);
+            next_task.my_day = None;
+            next_task.my_day_excluded = None;
+            next_task.due_date = Some(next);
+            if let Some(reminder) = &mut next_task.reminder {
+                reminder.date = next
+                    .checked_add_signed(reminder.date - old_due)
+                    .unwrap_or(next);
+                reminder.notified = false;
             }
+            changes.changed_tasks.push(next_task.id);
+            changes.created_task = Some(next_task.id);
+            self.tasks.push(next_task);
         }
         Ok(changes)
     }

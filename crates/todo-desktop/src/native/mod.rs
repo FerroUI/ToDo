@@ -8,6 +8,8 @@ mod process;
 mod pst;
 mod pst_limits;
 pub use pst::child_main as pst_child;
+#[cfg(test)]
+mod tests;
 mod transport;
 mod wake;
 
@@ -34,6 +36,7 @@ pub struct NativeServices {
     busy: Cell<bool>,
     available: Cell<bool>,
     checked: Cell<bool>,
+    runtime_error: RefCell<Option<String>>,
     paused: Cell<bool>,
     failures: Cell<u32>,
     next_sync: Cell<Instant>,
@@ -79,6 +82,7 @@ impl NativeServices {
                 busy: Cell::new(false),
                 available: Cell::new(false),
                 checked: Cell::new(false),
+                runtime_error: RefCell::new(None),
                 paused: Cell::new(false),
                 failures: Cell::new(0),
                 next_sync: Cell::new(Instant::now() + Duration::from_secs(5)),
@@ -120,9 +124,13 @@ impl NativeServices {
         host
     }
 
-    pub fn submit(&self, action: Value) -> Result<(), String> {
+    pub fn submit(&self, vm: &AppViewModel, action: Value) -> Result<(), String> {
         if self.checked.get() && !self.available.get() {
-            return Err("Native services require Node.js 22 or newer. Install Node.js and restart To Do, or set TODO_NODE_BINARY.".into());
+            let error = self.runtime_error.borrow().clone().unwrap_or_else(|| {
+                "Native services are unavailable. Restart To Do to retry.".into()
+            });
+            self.unavailable(vm, &error);
+            return Err(error);
         }
         let kind = action["kind"].as_str().unwrap_or("");
         if kind == "disconnectMicrosoft" {
@@ -135,8 +143,8 @@ impl NativeServices {
                 .retain(|queued| queued["kind"] != "syncMicrosoft");
         }
         self.queue.borrow_mut().push_back(action);
-        self.start_next();
-        Ok(())
+        self.start_next()
+            .inspect_err(|error| self.unavailable(vm, error))
     }
 
     pub fn cancel(&self) {
@@ -147,12 +155,12 @@ impl NativeServices {
         self.changed.set(None);
     }
 
-    fn start_next(&self) {
+    fn start_next(&self) -> Result<(), String> {
         if !self.available.get() || self.busy.get() {
-            return;
+            return Ok(());
         }
         let Some(action) = self.queue.borrow_mut().pop_front() else {
-            return;
+            return Ok(());
         };
         self.busy.set(true);
         if self
@@ -166,7 +174,26 @@ impl NativeServices {
         {
             self.available.set(false);
             self.busy.set(false);
+            self.queue.borrow_mut().clear();
+            let error = "The native service connection closed. Restart To Do to retry.".to_owned();
+            self.runtime_error.replace(Some(error.clone()));
+            return Err(error);
         }
+        Ok(())
+    }
+
+    fn dispatch_next(&self, vm: &AppViewModel) {
+        if let Err(error) = self.start_next() {
+            self.unavailable(vm, &error);
+            vm.report_error(error);
+        }
+    }
+
+    fn unavailable(&self, vm: &AppViewModel, error: &str) {
+        vm.finish_refresh();
+        vm.set_cloud_state(false, "Local account");
+        vm.set_cloud_capabilities(false, vm.cloud_configured(), false);
+        vm.set_cloud_hint(error);
     }
 
     fn poll(&self, vm: &Rc<AppViewModel>, window: &Ref<Window>) {
@@ -181,10 +208,13 @@ impl NativeServices {
                         Ok(()) => {
                             self.available.set(true);
                             vm.set_cloud_capabilities(true, false, false);
-                            self.start_next();
+                            self.dispatch_next(vm);
                         }
                         Err(error) => {
                             self.available.set(false);
+                            self.runtime_error.replace(Some(error.clone()));
+                            self.queue.borrow_mut().clear();
+                            vm.finish_refresh();
                             vm.set_cloud_capabilities(false, false, false);
                             vm.set_cloud_hint(&error);
                         }
@@ -254,7 +284,7 @@ impl NativeServices {
                     if action["kind"] == "syncMicrosoft" {
                         vm.finish_refresh();
                     }
-                    self.start_next();
+                    self.dispatch_next(vm);
                 }
             }
         }
@@ -281,7 +311,9 @@ impl NativeServices {
             let now = Instant::now();
             if self.changed.get().is_some_and(|time| time <= now) || self.next_sync.get() <= now {
                 self.changed.set(None);
-                let _ = self.submit(json!({"kind":"syncMicrosoft", "automatic":true, "today":vm.today().to_string()}));
+                if let Err(error) = self.submit(vm, json!({"kind":"syncMicrosoft", "automatic":true, "today":vm.today().to_string()})) {
+                    vm.report_error(error);
+                }
             }
         }
     }

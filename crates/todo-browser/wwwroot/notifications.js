@@ -1,15 +1,27 @@
 export async function requestNotifications() {
   if (!("Notification" in window)) throw new Error("This browser does not support reminders. On iPhone, install To Do on your Home Screen first.");
-  const permission = await Notification.requestPermission();
-  if (permission !== "granted") throw new Error("Notifications are blocked. Allow them in this site's browser settings to receive reminders.");
+  const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+  if (permission === "denied") throw new Error("Notifications are blocked. Allow them in this site's browser settings to receive reminders.");
+  if (permission !== "granted") throw new Error("Notification permission was not granted. Choose Enable notifications to try again.");
 }
 
 export async function notify(title, body) {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
-  const registration = await navigator.serviceWorker?.getRegistration();
-  const options = { body, icon: "./icon.svg", tag: `todo-${title}`, data: { url: location.href } };
-  if (registration) await registration.showNotification(title, options);
-  else new Notification(title, options);
+  const current = new URL(location.href), target = new URL(".", current);
+  const demo = current.searchParams.get("demo") === "1";
+  if (demo) target.searchParams.set("demo", "1");
+  // Keep only the document mode. OAuth callback queries and hashes must never
+  // become persistent notification data or be replayed when opening the app.
+  const scope = new URL(".", target);
+  const registration = await navigator.serviceWorker?.getRegistration(scope.href);
+  const options = { body, icon: new URL("icon.svg", scope).href,
+    tag: `todo-${demo ? "demo" : "personal"}-${title}`, data: { url: target.href } };
+  if (registration?.scope === scope.href && registration.active) {
+    await registration.showNotification(title, options);
+  } else {
+    const notification = new Notification(title, options);
+    notification.onclick = () => { notification.close(); window.focus(); };
+  }
 }
 
 let audio;

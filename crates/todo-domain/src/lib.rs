@@ -4,18 +4,21 @@
 mod action;
 mod apply;
 mod calendar;
+pub mod hashtags;
 mod integration;
 mod lists;
 mod model;
 mod persistence;
 mod query;
 mod sample;
+mod search;
 mod sidebar;
 mod sidebar_drop;
 mod steps;
 mod task_actions;
 mod task_creation;
 mod task_entry;
+mod task_order;
 
 pub use action::*;
 pub use calendar::*;

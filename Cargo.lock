@@ -2234,6 +2234,7 @@ dependencies = [
  "chrono",
  "serde",
  "serde_json",
+ "unicode-ident",
 ]
 
 [[package]]

@@ -1,6 +1,5 @@
 use crate::rows::Row;
 use ferroui_base::layout::{HorizontalAlignment as H, VerticalAlignment as V};
-use ferroui_base::media::TextWrapping;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
 use todo_controls::{star_action, task_check};
@@ -40,17 +39,14 @@ pub fn row(vm: Rc<AppViewModel>, row: Row) -> Element {
             let title_color = if completed { p.secondary } else { p.text };
             let accessible_title = title.clone();
             let selection_label = format!("Select {title}");
-            let mut title_block = text_block()
-                .text(title)
-                .font_size(14.0)
-                .foreground(title_color)
-                .text_wrapping(TextWrapping::Wrap)
-                .text_trimming(<dyn ferroui_base::media::TextTrimming>::word_ellipsis())
-                .max_lines(2);
-            if completed {
-                title_block = title_block
-                    .text_decorations(ferroui_base::media::TextDecorations::strikethrough());
-            }
+            let title_block = super::task_title::view(
+                vm.clone(),
+                title,
+                completed,
+                selection_mode,
+                title_color,
+                p.accent,
+            );
             let card = todo_controls::task_card(
                 grid()
                     .tag(super::interactions::task_tag(id))

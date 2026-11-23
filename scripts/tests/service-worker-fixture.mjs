@@ -13,7 +13,7 @@ export async function workerFixture() {
   const assets = [[main, integrity("current module")], [index, integrity("current shell")]];
   const stores = new Map(), network = new Map([[main, "current module"], [index, "current shell"]]);
   const httpCache = new Map(), clients = new Map(), calls = [], events = new Map();
-  const api = { scope, version, prefix, cacheName, main, index, stores, network, httpCache, clients, calls, claims: 0, skips: 0, offline: false };
+  const api = { scope, version, prefix, cacheName, main, index, stores, network, httpCache, clients, calls, openedWindows: [], claims: 0, skips: 0, offline: false };
   const key = request => typeof request === "string" ? request : request.url;
   const fetch = async (request, options) => {
     const url = key(request), mode = options?.cache ?? request.cache;
@@ -43,7 +43,7 @@ export async function workerFixture() {
   };
   const self = {
     registration: { scope },
-    clients: { get: async id => clients.get(id), claim: async () => api.claims++, matchAll: async () => [...clients.values()] },
+    clients: { get: async id => clients.get(id), claim: async () => api.claims++, matchAll: async () => [...clients.values()], openWindow: async url => api.openedWindows.push(url) },
     skipWaiting: () => api.skips++,
     addEventListener: (type, handler) => events.set(type, handler),
   };
@@ -58,5 +58,12 @@ export async function workerFixture() {
     return result;
   };
   api.message = event => events.get("message")(event);
+  api.notificationClick = data => {
+    let result;
+    const notification = { data, closed: false, close() { this.closed = true; } };
+    events.get("notificationclick")({ notification, waitUntil: promise => result = promise });
+    if (!notification.closed) throw new Error("The clicked notification was not dismissed");
+    return result;
+  };
   return api;
 }

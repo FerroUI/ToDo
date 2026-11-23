@@ -39,6 +39,23 @@ pub struct Transport {
 }
 
 impl Transport {
+    #[cfg(test)]
+    pub(super) fn controlled() -> (Self, mpsc::Receiver<Request>, mpsc::Sender<Event>) {
+        let (sender, requests) = mpsc::channel();
+        let (events_sender, events) = mpsc::channel();
+        (
+            Self {
+                sender,
+                events,
+                child: Arc::new(Mutex::new(None)),
+                parser: Arc::new(Mutex::new(None)),
+                epoch: Arc::new(AtomicU64::new(0)),
+            },
+            requests,
+            events_sender,
+        )
+    }
+
     pub fn start(directory: PathBuf, demo: bool, wake: Arc<dyn Fn() + Send + Sync>) -> Self {
         let (sender, commands) = mpsc::channel::<Request>();
         let (events_sender, events) = mpsc::channel();

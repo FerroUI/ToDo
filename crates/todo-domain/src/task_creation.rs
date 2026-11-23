@@ -19,8 +19,10 @@ impl AppState {
         }
         let list_id = view.destination_list();
         self.list_index(list_id)?;
+        let position = self.next_task_position(list_id)?;
         let id = self.allocate_id();
         let mut task = Task::new(id, list_id, title, today);
+        task.position = position;
         task.due_date = entry.due_date;
         task.reminder = entry.reminder;
         match view {

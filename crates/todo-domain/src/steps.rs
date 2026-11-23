@@ -47,9 +47,11 @@ impl AppState {
             }
             Action::PromoteStep { task_id, step_id } => {
                 let (index, step_index) = self.step_index(task_id, step_id)?;
+                let position = self.next_task_position(self.tasks[index].list_id)?;
                 let id = self.allocate_id();
                 let step = self.tasks[index].steps.remove(step_index);
                 let mut task = Task::new(id, self.tasks[index].list_id, step.title, today);
+                task.position = position;
                 task.completed = step.completed;
                 task.completed_on = step.completed.then_some(today);
                 self.tasks[index].updated_on = today;
