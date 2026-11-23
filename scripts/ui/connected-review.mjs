@@ -11,7 +11,7 @@ export async function verifyConnectedSettings(ui) {
     for (const [width, label] of [[1280,"wide"],[320,"narrow"]]) {
       await resize(width,844);
       await clickControl(button("Settings"),"connected Settings");
-      for (const name of ["Sync now","Connect Outlook categories","Sync device settings with OneDrive","Open Microsoft To Do","Import Outlook PST…","Export Outlook PST"]) {
+      for (const name of ["Sync now","Switch Microsoft account","Open local workspace","Connect Outlook categories","Sync device settings with OneDrive","Open Microsoft To Do","Import Outlook PST…","Export Outlook PST"]) {
         for(let attempt=0;attempt<12;attempt++) {
           if((await snapshot()).elements.some(element=>element.hit&&button(name)(element)))break;
           await page.wheel(width-60,650,0,280);

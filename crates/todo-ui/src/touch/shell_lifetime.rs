@@ -57,10 +57,10 @@ pub(super) fn attach(root: &Ref<Grid>, recognizer: Ref<ShellRecognizer>, vm: Rc<
                             | RawPointerEventType::RightButtonDown
                             | RawPointerEventType::MiddleButtonDown
                     ) && touching
-                        && recognizer.interrupt()
+                        && (recognizer.interrupt() | super::pen::cancel(&recognizer, None))
                     {
-                        // The first mouse press interrupts an outstanding touch; it
-                        // must not simultaneously press a button beneath that finger.
+                        // A press from another device interrupts contact and must
+                        // not simultaneously press a button beneath the old pointer.
                         pointer.set_handled(true);
                     }
                     super::contacts::process(&recognizer, pointer);

@@ -56,6 +56,14 @@ impl AppState {
             }
             Action::DuplicateList(id) => {
                 let index = self.list_index(id)?;
+                crate::backgrounds::validate_collection(
+                    self.lists
+                        .iter()
+                        .filter_map(|list| list.background.as_deref())
+                        .chain(self.settings.smart_backgrounds.values().map(String::as_str))
+                        .chain(self.lists[index].background.as_deref()),
+                )
+                .map_err(|error| DomainError::InvalidValue(error.into()))?;
                 let mut list = self.lists[index].clone();
                 list.cloud = None;
                 let position = self.next_list_position(list.group_id)?;
@@ -100,6 +108,15 @@ impl AppState {
                 color,
                 background,
             } => {
+                crate::backgrounds::validate_collection(
+                    self.lists
+                        .iter()
+                        .filter(|list| list.id != id)
+                        .filter_map(|list| list.background.as_deref())
+                        .chain(self.settings.smart_backgrounds.values().map(String::as_str))
+                        .chain(background.as_deref()),
+                )
+                .map_err(|error| DomainError::InvalidValue(error.into()))?;
                 if !valid_color(&color) {
                     return Err(DomainError::InvalidValue(
                         "Choose a six-digit hexadecimal theme color".into(),

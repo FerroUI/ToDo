@@ -47,8 +47,10 @@ export function normalizePstImport(report) {
     || !Array.isArray(report.utc_reminders)) throw new Error("The PST parser returned invalid task data.");
   const tasks = new Map(report.archive.document.tasks.map(task => [task.id, task])), seen = new Set();
   for (const task of tasks.values()) {
-    if (task.notes === "" && task.microsoft_data?.body?.contentType === "html"
-      && !task.microsoft_data?.pst?.properties?.["1000"]) task.notes=remoteFields(task.microsoft_data).notes;
+    if (task.notes === "" && !task.notes_html && task.microsoft_data?.body?.contentType === "html"
+      && !task.microsoft_data?.pst?.properties?.["1000"]) {
+      const body=remoteFields(task.microsoft_data); task.notes=body.notes; task.notes_html=body.notes_html;
+    }
   }
   for (const reminder of report.utc_reminders) {
     const task = tasks.get(reminder?.task_id), value = reminder?.date_time;

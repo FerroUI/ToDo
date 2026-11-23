@@ -14,6 +14,7 @@ const modules = {
     export const sessionStatus = () => ({ needsInteraction: false });
     export const connect = async () => fixture().events.push("connect");
     export const reconnect = async () => fixture().events.push("reconnect");
+    export const revokeResume = () => fixture().events.push("revoke-resume");
     export const logout = async () => {
       const current = fixture(); current.account = null;
       if (current.logoutError) throw current.logoutError;
@@ -27,7 +28,11 @@ const modules = {
     export const readCloud = async () => [];
     export const clearCloudCache = () => globalThis.microsoftHostFixture.events.push("clear-cache");`,
   "metadata.js": `
-    export const recoverCommit = () => {};
+    export const recoverCommit = () => {
+      const fixture = globalThis.microsoftHostFixture;
+      if (!fixture.insideLock) throw new Error("Startup recovery must own the shared synchronization lock");
+      fixture.events.push("recover-todo");
+    };
     export const forgetDocumentMappings = () => globalThis.microsoftHostFixture.events.push("forget-todo");`,
   "sync.js": `
     export const synchronize = (...args) => globalThis.microsoftHostFixture.sync(...args);`,
@@ -80,7 +85,7 @@ registerHooks({
 const settle = () => new Promise(resolve => setImmediate(resolve));
 let instance = 0;
 
-async function harness(t) {
+async function harness(t, { startupLock } = {}) {
   const saved = new Map();
   const replace = (name, value) => {
     saved.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
@@ -105,11 +110,19 @@ async function harness(t) {
     },
   };
   replace("microsoftHostFixture", h);
+  const entries = new Map();
+  h.storage = { get length() { return entries.size; }, key: index => [...entries.keys()][index] ?? null,
+    getItem: key => entries.get(key) ?? null, setItem: (key, value) => entries.set(key, String(value)), removeItem: key => entries.delete(key) };
+  replace("localStorage", h.storage);
   replace("location", { search: "" });
   replace("document", Object.assign(new EventTarget(), { hidden: false }));
   replace("window", new EventTarget());
   replace("navigator", { onLine: true, locks: {
-    request: async (_name, _options, callback) => callback(h.lockAvailable ? {} : null),
+    request: async (_name, options, callback) => {
+      if (startupLock && !options.ifAvailable) { startupLock.entered.resolve(); await startupLock.release.promise; }
+      h.insideLock = h.lockAvailable;
+      try { return await callback(h.lockAvailable ? {} : null); } finally { h.insideLock = false; }
+    },
   } });
   replace("setTimeout", (callback, delay) => { timers.set(++nextTimer, { callback, delay }); return nextTimer; });
   replace("clearTimeout", id => timers.delete(id));
@@ -121,20 +134,29 @@ async function harness(t) {
     }
   });
   h.document = { schema_version: 1, settings: h.settings, lists: [{ id: 1, name: "Tasks" }], tasks: [] };
+  h.storage.setItem("ferroui.todo.v1", JSON.stringify(h.document));
+  const saveDocument = json => {
+    if (h.host) h.host.save(json); else h.storage.setItem("ferroui.todo.v1", json);
+    h.document = JSON.parse(json); h.settings = h.document.settings;
+    h.api.microsoftDocumentChanged(json);
+  };
   h.runtime = {
     exportData: () => JSON.stringify(h.document),
     validateImportData: json => { assert.equal(JSON.parse(json).schema_version, 1); return json; },
+    prepareImportData: json => json,
+    emptyAccountData: () => JSON.stringify({ schema_version: 1, settings: {}, lists: [{ id: 1, name: "Tasks" }], tasks: [] }),
+    replaceAccountData: (json, expected) => { assert.equal(expected, h.runtime.exportData()); saveDocument(json); },
     importData: json => {
       if (h.importError) throw h.importError;
-      h.document = JSON.parse(json); h.settings = h.document.settings;
-      h.api.microsoftDocumentChanged(json); h.completion?.resolve();
+      saveDocument(json);
     },
     cloudCapabilities() {}, flushEdits() {},
     cloudState: (...args) => h.statuses.push(args),
     hostError: message => { h.errors.push(message); h.completion?.reject(new Error(message)); },
-    hostStatus: message => h.events.push(message),
+    hostStatus: message => { h.events.push(message); if (message.startsWith("Restored as a local copy")) h.completion?.resolve(); },
   };
-  h.api = await import(`../crates/todo-browser/wwwroot/graph.js?host-test=${++instance}`);
+  const api = await import(`../crates/todo-browser/wwwroot/graph.js?host-test=${++instance}`);
+  h.api = { ...api, microsoftDocumentChanged(json) { h.storage.setItem("ferroui.todo.v1", json); api.microsoftDocumentChanged(json); } };
   await h.api.prepareMicrosoft(); await h.api.attachMicrosoft(h.runtime);
   return h;
 }
@@ -154,6 +176,24 @@ test("manual refresh retries paused Planner after an active automatic sync and s
   assert.equal(h.calls.length, 2);
 });
 
+test("startup recovery waits for the synchronization owner before reading a pending workspace journal", { timeout: 5000 }, async t => {
+  const startupLock = { entered: Promise.withResolvers(), release: Promise.withResolvers() };
+  const pending = harness(t, { startupLock });
+  await startupLock.entered.promise;
+  const h = globalThis.microsoftHostFixture;
+  const journal = "ferroui.todo.workspaces.v1.switch";
+  h.storage.setItem(journal, "owner has not published its complete switch yet");
+  await settle();
+  assert.equal(h.events.includes("recover-todo"), false);
+  assert.equal(h.errors.length, 0);
+  assert.equal(h.storage.getItem(journal), "owner has not published its complete switch yet");
+  h.storage.removeItem(journal);
+  startupLock.release.resolve();
+  await pending;
+  assert(h.events.includes("recover-todo"));
+  assert.deepEqual(h.errors, []);
+});
+
 test("transient Planner failures back off and recover without requiring a manual refresh", async t => {
   const h = await harness(t);
   h.onPlanner = async () => { throw Object.assign(new Error("Planner service unavailable"), { status: 503 }); };
@@ -165,8 +205,10 @@ test("transient Planner failures back off and recover without requiring a manual
   assert.equal(h.calls.at(-1).force, false);
 });
 
-test("successful restoration clears old mappings even if MSAL token-cache cleanup fails", async t => {
+test("successful restoration detaches local data and preserves account histories even if token-cache cleanup fails", async t => {
   const h = await harness(t);
+  h.storage.setItem("ferroui.todo.graph.v1.account-one", "original account history");
+  h.storage.setItem("ferroui.todo.planner.v1.account-one", "original Planner history");
   h.disconnectError = new Error("Token-cache cleanup failed");
   await assert.rejects(h.api.microsoftExclusive(async () => {
     h.settings.auto_sync = false;
@@ -174,8 +216,10 @@ test("successful restoration clears old mappings even if MSAL token-cache cleanu
     return { tasks: 1 };
   }, { restore: true }), /Token-cache cleanup failed/);
   assert.equal(h.account, null);
-  assert(h.events.includes("forget-todo"), "restored data must not retain destructive To Do baselines");
-  assert(h.events.includes("forget-planner"));
+  assert.equal(h.storage.getItem("ferroui.todo.graph.v1.document-account"), null, "the local copy has no cloud binding");
+  assert.equal(h.storage.getItem("ferroui.todo.workspaces.v1.active"), "null");
+  assert.equal(h.storage.getItem("ferroui.todo.graph.v1.account-one"), "original account history");
+  assert.equal(h.storage.getItem("ferroui.todo.planner.v1.account-one"), "original Planner history");
   assert(h.events.includes("clear-cache"));
   assert.equal(h.statuses.at(-1)[0], false);
   assert.equal(h.timers.size, 0);
@@ -259,6 +303,7 @@ async function importThroughHost(h, kind) {
   h.selectedFile = new File([JSON.stringify(archive)], "backup.json", { type: "application/json" });
   h.completion = Promise.withResolvers();
   const host = await import(`../crates/todo-browser/wwwroot/host.js?host-test=${++instance}`);
+  h.host = host; host.load();
   host.attachRuntime(h.runtime); host.request(JSON.stringify({ kind }));
   return h.completion.promise;
 }

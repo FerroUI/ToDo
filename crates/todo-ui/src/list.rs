@@ -11,6 +11,7 @@ mod selection;
 mod sort_status;
 mod task_row;
 pub(crate) mod task_title;
+pub(crate) mod wallpaper;
 
 pub(crate) use background::list_accent;
 pub use task_row::row;
@@ -27,7 +28,15 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>, drafts: Rc<crate::shell::Draft
     let my_day = matches!(vm.view(), View::MyDay);
     let dark = vm.is_dark();
     let background = background::list_background(&vm, my_day);
-    let foreground = if my_day { "#FFFFFF" } else { accent.as_str() };
+    let wallpaper = vm
+        .wallpaper()
+        .or_else(|| my_day.then(|| "scene:mountains".into()))
+        .and_then(|value| wallpaper::view(&value, dark));
+    let foreground = if wallpaper.is_some() {
+        "#FFFFFF"
+    } else {
+        accent.as_str()
+    };
     let inset = if vm.is_narrow() { 16.0 } else { 32.0 };
     let header = header::view(vm.clone(), foreground, inset, drafts.clone());
     let is_empty = rows.is_empty();
@@ -67,11 +76,11 @@ pub fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>, drafts: Rc<crate::shell::Draft
                     composer::view(vm.clone(), my_day, drafts)
                 }),
         );
-    // The My Day surface uses an original, quiet gradient-like landscape drawn by FerroUI.
-    if my_day {
+    if let Some(wallpaper) = wallpaper {
         layout = grid()
+            .name("ListWallpaper")
             .background(background.as_str())
-            .child(background::landscape(dark, &background))
+            .child(wallpaper)
             .child(layout.background("Transparent"));
     }
     layout.into()

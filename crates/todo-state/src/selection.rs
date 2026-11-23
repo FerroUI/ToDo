@@ -193,12 +193,11 @@ impl AppViewModel {
         }
         let count = ids.len();
         self.dispatch_after(
-            Action::Batch(
-                ids.iter()
-                    .copied()
-                    .map(|id| Action::MoveTask { id, list_id })
-                    .collect(),
-            ),
+            Action::TransferTasks {
+                ids: ids.clone(),
+                list_id,
+                before: None,
+            },
             move |vm, changes| {
                 if ids.iter().all(|id| {
                     vm.state()
@@ -222,6 +221,37 @@ impl AppViewModel {
             },
         );
     }
+    pub fn transfer_tasks(&self, ids: Vec<Id>, list_id: Id, before: Option<Id>) {
+        let moves_list = ids.iter().any(|id| {
+            self.state()
+                .task(*id)
+                .is_some_and(|task| task.list_id != list_id)
+        });
+        let count = ids.len();
+        self.dispatch_after(
+            Action::TransferTasks {
+                ids: ids.clone(),
+                list_id,
+                before,
+            },
+            move |vm, changes| {
+                if !changes.changed {
+                    return;
+                }
+                if moves_list && vm.selection().iter().all(|id| ids.contains(id)) {
+                    vm.clear_selection_state();
+                }
+                vm.set_undo_status(format!(
+                    "{count} {}. You can undo this change.",
+                    if moves_list {
+                        "tasks moved"
+                    } else {
+                        "tasks reordered"
+                    }
+                ));
+            },
+        );
+    }
     fn clear_selection_state(&self) {
         self.selection.borrow_mut().clear();
         self.selection_mode.set(false);
@@ -230,13 +260,42 @@ impl AppViewModel {
     fn existing_task_ids(&self) -> HashSet<Id> {
         self.state().tasks.iter().map(|task| task.id).collect()
     }
-    fn existing_selection(&self) -> Vec<Id> {
-        let selected = self.selection.borrow();
-        self.state()
+    /// Selection is a set; transfers and clipboard operations use the displayed order.
+    pub fn ordered_selection(&self) -> Vec<Id> {
+        let mut remaining = self.selection();
+        let mut ids: Vec<_> = self
+            .visible_task_ids()
+            .into_iter()
+            .filter(|id| remaining.remove(id))
+            .collect();
+        let state = self.state();
+        let mut hidden: Vec<_> = state
             .tasks
             .iter()
-            .filter(|task| selected.contains(&task.id))
-            .map(|task| task.id)
-            .collect()
+            .filter(|task| remaining.contains(&task.id))
+            .map(|task| (task.list_id, task.position, task.id))
+            .collect();
+        hidden.sort_unstable();
+        ids.extend(hidden.into_iter().map(|(_, _, id)| id));
+        ids
+    }
+
+    pub fn task_action_ids(&self, anchor: Option<Id>) -> Vec<Id> {
+        if anchor.is_none_or(|id| self.selection.borrow().contains(&id))
+            && self.selection_count() > 0
+        {
+            self.ordered_selection()
+        } else {
+            anchor
+                .or(self.selected())
+                .or(self.task_cursor())
+                .filter(|id| self.state().task(*id).is_some())
+                .into_iter()
+                .collect()
+        }
+    }
+
+    fn existing_selection(&self) -> Vec<Id> {
+        self.ordered_selection()
     }
 }

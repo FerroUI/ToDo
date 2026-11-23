@@ -137,6 +137,7 @@ fn changed_dates_and_rules_reanchor_but_explicit_anchors_are_honored() {
                     unit: RepeatUnit::Month,
                     every: 1,
                     anchor: Some(date("2027-02-15")),
+                    ..Recurrence::monthly()
                 }),
             },
             "2027-02-15",

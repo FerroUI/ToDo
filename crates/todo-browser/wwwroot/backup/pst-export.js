@@ -3,7 +3,9 @@ import { documentFrom, documentGuard, references } from "./document.js";
 import { MAX_ARCHIVE_BYTES } from "./codec.js";
 import { MemorySink, PstStore } from "../vendor/pst-writer/index.js";
 import { taskNames, taskProperties } from "./pst-properties.js";
+import { encodePstRecurrence } from "./pst-recurrence.js";
 import { sourceStart, startForExport } from "./pst-source.js";
+import { noteFields, noteBody, escapeNote } from "../notes.js";
 
 function paths(document) {
   const groups=new Map((document.groups||[]).map(group=>[group.id,group.name]));
@@ -32,11 +34,13 @@ export async function exportPst(runtime,{resolveFile=reference=>readAttachment(r
     guard();
     const steps=(task.steps||[]).map(step=>`${step.completed?"[x]":"[ ]"} ${step.title}`);
     const body=steps.length?`${task.notes||""}${task.notes?"\n\n":""}Steps:\n${steps.join("\n")}`:task.notes||"";
+    const rich=noteFields(task).notes_html;
+    const html=rich?`${noteBody(task).content}${steps.length?`<p style="white-space:pre-wrap"></p><p style="white-space:pre-wrap">Steps:</p>${steps.map(step=>`<p style="white-space:pre-wrap">${escapeNote(step)}</p>`).join("")}`:""}`:null;
     const received=new Date(`${task.created_on}T00:00:00Z`), sent=new Date(`${task.updated_on}T00:00:00Z`);
-    store.addMessage(folders.get(task.list_id),{messageClass:"IPM.Task",subject:task.title,body,
+    store.addMessage(folders.get(task.list_id),{messageClass:"IPM.Task",subject:task.title,body,html,
       senderName:"",senderEmail:"",displayTo:"",received,sent,recipients:[],
       attachments:(task.attachments||[]).map(file=>({name:file.name,mime:file.mime_type,data:files.get(file.storage_key)})),
-      extraProperties:taskProperties(task,body)});
+      extraProperties:taskProperties(task,body,html)});
     if(store.size>MAX_ARCHIVE_BYTES-4*1024*1024) throw new Error("The Outlook PST exceeds the 256 MiB export limit.");
     // Yield between records so a large task list does not monopolize the UI.
     if(store.messages%32===0) await new Promise(resolve=>setTimeout(resolve,0));
@@ -45,9 +49,9 @@ export async function exportPst(runtime,{resolveFile=reference=>readAttachment(r
   const blob=sink.blob();
   if(blob.size>MAX_ARCHIVE_BYTES) throw new Error("The Outlook PST exceeds the 256 MiB export limit.");
   const warnings=[];
-  if(document.tasks.some(task=>task.recurrence)) warnings.push("Repeat schedules are preserved for FerroUI restore; Outlook receives standalone task occurrences.");
+  if(document.tasks.some(task=>task.recurrence && !encodePstRecurrence(task))) warnings.push("A repeat schedule exceeds Outlook's native recurrence formats. Its full rule is preserved for FerroUI restore; that Outlook task is a standalone occurrence.");
   if(document.tasks.some(task=>task.steps?.length)) warnings.push("Steps appear in Outlook task notes and retain their structure for FerroUI restore.");
-  if(document.tasks.some(task=>sourceStart(task) && !startForExport(task))) warnings.push("A preserved start date could not be written because Outlook requires a due date on or after it. The local task dates were kept.");
+  if(document.tasks.some(task=>(task.start_date || sourceStart(task)) && !startForExport(task))) warnings.push("A preserved start date could not be written because Outlook requires a due date on or after it. The local task dates were kept.");
   return {blob,warnings,tasks:document.tasks.length,files:files.size};
 }
 

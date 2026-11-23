@@ -1,17 +1,20 @@
 import * as auth from "./cloud/auth.js";
 import { graph, clearCloudCache } from "./cloud/client.js";
-import { recoverCommit, forgetDocumentMappings } from "./cloud/metadata.js";
+import { recoverCommit } from "./cloud/metadata.js";
 import { synchronize } from "./cloud/sync.js";
-import { synchronizePlanner, forgetPlannerMappings } from "./cloud/planner.js";
+import { synchronizePlanner } from "./cloud/planner.js";
 import { serializeMicrosoft } from "./cloud/operations.js";
 import { automaticSync, requiresSyncReview } from "./cloud/automatic.js";
 import { connectedActions, connectedAppRequest, connectedPreferencesChanged, resetConnectedApps, restoreConnectedApps, synchronizeConnectedApps } from "./cloud/connected.js";
+import { activateWorkspace, assertWorkspace, checkpointWorkspace, detachWorkspace, recoverWorkspaceSwitch, workspaceAccount } from "./cloud/workspaces.js";
 
 let runtime, startupError, restored, configuration;
 let preferences = { auto_sync: true, planner_enabled: false };
 let plannerPaused = false;
 let ownCommit = false;
 let barriers = 0;
+let workspaceReady = false;
+let workspaceCommitted = () => {};
 const demo = () => new URLSearchParams(location.search).get("demo") === "1";
 const operations = serializeMicrosoft(performRequest);
 const today = () => {
@@ -19,7 +22,7 @@ const today = () => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
 };
 const automatic = automaticSync({
-  ready: () => !!runtime && !!auth.account() && !auth.sessionStatus().needsInteraction
+  ready: () => !!runtime && workspaceReady && !!auth.account() && !auth.sessionStatus().needsInteraction
     && barriers === 0 && preferences.auto_sync !== false && !demo() && !document.hidden && navigator.onLine !== false,
   run: () => operations({ kind: "syncMicrosoft", automatic: true }, today()),
   report: error => {
@@ -30,7 +33,7 @@ const automatic = automaticSync({
 
 export async function prepareMicrosoft() {
   try {
-    recoverCommit();
+    if (!demo()) await workspaceTransaction(() => { recoverCommit(); recoverWorkspaceSwitch(); }, { wait: true });
     configuration = await auth.configuration();
     if (!demo()) restored = await auth.restore();
   } catch (error) { startupError = error; restored = auth.account(); }
@@ -40,13 +43,15 @@ function capabilities() {
   runtime?.cloudCapabilities(true, !!configuration?.configured, auth.isWorkAccount());
 }
 
-export async function attachMicrosoft(value) {
+export async function attachMicrosoft(value, { workspaceChanged = () => {} } = {}) {
   runtime = value;
+  workspaceCommitted = workspaceChanged;
   capabilities();
   microsoftDocumentChanged(runtime.exportData());
   if (startupError?.optionalConsent) {
     for (const scope of startupError.optionalScopes || []) {
       if (scope.endsWith("MailboxSettings.Read")) runtime.setIntegrationPreference("outlook_categories_enabled", false);
+      if (scope.endsWith("MailboxSettings.ReadWrite")) runtime.setIntegrationPreference("outlook_categories_write_enabled", false);
       if (scope.endsWith("Files.ReadWrite.AppFolder")) runtime.setIntegrationPreference("presentation_sync_enabled", false);
     }
   }
@@ -72,7 +77,7 @@ export function microsoftDocumentChanged(contents) {
 
 export function microsoftRequest(action, date = today()) {
   if (action.kind === "syncMicrosoft") automatic.retry();
-  if (["connectMicrosoft","reconnectMicrosoft","disconnectMicrosoft","signOutMicrosoft", ...connectedActions].includes(action.kind)) {
+  if (["connectMicrosoft","reconnectMicrosoft","switchMicrosoftAccount","openLocalWorkspace","disconnectMicrosoft","signOutMicrosoft", ...connectedActions].includes(action.kind)) {
     return barrier(() => operations(action, date));
   }
   return operations(action, date);
@@ -95,17 +100,27 @@ export function microsoftExclusive(perform, { restore = false } = {}) {
 
 export function microsoftAccountId() { return auth.accountKey(); }
 
+function workspaceTransaction(perform, { wait = false } = {}) {
+  if (!navigator.locks) throw new Error("This browser cannot coordinate account workspaces safely. Use a current browser with Web Locks support.");
+  return navigator.locks.request("ferroui-todo-microsoft-sync", wait ? {} : { ifAvailable: true }, lock => {
+    if (!lock) throw new Error("Another tab is synchronizing. Finish that operation before switching account workspaces.");
+    return perform();
+  });
+}
+
 async function performRequest(action, date) {
   if (action.kind === "localDocumentOperation") {
     const perform = async lock => {
       if (!lock) throw new Error("Another tab is synchronizing. Finish that operation before restoring or exporting this document.");
+      if (action.restore) checkpointWorkspace(runtime);
       const result = await action.perform();
       if (result && action.restore) {
         automatic.stop();
         try { await auth.disconnect(); }
         finally {
-          forgetDocumentMappings(); forgetPlannerMappings(); clearCloudCache();
-          resetConnectedApps(runtime, { restore: true });
+          detachWorkspace(runtime, { afterCommit: workspaceCommitted });
+          workspaceReady = false;
+          clearCloudCache(); resetConnectedApps(runtime);
           runtime.cloudState(false, "Local account");
           configuration = await auth.configuration().catch(() => null); capabilities();
           runtime.hostStatus("Restored as a local copy. Microsoft sync is paused.");
@@ -117,6 +132,8 @@ async function performRequest(action, date) {
   }
   if (action.kind === "restoreMicrosoft") {
     try {
+      await workspaceTransaction(() => activateWorkspace(runtime, auth.accountKey(), { adoptLocal: workspaceAccount() === null, afterCommit: workspaceCommitted }));
+      workspaceReady = true;
       const user = await graph("me?$select=id,displayName,userPrincipalName");
       runtime.cloudState(true, user.displayName || user.userPrincipalName || restored.username);
       restoreConnectedApps(runtime, auth.accountKey(), preferences);
@@ -127,16 +144,30 @@ async function performRequest(action, date) {
     capabilities(); return;
   }
   if (demo()) throw new Error("Open the normal app to connect an account; demo tasks are kept separate.");
-  if (["connectMicrosoft", "reconnectMicrosoft", "signOutMicrosoft"].includes(action.kind)) runtime.flushEdits();
-  if (connectedActions.includes(action.kind)) return connectedAppRequest(runtime, action.kind);
-  if (action.kind === "connectMicrosoft") return auth.connect(action.client_id);
+  if (["connectMicrosoft", "reconnectMicrosoft", "switchMicrosoftAccount", "openLocalWorkspace", "signOutMicrosoft"].includes(action.kind)) runtime.flushEdits();
+  if (connectedActions.includes(action.kind)) { assertWorkspace(auth.accountKey()); return connectedAppRequest(runtime, action); }
+  if (["connectMicrosoft", "switchMicrosoftAccount"].includes(action.kind)) {
+    await workspaceTransaction(() => checkpointWorkspace(runtime));
+    return auth.connect(action.client_id);
+  }
   if (action.kind === "reconnectMicrosoft") return auth.reconnect();
+  if (action.kind === "openLocalWorkspace") {
+    await workspaceTransaction(() => activateWorkspace(runtime, null, { afterCommit: workspaceCommitted }));
+    try { await auth.disconnect(); }
+    finally {
+      workspaceReady = false; clearCloudCache(); resetConnectedApps(runtime);
+      runtime.cloudState(false, "Local account"); capabilities();
+      runtime.hostStatus("Local workspace opened. Your Microsoft workspaces are saved on this device.");
+    }
+    return;
+  }
   if (["disconnectMicrosoft", "signOutMicrosoft"].includes(action.kind)) {
     try {
       if (action.kind === "signOutMicrosoft") await auth.logout();
       else await auth.disconnect();
     }
     finally {
+      workspaceReady = false;
       clearCloudCache(); runtime.cloudState(false, "Local account");
       resetConnectedApps(runtime);
       configuration = await auth.configuration().catch(() => null); capabilities();
@@ -146,11 +177,13 @@ async function performRequest(action, date) {
   if (action.kind !== "syncMicrosoft") throw new Error("Unknown Microsoft account action.");
   const account = auth.account();
   if (!account) throw new Error("Connect your Microsoft account first.");
+  assertWorkspace(auth.accountKey());
   const run = async lock => {
     if (!lock) {
       if (action.automatic) return;
       throw new Error("Another tab is synchronizing. Try again when it finishes.");
     }
+    assertWorkspace(auth.accountKey());
     if (!action.automatic) runtime.cloudState(true, "Syncing…");
     try {
       ownCommit = true;

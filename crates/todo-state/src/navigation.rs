@@ -18,8 +18,12 @@ pub enum Panel {
     MoveSelection,
     MoveList(Id),
     DueDate(Id),
+    BulkDueDate(Vec<Id>),
     Reminder(Id),
+    BulkReminder(Vec<Id>),
     Repeat(Id),
+    BulkRepeat(Vec<Id>),
+    BulkCategories(Vec<Id>),
     TaskMenu(Id),
     StepMenu {
         task_id: Id,

@@ -17,6 +17,11 @@ import { runReviewGroups } from "./ui/review-groups.mjs";
 import { verifyDemo } from "./ui/demo.mjs";
 import { verifyPstRoundTrip } from "./ui/pst-roundtrip.mjs";
 import { verifyHashtags } from "./ui/hashtags.mjs";
+import { verifyRichNotes } from "./ui/rich-notes.mjs";
+import { verifyBulkParity } from "./ui/bulk-parity.mjs";
+import { verifyCategoryManagement } from "./ui/category-management.mjs";
+import { verifyWallpapers } from "./ui/wallpapers.mjs";
+import { verifyRecurrence } from "./ui/recurrence.mjs";
 
 const [site, output = "test-results/ui", ...extra] = process.argv.slice(2);
 if (!site || extra.length) throw new Error("usage: ui-smoke.mjs <built-site> [output-directory]");
@@ -144,6 +149,11 @@ try {
     { name: "settings", run: () => verifySettingsPresentation(ui) },
     { name: "list", run: () => verifyListPresentation(ui) },
     { name: "hashtags", run: () => verifyHashtags(ui) },
+    { name: "rich-notes", run: () => verifyRichNotes(ui) },
+    { name: "bulk-parity", run: () => verifyBulkParity(ui) },
+    { name: "category-management", run: () => verifyCategoryManagement(ui) },
+    { name: "wallpapers", run: () => verifyWallpapers(ui, output) },
+    { name: "recurrence", run: () => verifyRecurrence(ui) },
     { name: "touch", run: () => verifyTouch(ui, output) },
     { name: "sidebar", run: () => verifySidebar(ui) },
     { name: "demo", run: () => verifyDemo(ui, output) },

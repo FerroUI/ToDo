@@ -37,6 +37,7 @@ pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
     if vm.cloud_connected() {
         let sync = vm.clone();
         let reconnect = vm.clone();
+        let switch = vm.clone();
         let disconnect = vm.clone();
         let sign_out = vm.clone();
         content = content
@@ -61,6 +62,13 @@ pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
                 "Reconnect Microsoft account",
                 move || reconnect.request(HostRequest::ReconnectMicrosoft),
             ))
+            .child(action_button(
+                Icon::Person,
+                "Switch Microsoft account",
+                move || switch.request(HostRequest::SwitchMicrosoftAccount),
+            ))
+            .child(text_block().text("Each account keeps its own tasks, files, settings, and pending changes on this device.")
+                .font_size(12.0).foreground(p.secondary).text_wrapping(TextWrapping::Wrap))
             .child(action_button(
                 Icon::Close,
                 "Disconnect this app",
@@ -113,5 +121,12 @@ pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
             );
         }
     }
-    content.into()
+    let local = vm.clone();
+    content
+        .child(action_button(
+            Icon::List,
+            "Open local workspace",
+            move || local.request(HostRequest::OpenLocalWorkspace),
+        ))
+        .into()
 }

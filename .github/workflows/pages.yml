@@ -32,6 +32,7 @@ jobs:
       - name: Check task state and synchronization
         run: |
           cargo test --locked -p todo-domain -p todo-state -p todo-interop -p todo-credentials
+          cargo test --locked -p todo-ui --lib
           node --test scripts/*.test.mjs
       - name: Build browser app
         id: browser_build
@@ -48,7 +49,7 @@ jobs:
           path: ${{ steps.toolchain.outputs.build-cache-paths }}
           key: ${{ steps.toolchain.outputs.build-cache-key }}
       - name: Check browser editing and rendering
-        run: timeout --signal=TERM --kill-after=10s 8m node scripts/ui-smoke.mjs target/browser/todo-browser target/browser/todo-browser/qa
+        run: timeout --signal=TERM --kill-after=10s 14m node scripts/ui-smoke.mjs target/browser/todo-browser target/browser/todo-browser/qa
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         if: ${{ !cancelled() && steps.browser_build.outcome == 'success' }}
         with:

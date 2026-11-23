@@ -29,7 +29,7 @@ test("explicit registration updates preserve unrelated redirects, API configurat
   assert.deepEqual(payload.publicClient.redirectUris, ["http://localhost/callback", "http://localhost/"]);
   assert.deepEqual(payload.api, { knownClientApplications: [CLIENT], requestedAccessTokenVersion: 2 });
   assert.deepEqual(payload.requiredResourceAccess[0], existing.requiredResourceAccess[0]);
-  assert.equal(registrationPayload(settings(), principal(), payload).requiredResourceAccess[1].resourceAccess.length, 4);
+  assert.equal(registrationPayload(settings(), principal(), payload).requiredResourceAccess[1].resourceAccess.length, 5);
 });
 
 test("wrong tenant, changed identity endpoints and unsupported cloud combinations stop before requests", () => {

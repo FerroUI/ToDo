@@ -106,6 +106,16 @@ impl AppViewModel {
                 if matches!(self.view(), View::List(id) if document.list(id).is_none()) {
                     *self.view.borrow_mut() = View::List(TASKS_LIST);
                 }
+                if changes.settings_changed && !document.settings.smart_list_enabled(&self.view()) {
+                    *self.view.borrow_mut() = View::MyDay;
+                    self.selected.set(None);
+                    self.selection.borrow_mut().clear();
+                    self.selection_mode.set(false);
+                    self.selection_anchor.set(None);
+                    self.task_cursor.set(None);
+                    self.sort.set(SortOrder::Manual);
+                    self.sort_reversed.set(false);
+                }
                 self.selection
                     .borrow_mut()
                     .retain(|id| document.task(*id).is_some());

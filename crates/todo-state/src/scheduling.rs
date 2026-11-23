@@ -46,6 +46,24 @@ impl AppViewModel {
         if self.state().task(id).is_none() {
             return Err("This task no longer exists.".into());
         }
+        if reminder_time.is_none() {
+            if self
+                .state()
+                .task(id)
+                .and_then(|task| task.start_date)
+                .is_some_and(|start| start > date)
+            {
+                return Err("The due date must be on or after the start date.".into());
+            }
+            if let Some(mut rule) = self
+                .state()
+                .task(id)
+                .and_then(|task| task.recurrence.clone())
+            {
+                rule.reanchor(date);
+                rule.validate().map_err(str::to_owned)?;
+            }
+        }
         let action = if let Some(time) = reminder_time {
             Action::SetReminder {
                 id,
@@ -68,6 +86,49 @@ impl AppViewModel {
             }
             vm.show_panel(Panel::None);
         });
+        Ok(())
+    }
+
+    pub fn save_task_range(&self, id: Id, due: Date, start: &str) -> Result<(), String> {
+        let start = if start.trim().is_empty() {
+            None
+        } else {
+            Some(
+                start
+                    .trim()
+                    .parse::<Date>()
+                    .map_err(|_| "Enter a valid start date in YYYY-MM-DD format.")?,
+            )
+        };
+        if start.is_some_and(|start| start > due) {
+            return Err("The due date must be on or after the start date.".into());
+        }
+        let state = self.state();
+        let task = state.task(id).ok_or("This task no longer exists.")?;
+        if task.is_planner() {
+            return Err("Open Planner to change its task start date.".into());
+        }
+        if let Some(mut rule) = task.recurrence.clone() {
+            rule.reanchor(due);
+            rule.validate().map_err(str::to_owned)?;
+        }
+        if task.start_date == start && task.due_date == Some(due) {
+            drop(state);
+            self.show_panel(Panel::None);
+            return Ok(());
+        }
+        drop(state);
+        self.dispatch_after(
+            Action::Batch(vec![
+                Action::SetStartDate { id, date: None },
+                Action::SetDueDate {
+                    id,
+                    date: Some(due),
+                },
+                Action::SetStartDate { id, date: start },
+            ]),
+            |vm, _| vm.show_panel(Panel::None),
+        );
         Ok(())
     }
 

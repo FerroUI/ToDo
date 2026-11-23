@@ -14,6 +14,10 @@ start dates, precise timestamps, and the Microsoft To Do body-modification
 named property. Two tasks deliberately change local completion/importance and
 verify that those edits override the source projection.
 
+`rich-notes.pst` contains Unicode notes with emphasis, links, a bulleted list,
+and structured steps. Its second task has a formatting-only Outlook edit while
+retaining the earlier FerroUI metadata, proving that the edited HTML wins.
+
 Regenerate with `node scripts/generate-pst-fixture.mjs`. The JavaScript test
 checks byte-for-byte reproducibility. Rust tests independently decode the
 file with Microsoft's `outlook-pst` reference implementation and verify its

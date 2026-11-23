@@ -1,29 +1,21 @@
 use super::item::{command, submenu};
 use super::task_action::batch;
+use ferroui_controls::Control;
 use ferroui_view::prelude::*;
 use std::rc::Rc;
 use todo_controls::Icon;
 use todo_domain::{Action, Id, SortOrder, View};
 use todo_state::AppViewModel;
 
-pub(super) fn items(vm: Rc<AppViewModel>, id: Id) -> Vec<Element> {
+pub(super) fn items(vm: Rc<AppViewModel>, id: Id, anchor: &Control) -> Vec<Element> {
     let selection = vm.selection();
     let selected = selection.contains(&id);
     let state = vm.state();
     if state.task(id).is_none() {
         return Vec::new();
     }
-    let tasks: Vec<_> = state
-        .tasks
-        .iter()
-        .filter(|task| {
-            if selected {
-                selection.contains(&task.id)
-            } else {
-                task.id == id
-            }
-        })
-        .collect();
+    let ordered = vm.task_action_ids(Some(id));
+    let tasks: Vec<_> = ordered.iter().filter_map(|id| state.task(*id)).collect();
     let ids: Rc<[Id]> = tasks.iter().map(|task| task.id).collect();
     let count = ids.len();
     let included = tasks.iter().all(|task| task.is_my_day(vm.today()));
@@ -31,6 +23,7 @@ pub(super) fn items(vm: Rc<AppViewModel>, id: Id) -> Vec<Element> {
     let completed = tasks.iter().all(|task| task.completed);
     let can_move = tasks.iter().all(|task| task.can_move());
     let can_delete = tasks.iter().all(|task| task.can_delete());
+    let service_settings = tasks.iter().all(|task| !task.is_planner());
     let mut lists = state.lists.clone();
     lists.sort_by_key(|list| (list.position, list.id));
     let destinations: Vec<_> = lists
@@ -84,6 +77,9 @@ pub(super) fn items(vm: Rc<AppViewModel>, id: Id) -> Vec<Element> {
         separator().into(),
         super::task_dates::submenu(vm.clone(), ids.clone()),
     ];
+    if service_settings {
+        items.extend(super::task_schedule::items(vm.clone(), ids.clone()));
+    }
     let move_items = destinations
         .into_iter()
         .map(|list| {
@@ -111,6 +107,12 @@ pub(super) fn items(vm: Rc<AppViewModel>, id: Id) -> Vec<Element> {
         },
         Icon::Copy,
         |id, _| Action::DuplicateTask(id),
+    ));
+    items.extend(crate::clipboard::task_commands(
+        anchor,
+        vm.clone(),
+        ids.clone(),
+        can_move,
     ));
     if can_move
         && count == 1

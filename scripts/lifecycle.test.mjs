@@ -19,7 +19,7 @@ function fixture() {
   host.clearInterval = timer => timers.delete(timer);
   const calls = [];
   const runtime = { cancelGestures: () => calls.push("cancel"), flushEdits: () => calls.push("flush"),
-    recoverTouchSequence: () => calls.push("recover") };
+    recoverTouchSequence: () => calls.push("recover"), cancelPenPointer: id => calls.push(["cancel-pen", id]) };
   return { host, calls, runtime, tick: () => calls.push("tick"), reportError: error => calls.push(error.message),
     timers, emit: type => host.dispatchEvent(new Event(type)),
     pointer: (type, event) => pointers.get(type)?.(event),
@@ -99,4 +99,20 @@ test("only a trusted primary touch Down reconciles an interrupted sequence befor
   dispose();
   api.pointer("pointerdown", { isTrusted: true, pointerType: "touch", isPrimary: true });
   assert.deepEqual(api.calls, ["tick", "recover"], "cleanup removes the capture listener");
+});
+
+test("trusted pen cancellation retires its exact native contact without inventing a release", () => {
+  const api = fixture();
+  const dispose = attachLifecycle(api.runtime, api.tick, api.reportError, api.host);
+  api.calls.length = 0;
+  api.pointer("pointercancel", { isTrusted: false, pointerType: "pen", pointerId: 17 });
+  api.pointer("pointercancel", { isTrusted: true, pointerType: "touch", pointerId: 17 });
+  api.pointer("pointercancel", { isTrusted: true, pointerType: "mouse", pointerId: 17 });
+  api.pointer("pointercancel", { isTrusted: true, pointerType: "pen", pointerId: NaN });
+  assert.deepEqual(api.calls, []);
+  api.pointer("pointercancel", { isTrusted: true, pointerType: "pen", pointerId: 17 });
+  assert.deepEqual(api.calls, [["cancel-pen", 17]]);
+  dispose();
+  api.pointer("pointercancel", { isTrusted: true, pointerType: "pen", pointerId: 17 });
+  assert.equal(api.calls.length, 1);
 });

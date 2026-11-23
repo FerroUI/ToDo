@@ -124,6 +124,8 @@ async fn handle(
         }
         HostRequest::ConnectMicrosoft { .. }
         | HostRequest::ReconnectMicrosoft
+        | HostRequest::SwitchMicrosoftAccount
+        | HostRequest::OpenLocalWorkspace
         | HostRequest::SignOutMicrosoft
         | HostRequest::DisconnectMicrosoft
         | HostRequest::SyncMicrosoft
@@ -131,6 +133,11 @@ async fn handle(
         | HostRequest::EnableOutlookCategories
         | HostRequest::RefreshOutlookCategories
         | HostRequest::DisableOutlookCategories
+        | HostRequest::EnableOutlookCategoryEditing
+        | HostRequest::DisableOutlookCategoryEditing
+        | HostRequest::CreateOutlookCategory { .. }
+        | HostRequest::UpdateOutlookCategory { .. }
+        | HostRequest::DeleteOutlookCategory { .. }
         | HostRequest::EnablePresentationSync
         | HostRequest::DisablePresentationSync => {
             todo_ui::commit_pending_edits(vm, window);

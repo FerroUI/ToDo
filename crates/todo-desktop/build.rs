@@ -32,6 +32,14 @@ fn collect(root: &Path, directory: &Path, prefix: &str, entries: &mut Vec<(Strin
 fn main() {
     let mut entries = Vec::new();
     let web = Path::new("../todo-browser/wwwroot");
+    for name in ["notes.js", "backgrounds.js"] {
+        let path = web.join(name);
+        println!("cargo:rerun-if-changed={}", path.display());
+        entries.push((
+            format!("web/{name}"),
+            path.canonicalize().unwrap().to_string_lossy().into_owned(),
+        ));
+    }
     collect(web, &web.join("cloud"), "web", &mut entries);
     collect(web, &web.join("backup"), "web", &mut entries);
     if web.join("vendor/pst-writer").is_dir() {

@@ -8,6 +8,9 @@ pub struct Task {
     pub title: String,
     #[serde(default)]
     pub notes: String,
+    /// Sanitized rich note; `notes` remains its searchable, portable text projection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes_html: Option<String>,
     #[serde(default)]
     pub important: bool,
     #[serde(default)]
@@ -18,6 +21,8 @@ pub struct Task {
     pub my_day_excluded: Option<Date>,
     #[serde(default)]
     pub due_date: Option<Date>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_date: Option<Date>,
     #[serde(default)]
     pub reminder: Option<Reminder>,
     #[serde(default)]
@@ -56,11 +61,13 @@ impl Task {
             list_id,
             title,
             notes: String::new(),
+            notes_html: None,
             important: false,
             completed: false,
             my_day: None,
             my_day_excluded: None,
             due_date: None,
+            start_date: None,
             reminder: None,
             recurrence: None,
             recurrence_generated: false,
@@ -200,6 +207,9 @@ pub struct Settings {
     pub confirm_delete: bool,
     pub completion_sound: bool,
     pub show_completed: bool,
+    pub show_important: bool,
+    pub show_planned: bool,
+    pub hide_empty_smart_lists: bool,
     pub show_all: bool,
     pub show_completed_list: bool,
     pub show_assigned: bool,
@@ -212,9 +222,12 @@ pub struct Settings {
     pub auto_sync: bool,
     pub planner_enabled: bool,
     pub outlook_categories_enabled: bool,
+    pub outlook_categories_write_enabled: bool,
     pub presentation_sync_enabled: bool,
     pub keep_running_in_background: bool,
+    pub background_reminders: bool,
     pub smart_colors: std::collections::BTreeMap<String, String>,
+    pub smart_backgrounds: std::collections::BTreeMap<String, String>,
 }
 
 impl Default for Settings {
@@ -224,6 +237,9 @@ impl Default for Settings {
             confirm_delete: true,
             completion_sound: true,
             show_completed: true,
+            show_important: true,
+            show_planned: true,
+            hide_empty_smart_lists: false,
             show_all: true,
             show_completed_list: false,
             show_assigned: false,
@@ -236,9 +252,42 @@ impl Default for Settings {
             auto_sync: true,
             planner_enabled: false,
             outlook_categories_enabled: false,
+            outlook_categories_write_enabled: false,
             presentation_sync_enabled: false,
             keep_running_in_background: false,
+            background_reminders: false,
             smart_colors: std::collections::BTreeMap::new(),
+            smart_backgrounds: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
+impl Settings {
+    pub fn smart_list_enabled(&self, view: &crate::View) -> bool {
+        match view {
+            crate::View::Important => self.show_important,
+            crate::View::Planned => self.show_planned,
+            crate::View::All => self.show_all,
+            crate::View::Completed => self.show_completed_list,
+            crate::View::AssignedToMe => self.show_assigned,
+            crate::View::FlaggedEmail => self.show_flagged_email,
+            _ => true,
+        }
+    }
+
+    /// Keep the active empty view reachable until the user navigates away.
+    pub fn smart_list_visible(
+        &self,
+        view: &crate::View,
+        count: usize,
+        current: &crate::View,
+    ) -> bool {
+        match view {
+            crate::View::MyDay | crate::View::List(_) | crate::View::Search(_) => true,
+            _ => {
+                self.smart_list_enabled(view)
+                    && (!self.hide_empty_smart_lists || count != 0 || current == view)
+            }
         }
     }
 }

@@ -95,18 +95,32 @@ fn handle(
                 .prepare_cloud_json(text(args, "json")?)
                 .map(Value::String)
         }
+        "prepareImportData" => {
+            return vm
+                .prepare_import_json(text(args, "json")?)
+                .map(Value::String)
+        }
         "validateImportData" => {
             return AppState::from_json(text(args, "json")?)
                 .and_then(|state| state.to_json())
                 .map(Value::String)
                 .map_err(|e| e.to_string())
         }
-        "replaceFromCloud" | "importData" => {
+        "emptyAccountData" => {
+            return AppState::new()
+                .to_json()
+                .map(Value::String)
+                .map_err(|error| error.to_string())
+        }
+        "replaceFromCloud" | "importData" | "replaceAccountData" => {
             if vm.export_json()? != text(args, "expected")? {
                 return Err("Tasks changed while the service was working. Your edits were retained; retry the operation.".into());
             }
             if method == "replaceFromCloud" {
                 vm.replace_from_cloud(text(args, "json")?)?;
+            } else if method == "replaceAccountData" {
+                todo_ui::cancel_gestures(window);
+                vm.replace_account_document(text(args, "json")?)?;
             } else {
                 vm.import_json(text(args, "json")?)?;
             }

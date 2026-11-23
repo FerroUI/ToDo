@@ -5,6 +5,10 @@ use todo_domain::AppState;
 /// OS-owned advisory lock is released on process exit, including crashes. Every
 /// native instance acquires it before loading a mutable document or starting sync.
 pub fn lock_directory(directory: &Path) -> Result<std::fs::File, String> {
+    try_lock_directory(directory)?.ok_or_else(|| "Another To Do desktop instance is using this data directory. Return to that window or close it first.".to_owned())
+}
+
+pub fn try_lock_directory(directory: &Path) -> Result<Option<std::fs::File>, String> {
     std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
     #[cfg(unix)]
     {
@@ -19,8 +23,11 @@ pub fn lock_directory(directory: &Path) -> Result<std::fs::File, String> {
         .truncate(false)
         .open(directory.join("native-instance.lock"))
         .map_err(|error| error.to_string())?;
-    file.try_lock().map_err(|_| "Another To Do desktop instance is using this data directory. Return to that window or close it first.".to_owned())?;
-    Ok(file)
+    match file.try_lock() {
+        Ok(()) => Ok(Some(file)),
+        Err(std::fs::TryLockError::WouldBlock) => Ok(None),
+        Err(std::fs::TryLockError::Error(error)) => Err(error.to_string()),
+    }
 }
 
 pub fn data_directory() -> PathBuf {
@@ -71,6 +78,13 @@ pub fn load(directory: &Path) -> (AppState, Option<String>) {
     }
 }
 
+/// Scheduled helpers must never replace a corrupt or unreadable document with defaults.
+pub fn load_strict(directory: &Path) -> Result<AppState, String> {
+    let json =
+        std::fs::read_to_string(directory.join("tasks.json")).map_err(|error| error.to_string())?;
+    AppState::from_json(&json).map_err(|error| error.to_string())
+}
+
 pub fn save(directory: &Path, json: &str) -> Result<(), String> {
     let save = || -> std::io::Result<()> {
         std::fs::create_dir_all(directory)?;
@@ -79,7 +93,10 @@ pub fn save(directory: &Path, json: &str) -> Result<(), String> {
         file.write_all(json.as_bytes())?;
         file.sync_all()?;
         drop(file);
-        std::fs::rename(temporary, directory.join("tasks.json"))
+        std::fs::rename(temporary, directory.join("tasks.json"))?;
+        #[cfg(unix)]
+        std::fs::File::open(directory)?.sync_all()?;
+        Ok(())
     };
     save().map_err(|error| format!("Could not save tasks: {error}"))
 }

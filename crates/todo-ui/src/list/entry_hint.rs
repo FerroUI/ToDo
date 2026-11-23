@@ -10,7 +10,7 @@ pub(super) fn view(vm: &AppViewModel, draft: &str) -> Element {
         return Element::Empty;
     }
     let entry = TaskEntry::parse_english(draft, vm.today(), vm.current_minutes(), false);
-    let (symbol, label) = if let Some(reminder) = entry.reminder {
+    let (symbol, mut label) = if let Some(reminder) = entry.reminder {
         (
             Icon::Bell,
             format!(
@@ -25,6 +25,12 @@ pub(super) fn view(vm: &AppViewModel, draft: &str) -> Element {
     } else {
         return Element::Empty;
     };
+    if let Some(start) = entry.start_date {
+        label = format!("{} – {label}", vm.date_label(start));
+    }
+    if let Some(rule) = entry.recurrence {
+        label.push_str(&format!(" · {}", rule.label()));
+    }
     let color = crate::palette(vm).secondary;
     grid()
         .column_definitions("16,*")

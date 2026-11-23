@@ -52,6 +52,7 @@ impl AppState {
             Action::AssignTask { id, .. }
             | Action::SetReminder { id, .. }
             | Action::SetRecurrence { id, .. }
+            | Action::SetStartDate { id, .. }
             | Action::SetTags { id, .. } => Some(*id),
             Action::AddAttachment { task_id, .. }
             | Action::DeleteAttachment { task_id, .. }

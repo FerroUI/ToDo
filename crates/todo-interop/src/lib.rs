@@ -7,6 +7,7 @@ mod metadata;
 mod named;
 mod properties;
 mod reader;
+mod recurrence;
 mod task;
 mod walk;
 

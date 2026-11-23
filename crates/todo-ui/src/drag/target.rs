@@ -32,7 +32,7 @@ fn plan(
     control: &Control,
     vm: &AppViewModel,
     target: Target,
-    id: Id,
+    ids: &[Id],
     event: &DragEventArgs,
 ) -> Option<(Action, bool)> {
     let point = event.get_position(control);
@@ -42,8 +42,8 @@ fn plan(
     }
     let after = point.y >= bounds.height / 2.0;
     let action = match target {
-        Target::Row(identity) => reorder(vm, id, identity(control)?, after),
-        Target::List => move_to(vm, id, list_id(control)?),
+        Target::Row(identity) => reorder(vm, ids, identity(control)?, after),
+        Target::List => move_to(vm, ids, list_id(control)?),
     }?;
     Some((action, after))
 }
@@ -56,10 +56,16 @@ fn attach(control: &Ref<Control>, vm: Rc<AppViewModel>, target: Target) {
         let Some(control) = weak.upgrade() else {
             return;
         };
-        let Some((_, id)) = task_payload(event, &hover_vm) else {
+        let Some(drag) = task_payload(event, &hover_vm) else {
             return;
         };
-        let planned = plan(&control, &hover_vm, target, id, event);
+        let planned = plan(
+            &control,
+            &hover_vm,
+            target,
+            drag.session.origin.task_ids(),
+            event,
+        );
         event.set_drag_effects(if planned.is_some() {
             DragDropEffects::MOVE
         } else {
@@ -90,17 +96,18 @@ fn attach(control: &Ref<Control>, vm: Rc<AppViewModel>, target: Target) {
         let Some(control) = weak.upgrade() else {
             return;
         };
-        let Some((drag, id)) = task_payload(event, &vm) else {
+        let Some(drag) = task_payload(event, &vm) else {
             return;
         };
         feedback::show(&control, false, false);
         event.set_drag_effects(DragDropEffects::NONE);
         event.set_handled(true);
-        let Some((action, _)) = plan(&control, &vm, target, id, event) else {
+        let Some((action, _)) = plan(&control, &vm, target, drag.session.origin.task_ids(), event)
+        else {
             return;
         };
         if drag.session.finish() {
-            vm.dispatch(action);
+            super::commit(&vm, action);
             event.set_drag_effects(DragDropEffects::MOVE);
         }
     });

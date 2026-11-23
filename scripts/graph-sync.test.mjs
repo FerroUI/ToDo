@@ -250,11 +250,11 @@ test("a move copies and verifies Microsoft files before deleting the source", as
   assert(upload >= 0 && remove > upload);
 });
 
-test("editing another field preserves a recurrence outside the local date-anchor model", async () => {
+test("editing another field preserves an explicit monthly selector independent of the range start", async () => {
   const api = fixture();
   const recurrence = { pattern: { type: "absoluteMonthly", interval: 1, dayOfMonth: 15 }, range: { type: "noEnd", startDate: "2026-11-21" } };
   api.cloud[0].tasks.push({ ...remoteTask(), recurrence }); await sync(api);
-  assert.equal(api.runtime.state.tasks[0].recurrence, null);
+  assert.deepEqual(api.runtime.state.tasks[0].recurrence, { unit: "Month", every: 1, anchor: "2026-11-21", day_of_month: 15 });
   api.runtime.mutate(state => state.tasks[0].important = true); await sync(api);
   assert.deepEqual(api.cloud[0].tasks[0].recurrence, recurrence);
 });

@@ -59,10 +59,21 @@ pub(crate) fn project(
         )?),
         value => text(value, codepage)?,
     };
-    let notes = plain.clone().unwrap_or_default();
-    if plain.is_none() && html.as_ref().is_some_and(|html| !html.is_empty()) {
-        warnings.push("An HTML task note was converted to plain text; its original HTML is preserved in the task data.".into());
-    }
+    let rich_note = html
+        .as_deref()
+        .filter(|html| !html.is_empty())
+        .map(todo_domain::notes::RichNote::from_html)
+        .transpose()
+        .map_err(InteropError::new)?;
+    // PidTagNativeBody=1 makes an Outlook plain-body edit authoritative even
+    // when the producer retained an older HTML alternative in the message.
+    let use_html =
+        rich_note.is_some() && (integer(props.get(0x1016)) != Some(1) || plain.is_none());
+    let notes = if use_html {
+        rich_note.as_ref().unwrap().text()
+    } else {
+        plain.clone().unwrap_or_default()
+    };
     if plain.is_none() && props.get(0x1009).is_some() && html.is_none() {
         warnings.push("An RTF-only task body is preserved in the original task data; its plain-text note is empty.".into());
     }
@@ -88,12 +99,17 @@ pub(crate) fn project(
     };
     let mut task = Task::new(id, list, title, today);
     task.notes = notes;
+    task.notes_html = rich_note
+        .as_ref()
+        .filter(|note| use_html && note.has_formatting())
+        .map(|note| note.to_html());
     task.important = importance == 2;
     task.completed = completed;
     task.created_on = created;
     task.updated_on = updated;
     task.completed_on = completed.then_some(completed_on.unwrap_or(updated));
     task.due_date = due.map(|date| date.date_naive());
+    task.start_date = start.map(|date| date.date_naive());
     task.tags = tags;
     let reminder_set = boolean(get(COMMON, 0x8503)).unwrap_or(false);
     let reminder_time = if reminder_set {
@@ -115,8 +131,17 @@ pub(crate) fn project(
     if reminder_set && reminder_time.is_none() {
         warnings.push("A task reminder had no timestamp and was not enabled.".into());
     }
-    if get(TASK, 0x8116).is_some() || boolean(get(TASK, 0x8126)).unwrap_or(false) {
-        warnings.push("An Outlook recurrence pattern is preserved in the original task data; review and set its repeat schedule before syncing.".into());
+    if boolean(get(TASK, 0x8126)).unwrap_or(get(TASK, 0x8116).is_some()) {
+        match get(TASK, 0x8116) {
+            Some(PropertyValue::Binary(value)) => match crate::recurrence::decode(value.buffer()) {
+                Ok(rule) => {
+                    task.recurrence = Some(rule);
+                    task.recurrence_generated = boolean(get(TASK, 0x8109)).unwrap_or(task.completed);
+                }
+                Err(reason) => warnings.push(format!("An Outlook task contains {reason}. Its original binary pattern is preserved; review its repeat schedule before syncing.")),
+            },
+            _ => warnings.push("An Outlook recurring task has no valid recurrence binary; its original properties are preserved.".into()),
+        }
     }
     let mut properties = Map::new();
     let mut named_properties = Map::new();

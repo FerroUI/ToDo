@@ -1,6 +1,7 @@
 mod native;
-mod persistence;
+mod reminders_host;
 mod services;
+use todo_desktop::{persistence, reminders};
 
 #[global_allocator]
 static ALLOCATOR: todo_interop::allocation_budget::ParserAllocator =
@@ -25,6 +26,14 @@ fn main() {
     if args.first().is_some_and(|arg| arg == "--credential-vault") {
         std::process::exit(native::credential_child());
     }
+    if let Some(mode) = args.first().filter(|mode| {
+        matches!(
+            mode.as_str(),
+            "--deliver-reminders" | "--reconcile-reminders" | "--disable-background-reminders"
+        )
+    }) {
+        std::process::exit(reminders::run_headless(mode, &args[1..]));
+    }
     let demo = args.iter().any(|arg| arg == "--demo");
     let directory = persistence::data_directory();
     let _instance = if demo {
@@ -38,6 +47,14 @@ fn main() {
             }
         }
     };
+    let scheduler = (!demo)
+        .then(|| {
+            std::env::current_exe()
+                .ok()
+                .map(|executable| reminders::Scheduler::start(directory.clone(), executable))
+        })
+        .flatten();
+    let scheduler_lifetime = scheduler.clone();
     AppBuilder::configure::<Application>()
         .use_platform_detect()
         .with_inter_font()
@@ -60,6 +77,7 @@ fn main() {
                     persistence::load(&directory)
                 };
                 let storage = directory.clone();
+                let save_scheduler = scheduler.clone();
                 let vm = AppViewModel::new(
                     state,
                     today,
@@ -67,7 +85,11 @@ fn main() {
                         if demo {
                             Ok(())
                         } else {
-                            persistence::save(&storage, json)
+                            persistence::save(&storage, json)?;
+                            if let Some(scheduler) = &save_scheduler {
+                                scheduler.submit(json);
+                            }
+                            Ok(())
                         }
                     }),
                 );
@@ -79,7 +101,10 @@ fn main() {
                 window.set_height(820.0);
                 window.set_min_width(380.0);
                 window.set_min_height(480.0);
-                services::install(&vm, &window, directory, demo);
+                services::install(&vm, &window, directory.clone(), demo);
+                if let Some(scheduler) = scheduler.clone() {
+                    reminders_host::install(&vm, &window, &directory, scheduler);
+                }
                 if let Some(error) = error {
                     vm.report_error(error);
                 }
@@ -145,4 +170,7 @@ fn main() {
             },
             &args,
         );
+    if let Some(scheduler) = scheduler_lifetime {
+        scheduler.finish();
+    }
 }

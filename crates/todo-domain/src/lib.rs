@@ -3,11 +3,13 @@
 
 mod action;
 mod apply;
+pub mod backgrounds;
 mod calendar;
 pub mod hashtags;
 mod integration;
 mod lists;
 mod model;
+pub mod notes;
 mod persistence;
 mod query;
 mod sample;
@@ -19,6 +21,7 @@ mod task_actions;
 mod task_creation;
 mod task_entry;
 mod task_order;
+mod task_transfer;
 
 pub use action::*;
 pub use calendar::*;

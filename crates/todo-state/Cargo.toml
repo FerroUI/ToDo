@@ -7,6 +7,7 @@ publish = false
 
 [dependencies]
 todo-domain = { path = "../todo-domain" }
+chrono = { version = "0.4", default-features = false, features = ["std"] }
 ferroui-system.workspace = true
 ferroui-reactive.workspace = true
 ferroui-reactiveui.workspace = true

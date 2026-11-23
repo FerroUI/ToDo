@@ -153,6 +153,7 @@ impl HistoryEntry {
                 std::mem::size_of::<Task>()
                     + task.title.len()
                     + task.notes.len()
+                    + task.notes_html.as_ref().map_or(0, String::len)
                     + task
                         .steps
                         .iter()
@@ -171,7 +172,9 @@ impl HistoryEntry {
             .map_or(0, |(lists, groups, sidebar_order)| {
                 lists
                     .iter()
-                    .map(|list| list.name.len() + 128)
+                    .map(|list| {
+                        list.name.len() + list.background.as_ref().map_or(0, String::len) + 128
+                    })
                     .sum::<usize>()
                     + groups
                         .iter()
@@ -179,7 +182,14 @@ impl HistoryEntry {
                         .sum::<usize>()
                     + sidebar_order.len() * std::mem::size_of::<Id>()
             });
-        tasks + topology + self.tasks.len() * 32 + 256
+        let backgrounds = self.settings.as_ref().map_or(0, |settings| {
+            settings
+                .smart_backgrounds
+                .iter()
+                .map(|(name, image)| name.len() + image.len())
+                .sum::<usize>()
+        });
+        tasks + topology + backgrounds + self.tasks.len() * 32 + 256
     }
 }
 
@@ -216,12 +226,14 @@ fn scope(
         Action::SetSettings(_) => *settings = true,
         Action::RenameTask { id, .. }
         | Action::SetNotes { id, .. }
+        | Action::SetRichNotes { id, .. }
         | Action::ToggleCompleted(id)
         | Action::SetCompleted { id, .. }
         | Action::ToggleImportant(id)
         | Action::SetImportant { id, .. }
         | Action::SetMyDay { id, .. }
         | Action::SetDueDate { id, .. }
+        | Action::SetStartDate { id, .. }
         | Action::SetReminder { id, .. }
         | Action::SetRecurrence { id, .. }
         | Action::SetTags { id, .. }
@@ -240,7 +252,9 @@ fn scope(
             ids.insert(*task_id);
         }
         // A preceding command in a batch may have moved the task into another list.
-        Action::ReorderTask { .. } => ids.extend(state.tasks.iter().map(|task| task.id)),
+        Action::ReorderTask { .. } | Action::TransferTasks { .. } | Action::PasteTasks { .. } => {
+            ids.extend(state.tasks.iter().map(|task| task.id))
+        }
         Action::DeleteCompleted { list_id } => ids.extend(
             state
                 .tasks

@@ -1,10 +1,11 @@
 use super::input::{focus_later, Drafts};
 use ferroui_base::input::{Key, KeyEventArgs, KeyModifiers};
-use ferroui_controls::{Control, TextBox};
+use ferroui_controls::{Control, RichEditBox, TextBox};
+use std::rc::Rc;
 use todo_domain::{Action, View};
 use todo_state::{AppViewModel, Panel};
 
-pub(super) fn handle(root: &Control, vm: &AppViewModel, drafts: &Drafts, event: &KeyEventArgs) {
+pub(super) fn handle(root: &Control, vm: &Rc<AppViewModel>, drafts: &Drafts, event: &KeyEventArgs) {
     if crate::editing::is_composing(event) {
         return;
     }
@@ -31,16 +32,35 @@ pub(super) fn handle(root: &Control, vm: &AppViewModel, drafts: &Drafts, event: 
     let modifiers = event.key_modifiers;
     let editing = event
         .source()
-        .is_some_and(|source| source.cast::<TextBox>().is_some());
+        .and_then(|source| source.cast::<Control>())
+        .is_some_and(|source| {
+            source.get_self_and_visual_ancestors().any(|control| {
+                control.cast::<TextBox>().is_some() || control.cast::<RichEditBox>().is_some()
+            })
+        });
     if editing
         && (event.key == Key::Delete
             || (modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::META)
-                && matches!(event.key, Key::D | Key::T | Key::Z | Key::Y)))
+                && matches!(
+                    event.key,
+                    Key::A | Key::C | Key::X | Key::V | Key::D | Key::T | Key::Z | Key::Y
+                )))
     {
         return;
     }
     if modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::META) {
         match event.key {
+            Key::C | Key::X if vm.panel() == Panel::None => {
+                crate::clipboard::copy(
+                    root,
+                    vm.clone(),
+                    vm.task_action_ids(None),
+                    event.key == Key::X,
+                );
+            }
+            Key::V if vm.panel() == Panel::None => {
+                crate::clipboard::paste(root, vm.clone(), vm.view())
+            }
             Key::N => {
                 if vm.selection_mode() {
                     vm.end_selection();
@@ -74,12 +94,15 @@ pub(super) fn handle(root: &Control, vm: &AppViewModel, drafts: &Drafts, event: 
                 }
             }
             Key::T => {
-                if let Some(id) = vm.selected().or(vm.task_cursor()) {
-                    vm.dispatch(Action::SetMyDay {
-                        id,
-                        day: Some(vm.today()),
-                    });
-                }
+                let ids = vm.task_action_ids(None);
+                vm.dispatch(Action::Batch(
+                    ids.into_iter()
+                        .map(|id| Action::SetMyDay {
+                            id,
+                            day: Some(vm.today()),
+                        })
+                        .collect(),
+                ));
             }
             Key::Z if modifiers.contains(KeyModifiers::SHIFT) => vm.redo(),
             Key::Z => vm.undo(),

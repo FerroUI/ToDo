@@ -1,4 +1,5 @@
 mod account;
+mod category_catalog;
 mod connections;
 mod controls;
 mod data;
@@ -91,17 +92,35 @@ fn content(vm: Rc<AppViewModel>) -> Element {
         ))
         .child(toggle(
             vm.clone(),
-            "Recognize dates and times (English)",
+            "Recognize dates, times and repeats (English)",
             settings.recognize_dates,
             |s, v| s.recognize_dates = v,
         ))
         .child(toggle(
             vm.clone(),
-            "Remove recognized dates from titles",
+            "Remove recognized schedules from titles",
             settings.remove_recognized_dates,
             |s, v| s.remove_recognized_dates = v,
         ))
         .child(section_label("Smart lists", p.text))
+        .child(toggle(
+            vm.clone(),
+            "Important",
+            settings.show_important,
+            |s, v| s.show_important = v,
+        ))
+        .child(toggle(
+            vm.clone(),
+            "Planned",
+            settings.show_planned,
+            |s, v| s.show_planned = v,
+        ))
+        .child(toggle(
+            vm.clone(),
+            "Auto-hide empty smart lists",
+            settings.hide_empty_smart_lists,
+            |s, v| s.hide_empty_smart_lists = v,
+        ))
         .child(toggle(vm.clone(), "All", settings.show_all, |s, v| {
             s.show_all = v
         }))

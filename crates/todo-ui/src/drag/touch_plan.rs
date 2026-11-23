@@ -33,11 +33,12 @@ pub(super) fn plan(
         let point = root.translate_point(position, &control)?;
         let after = point.y >= control.bounds().height / 2.0;
         let planned = match origin.item {
-            DragItem::Task(id) => {
+            DragItem::Task(_) => {
                 if let Some(target) = crate::touch::task_id(&control) {
-                    reorder(vm, id, target, after).map(|action| (action, Cue::Task(after)))
+                    reorder(vm, origin.task_ids(), target, after)
+                        .map(|action| (action, Cue::Task(after)))
                 } else if let Some(list) = list_id(&control) {
-                    move_to(vm, id, list).map(|action| (action, Cue::Task(false)))
+                    move_to(vm, origin.task_ids(), list).map(|action| (action, Cue::Task(false)))
                 } else {
                     None
                 }

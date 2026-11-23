@@ -170,6 +170,7 @@ fn failed_creation_does_not_repair_order_remove_steps_or_allocate_ids() {
                     minutes_after_midnight: 1440,
                     notified: false,
                 }),
+                ..TaskEntry::plain("Invalid time")
             },
             view: View::MyDay,
         },

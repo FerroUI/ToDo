@@ -35,6 +35,7 @@ const { exportMicrosoftArchive, restoreMicrosoftArchive } = await import("../web
 const { materializeCloudAttachment, cloudAttachmentKey } = await import("../web/cloud/attachment-content.js");
 const { requiresSyncReview } = await import("../web/cloud/automatic.js");
 const connected = await import("../web/cloud/connected.js");
+const workspaces = await import("../web/cloud/workspaces.js");
 let plannerPaused = false;
 let lastPreferences = "";
 let restored = false;
@@ -50,16 +51,17 @@ async function restoreSession(preferences) {
   restored = true;
   const account = await auth.restore();
   if (account) {
+    workspaces.activateWorkspace(runtime, auth.accountKey(), { adoptLocal: workspaces.workspaceAccount() === null });
     runtime.cloudState(true, account.name || account.username || "Microsoft account");
-    connected.restoreConnectedApps(runtime, auth.accountKey(), preferences);
+    connected.restoreConnectedApps(runtime, auth.accountKey(), JSON.parse(runtime.exportData()).settings);
   }
   await state();
 }
 
 async function disconnect(restore = false) {
   await auth.disconnect(); client.clearCloudCache(); plannerPaused = false;
-  if (restore) { metadata.forgetDocumentMappings(); forgetPlannerMappings(); }
-  connected.resetConnectedApps(runtime, { restore });
+  if (restore) workspaces.detachWorkspace(runtime);
+  connected.resetConnectedApps(runtime);
   runtime.cloudState(false, "Local account");
   await state();
 }
@@ -68,13 +70,15 @@ const storageOptions = { storeFile: files.storeAttachment, deleteFile: files.pur
 const loadFile = key => materializeCloudAttachment(key, auth.accountKey());
 
 async function perform(action) {
-  const preferences = JSON.parse(runtime.exportData()).settings || {};
+  let preferences = JSON.parse(runtime.exportData()).settings || {};
   if (!["disconnectMicrosoft", "signOutMicrosoft", "import", "importMicrosoft", "importPstReport", "importPortableJson"].includes(action.kind)) await restoreSession(preferences);
+  preferences = JSON.parse(runtime.exportData()).settings || {};
   const preferenceKey = JSON.stringify([preferences.planner_enabled, preferences.outlook_categories_enabled, preferences.presentation_sync_enabled]);
   if (preferenceKey !== lastPreferences) { connected.connectedPreferencesChanged(); plannerPaused = false; lastPreferences = preferenceKey; }
-  if (initial.demo && ["connectMicrosoft", "reconnectMicrosoft", "syncMicrosoft", "exportMicrosoft", "enableOutlookCategories", "enablePresentationSync"].includes(action.kind)) throw new Error("Demo mode does not connect or synchronize Microsoft accounts.");
+  if (initial.demo && ["connectMicrosoft", "reconnectMicrosoft", "switchMicrosoftAccount", "openLocalWorkspace", "syncMicrosoft", "exportMicrosoft", ...connected.connectedActions].includes(action.kind)) throw new Error("Demo mode does not connect or synchronize Microsoft accounts.");
   if (connected.connectedActions.includes(action.kind)) {
-    await connected.connectedAppRequest(runtime, action.kind);
+    workspaces.assertWorkspace(auth.accountKey());
+    await connected.connectedAppRequest(runtime, action);
     if (!action.kind.startsWith("disable")) await connected.synchronizeConnectedApps(runtime, auth.accountKey(), JSON.parse(runtime.exportData()).settings, { force: true });
     return {};
   }
@@ -82,7 +86,9 @@ async function perform(action) {
     case "initialize": {
       metadata.recoverCommit();
       try {
-        files.cleanTrash(JSON.parse(runtime.exportData()), synchronizationFileKeys(localStorage, cloudAttachmentKey));
+        const retained = synchronizationFileKeys(localStorage, cloudAttachmentKey);
+        for (const key of workspaces.workspaceFileKeys()) retained.add(key);
+        files.cleanTrash(JSON.parse(runtime.exportData()), retained);
       } catch (error) {
         // Cleanup is optional maintenance. Keep an unreadable record for
         // recovery and expose its diagnostic without disabling unrelated files
@@ -92,21 +98,31 @@ async function perform(action) {
       await state(); return {};
     }
     case "connectMicrosoft":
+    case "switchMicrosoftAccount":
     case "reconnectMicrosoft": {
       runtime.flushEdits();
+      workspaces.checkpointWorkspace(runtime);
       runtime.hostStatus("Complete Microsoft sign-in in your system browser.");
-      if (action.kind === "connectMicrosoft") await auth.connect(action.client_id || ""); else await auth.reconnect();
+      if (action.kind !== "reconnectMicrosoft") await auth.connect(action.client_id || ""); else await auth.reconnect();
       const account = auth.account();
+      workspaces.activateWorkspace(runtime, auth.accountKey(), { adoptLocal: workspaces.workspaceAccount() === null });
+      client.clearCloudCache(); connected.resetConnectedApps(runtime);
       runtime.cloudState(true, account.name || account.username || "Microsoft account");
-      connected.restoreConnectedApps(runtime, auth.accountKey(), preferences);
+      connected.restoreConnectedApps(runtime, auth.accountKey(), JSON.parse(runtime.exportData()).settings);
       await state(); return {};
     }
     case "disconnectMicrosoft": await disconnect(); return {};
+    case "openLocalWorkspace":
+      workspaces.activateWorkspace(runtime, null);
+      await disconnect();
+      runtime.hostStatus("Local workspace opened. Your Microsoft workspaces are saved on this device.");
+      return {};
     case "signOutMicrosoft":
       try { await auth.logout(); } finally { await disconnect(); }
       return {};
     case "syncMicrosoft": {
       if (!auth.account()) throw new Error("Connect your Microsoft account first.");
+      workspaces.assertWorkspace(auth.accountKey());
       if (!action.automatic) runtime.cloudState(true, "Syncing…");
       const changed = await synchronize(runtime, auth.accountKey(), action.today);
       if (preferences.planner_enabled && auth.isWorkAccount() && (!plannerPaused || !action.automatic)) {
@@ -156,6 +172,7 @@ async function perform(action) {
     case "importPortableJson": {
       const expected = action.expected || runtime.exportData();
       if (runtime.exportData() !== expected) throw new Error("Tasks changed while the import was prepared. Choose the archive again.");
+      workspaces.checkpointWorkspace(runtime);
       beginImport(expected, () => auth.revokeResume());
       try {
         let report;
@@ -175,6 +192,7 @@ async function perform(action) {
 }
 
 metadata.recoverCommit();
+workspaces.recoverWorkspaceSwitch();
 send({ type: "ready" });
 while (true) {
   const request = receive();

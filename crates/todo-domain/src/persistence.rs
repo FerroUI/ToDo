@@ -30,6 +30,17 @@ impl AppState {
         // Navigation preference may retain IDs deleted by an older or remote client.
         // Repair only this optional projection; foreign keys and entity data stay strict.
         state.repair_sidebar_order();
+        for task in &mut state.tasks {
+            if let Some(html) = task.notes_html.take() {
+                let note = crate::notes::RichNote::from_html(&html)
+                    .map_err(|error| DomainError::InvalidData(error.into()))?;
+                // A legacy client can edit the plain projection while retaining
+                // unknown fields. Its edited text wins over stale formatting.
+                if note.text() == task.notes && note.has_formatting() {
+                    task.notes_html = Some(note.to_html());
+                }
+            }
+        }
         state.validate()?;
         let maximum = state.all_ids().max().unwrap_or(TASKS_LIST);
         // Older saves may have a stale allocation cursor. Repair the cursor, never entity data.
@@ -39,6 +50,16 @@ impl AppState {
 
     pub fn validate(&self) -> Result<(), DomainError> {
         let invalid = |message: &str| DomainError::InvalidData(message.into());
+        if !crate::backgrounds::valid_smart_backgrounds(&self.settings.smart_backgrounds) {
+            return Err(invalid("A smart list background is invalid or too large"));
+        }
+        crate::backgrounds::validate_collection(
+            self.lists
+                .iter()
+                .filter_map(|list| list.background.as_deref())
+                .chain(self.settings.smart_backgrounds.values().map(String::as_str)),
+        )
+        .map_err(invalid)?;
         if self
             .settings
             .smart_colors
@@ -110,12 +131,15 @@ impl AppState {
             {
                 return Err(invalid("A reminder time is invalid"));
             }
+            if let Some(recurrence) = &task.recurrence {
+                recurrence.validate().map_err(invalid)?;
+            }
             if task
-                .recurrence
-                .as_ref()
-                .is_some_and(|recurrence| recurrence.every == 0)
+                .start_date
+                .zip(task.due_date)
+                .is_some_and(|(start, due)| start > due)
             {
-                return Err(invalid("A repeat interval is zero"));
+                return Err(invalid("A task start date is after its due date"));
             }
             for step in &task.steps {
                 if step.title.trim().is_empty() {

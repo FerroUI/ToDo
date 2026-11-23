@@ -31,6 +31,23 @@ test('rejected consent restores the previous preference without modifying task s
   assert.equal(f.settings.presentation_sync_enabled,false);assert.equal(f.settings.auto_sync,true);
 });
 
+test('category writing requires its own explicit consent and disabling reading also disables writing',async()=>{
+  const f=fixture();f.settings.outlook_categories_enabled=true;
+  await connectedAppRequest(f.runtime,'enableOutlookCategoryEditing');
+  assert.equal(f.settings.outlook_categories_write_enabled,true);
+  assert.deepEqual(f.scopes,[['MailboxSettings.ReadWrite']]);
+  await connectedAppRequest(f.runtime,'disableOutlookCategories');
+  assert.equal(f.settings.outlook_categories_enabled,false);
+  assert.equal(f.settings.outlook_categories_write_enabled,false);
+  await assert.rejects(connectedAppRequest(f.runtime,{kind:'createOutlookCategory',name:'A',color:'preset1'}),/Enable Outlook category editing/);
+});
+
+test('declined category-write consent preserves existing read access',async()=>{
+  const f=fixture();f.settings.outlook_categories_enabled=true;f.consentError=new Error('cancelled');
+  await assert.rejects(connectedAppRequest(f.runtime,'enableOutlookCategoryEditing'),/cancelled/);
+  assert.equal(f.settings.outlook_categories_enabled,true);assert.equal(f.settings.outlook_categories_write_enabled,false);
+});
+
 test('category consent failure pauses that service while presentation sync continues',async()=>{
   const f=fixture();f.settings={outlook_categories_enabled:true,presentation_sync_enabled:true};
   f.categoryError=Object.assign(new Error('consent required'),{requiresInteraction:true});

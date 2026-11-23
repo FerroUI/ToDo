@@ -28,6 +28,7 @@ pub(super) struct ShellRecognizer {
     pub session: RefCell<Option<Session>>,
     pub drag: RefCell<Option<DragSession>>,
     pub contacts: RefCell<todo_state::gestures::contacts::Contacts>,
+    pub pens: RefCell<super::pen::PenContacts>,
 }
 
 ferro_class!(ShellRecognizer: GestureRecognizer);
@@ -61,6 +62,7 @@ pub(crate) fn attach_shell(
         session: RefCell::new(None),
         drag: RefCell::new(None),
         contacts: RefCell::default(),
+        pens: RefCell::default(),
     });
     root.gesture_recognizers().add(&recognizer);
     super::shell_lifetime::attach(root, recognizer, vm);

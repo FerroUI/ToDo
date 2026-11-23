@@ -51,13 +51,14 @@ export function originalTime(property) {
   return ticks;
 }
 export function sourceStart(task) {
+  if(task.microsoft_data?.startDateTime===null) return null;
   const value=civilDate(task.microsoft_data?.startDateTime);
   if(value) return value;
   const ticks=originalTime(originalNamedProperty(task,TASK,0x8104));
   return ticks===null?null:civilDate(new Date(Number(ticks/10000n)-11644473600000).toISOString());
 }
 export function startForExport(task) {
-  const start=sourceStart(task);
+  const start=task.start_date || sourceStart(task);
   // MS-OXOTASK requires a due date whenever a start date exists, and due>=start.
   return start && task.due_date && start<=task.due_date ? start:null;
 }

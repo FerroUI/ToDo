@@ -2,7 +2,7 @@ use ferroui_base::input::InputElement;
 use ferroui_base::{Point, Visual};
 use ferroui_controls::automation::AutomationProperties;
 use ferroui_controls::{
-    Application, Button, Calendar, ComboBox, ListBox, TextBlock, TextBox, TopLevel,
+    Application, Button, Calendar, ComboBox, ListBox, RichEditBox, TextBlock, TextBox, TopLevel,
 };
 use serde_json::json;
 use todo_domain::{Action, Attachment, Date};
@@ -32,6 +32,14 @@ pub fn navigate_back() -> bool {
 #[wasm_bindgen(js_name = cancelGestures)]
 pub fn cancel_gestures() -> bool {
     top_level().is_some_and(|root| todo_ui::cancel_gestures(&root))
+}
+
+#[wasm_bindgen(js_name = cancelPenPointer)]
+pub fn cancel_pen_pointer(raw_id: f64) -> bool {
+    if !raw_id.is_finite() || raw_id.fract() != 0.0 || raw_id.abs() > 9_007_199_254_740_991.0 {
+        return false;
+    }
+    top_level().is_some_and(|root| todo_ui::cancel_pen_pointer(&root, raw_id as i64))
 }
 
 /// Called before a trusted primary DOM touch Down reaches FerroUI. Missing End
@@ -95,6 +103,38 @@ pub fn prepare_cloud_data(json: &str) -> Result<String, JsValue> {
     crate::app::view_model()
         .ok_or_else(|| JsValue::from_str("The app is starting"))?
         .prepare_cloud_json(json)
+        .map_err(|error| JsValue::from_str(&error))
+}
+
+#[wasm_bindgen(js_name = emptyAccountData)]
+pub fn empty_account_data() -> Result<String, JsValue> {
+    todo_domain::AppState::new()
+        .to_json()
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+}
+
+#[wasm_bindgen(js_name = prepareImportData)]
+pub fn prepare_import_data(json: &str) -> Result<String, JsValue> {
+    crate::app::view_model()
+        .ok_or_else(|| JsValue::from_str("The app is starting"))?
+        .prepare_import_json(json)
+        .map_err(|error| JsValue::from_str(&error))
+}
+
+#[wasm_bindgen(js_name = replaceAccountData)]
+pub fn replace_account_data(json: &str, expected: &str) -> Result<(), JsValue> {
+    let vm = crate::app::view_model().ok_or_else(|| JsValue::from_str("The app is starting"))?;
+    if vm
+        .export_json()
+        .map_err(|error| JsValue::from_str(&error))?
+        != expected
+    {
+        return Err(JsValue::from_str(
+            "Tasks changed while switching accounts. Your edits were kept.",
+        ));
+    }
+    cancel_gestures();
+    vm.replace_account_document(json)
         .map_err(|error| JsValue::from_str(&error))
 }
 
@@ -246,6 +286,7 @@ pub fn inspect_view() -> String {
         let name = visual.name();
         let text = if let Some(text) = visual.cast::<TextBlock>() { text.text() }
             else if let Some(text) = visual.cast::<TextBox>() { text.text() }
+            else if let Some(text) = visual.cast::<RichEditBox>() { Some(text.text().replace('\u{000b}', "\n")) }
             else if visual.cast::<Button>().is_some() || visual.cast::<ferroui_controls::MenuItem>().is_some()
                 || visual.cast::<Calendar>().is_some() || visual.cast::<ComboBox>().is_some()
                 || visual.cast::<ListBox>().is_some() || name.is_some() { None }
@@ -259,9 +300,8 @@ pub fn inspect_view() -> String {
             let hit: &Visual = &hit;
             std::ptr::eq(hit, &*visual) || visual.is_visual_ancestor_of(hit) || hit.is_visual_ancestor_of(&visual)
         });
-        let text_box_name = visual.cast::<TextBox>().and_then(|field| field.name()).or_else(|| {
-            visual.get_visual_ancestors().filter_map(|parent| parent.cast::<TextBox>())
-                .find_map(|field| field.name())
+        let text_box_name = visual.get_self_and_visual_ancestors().find_map(|parent| {
+            if parent.is::<TextBox>() || parent.is::<RichEditBox>() { parent.name() } else { None }
         });
         Some(json!({ "type": visual.get_type().name(), "name": name, "text": text,
             "textBoxName": text_box_name,

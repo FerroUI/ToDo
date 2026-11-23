@@ -1,5 +1,6 @@
 import { graph, listPath, taskPath, readCloud, readList, hydrateTask, cloudRevision } from "./client.js";
 import { fields, remoteFields, remoteSnapshot, mergeFields, patchFor, equal } from "./codec.js";
+import { legacySeedRecurrence } from "./recurrence.js";
 import { checkSteps, syncSteps, adoptSteps } from "./steps.js";
 import { assertDocument, checkpoint, commit, identity, loadMetadata } from "./metadata.js";
 import { adoptAttachments, checkAttachments, syncAttachments } from "./attachments.js";
@@ -42,8 +43,13 @@ function newTask(id, list, remote, today) {
 
 function applyFields(task, merged, remote, today) {
   const before = fields(task);
+  const hadStart = Object.hasOwn(task, "start_date");
   const notified = equal(before.reminder, merged.reminder) && !!task.reminder?.notified;
   Object.assign(task, merged);
+  if (!merged.start_date && !hadStart) delete task.start_date;
+  if (task.microsoft_data && before.start_date && !merged.start_date) task.microsoft_data.startDateTime = null;
+  if (task.microsoft_data && before.recurrence && !merged.recurrence) task.microsoft_data.recurrence = null;
+  if (!merged.notes_html) delete task.notes_html;
   if (task.reminder) task.reminder = { ...task.reminder, notified };
   if (!equal(before, merged)) task.updated_on = today;
   if (before.completed !== merged.completed) {
@@ -281,7 +287,10 @@ async function createTask(task, metadata, today, guard, save, source, move) {
   guard();
   metadata.pendingTasks[task.id] = { fields: fields(task), listId: list.remoteId, ...(move ? { move } : {}) }; save();
   const payload = source ? Object.fromEntries(["body", "categories", "completedDateTime", "dueDateTime", "importance", "isReminderOn", "recurrence", "reminderDateTime", "startDateTime", "status", "title"].filter(key => source[key] !== undefined).map(key => [key, source[key]])) : {};
-  Object.assign(payload, patchFor(fields(task), source ? remoteFields(source) : null, today));
+  const outgoing = fields(task);
+  const archivedRepeat = legacySeedRecurrence(task, source);
+  if (archivedRepeat) outgoing.recurrence = archivedRepeat;
+  Object.assign(payload, patchFor(outgoing, source ? remoteFields(source) : null, today));
   const resources = source?.linkedResources || (task.linked_resources || []).map(link => ({ webUrl: link.web_url, applicationName: link.application_name, displayName: link.display_name, externalId: link.external_id }));
   const links = resources.filter(link => link.applicationName !== "FerroUI To Do").map(({ webUrl, applicationName, displayName, externalId }) => ({ webUrl, applicationName, displayName, externalId }));
   payload.linkedResources = [...links, { webUrl: `${location.origin}${location.pathname}`, applicationName: "FerroUI To Do", displayName: "To Do", externalId: `${identity()}:${task.id}` }];

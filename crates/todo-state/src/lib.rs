@@ -1,4 +1,6 @@
+mod account_workspace;
 mod back_stack;
+mod bulk;
 mod commands;
 pub mod gestures;
 mod history;
@@ -11,16 +13,23 @@ mod navigation;
 mod persistence;
 mod presentation;
 mod refresh;
+mod repeat_draft;
 mod scheduling;
 mod selection;
 mod services;
+mod task_clipboard;
 
 pub use integration::OutlookCategory;
 pub use layout::{PaneLayout, COMPACT_WIDTH, DETAIL_WIDTH, MINIMUM_LIST_WIDTH, NAVIGATION_WIDTH};
 pub use naming::{RenameSession, RenameTarget};
 pub use navigation::{view_title, Panel};
+pub use repeat_draft::{RepeatDraft, RepeatValidation};
 pub use scheduling::{parse_reminder_time, reminder_in_one_hour};
 pub use services::{HostRequest, HostServices, SaveCallback};
+pub use task_clipboard::{
+    clipboard_task_lines, TaskClipboard, TaskClipboardOffer, TaskPasteTarget,
+    MAX_TASK_CLIPBOARD_BYTES,
+};
 
 use ferroui_dynamic_data::SourceCache;
 use ferroui_reactive::concurrency::ImmediateScheduler;
@@ -60,6 +69,8 @@ pub struct AppViewModel {
     cloud_label: RefCell<String>,
     cloud_hint: RefCell<String>,
     background_supported: Cell<bool>,
+    background_reminders_supported: Cell<bool>,
+    background_reminders_status: RefCell<String>,
     outlook_categories: RefCell<Vec<OutlookCategory>>,
     completed_expanded: Cell<bool>,
     sort: Cell<SortOrder>,
@@ -74,6 +85,8 @@ pub struct AppViewModel {
     dirty: Cell<bool>,
     save: SaveCallback,
     services: RefCell<HostServices>,
+    task_clipboard: RefCell<Option<task_clipboard::ClipboardSnapshot>>,
+    clipboard_epoch: Cell<u64>,
     pub tasks: SourceCache<Task, Id>,
     pub execute: ReactiveCommand<Option<Action>, ()>,
 }
@@ -114,6 +127,8 @@ impl AppViewModel {
                 cloud_label: RefCell::new(String::new()),
                 cloud_hint: RefCell::new(String::new()),
                 background_supported: Cell::new(false),
+                background_reminders_supported: Cell::new(false),
+                background_reminders_status: RefCell::new(String::new()),
                 outlook_categories: RefCell::new(Vec::new()),
                 completed_expanded: Cell::new(true),
                 sort: Cell::new(SortOrder::Manual),
@@ -128,6 +143,8 @@ impl AppViewModel {
                 dirty: Cell::new(false),
                 save,
                 services: RefCell::new(HostServices::default()),
+                task_clipboard: RefCell::new(None),
+                clipboard_epoch: Cell::new(0),
                 tasks,
                 execute: ReactiveCommand::create_param_with(
                     move |action: Option<Action>| {

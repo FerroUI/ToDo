@@ -2,9 +2,12 @@
 //! Original text is retained by default; task editing never invokes this parser.
 
 mod date;
+mod date_phrase;
+mod grammar;
+mod repeat;
 mod time;
 
-use crate::{Date, Reminder};
+use crate::{Date, Recurrence, Reminder};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -13,7 +16,11 @@ pub struct TaskEntry {
     #[serde(default)]
     pub due_date: Option<Date>,
     #[serde(default)]
+    pub start_date: Option<Date>,
+    #[serde(default)]
     pub reminder: Option<Reminder>,
+    #[serde(default)]
+    pub recurrence: Option<Recurrence>,
 }
 
 impl TaskEntry {
@@ -21,7 +28,9 @@ impl TaskEntry {
         Self {
             title: title.into().trim().to_owned(),
             due_date: None,
+            start_date: None,
             reminder: None,
+            recurrence: None,
         }
     }
 
@@ -36,7 +45,38 @@ impl TaskEntry {
         remove_recognized: bool,
     ) -> Self {
         let mut entry = Self::plain(input);
+        if entry.title.len() > 8192 {
+            return entry;
+        }
         let words = words(&entry.title);
+        if words.len() > 512 {
+            return entry;
+        }
+        if let Some(found) = grammar::extract(&words, today) {
+            entry.due_date = found.due;
+            entry.start_date = found.start;
+            entry.reminder = found.reminder;
+            entry.recurrence = found.repeat;
+            if remove_recognized {
+                let left = entry.title[..words[found.from].start].trim_end();
+                let right = if found.to < words.len() {
+                    entry.title[words[found.to].start..].trim_start()
+                } else {
+                    ""
+                };
+                let title = match (left.is_empty(), right.is_empty()) {
+                    (false, false) => format!("{left} {right}"),
+                    (false, true) => left.to_owned(),
+                    (true, false) => right.to_owned(),
+                    _ => entry.title.clone(),
+                };
+                entry.title = title;
+            }
+            return entry;
+        }
+        if grammar::contains_repeat_marker(&words) {
+            return entry;
+        }
         let matched =
             if let Some((start, reminder)) = time::relative(&words, today, current_minutes) {
                 entry.reminder = Some(reminder);

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fixturePst, fidelityPst } from "./tests/pst-fixture.mjs";
+import { richNotesPst } from "./tests/rich-notes-pst-fixture.mjs";
 import { chooseAndRestorePst, normalizePstImport, parsePstInWorker } from "../crates/todo-browser/wwwroot/backup/pst.js";
 import { exportPst } from "../crates/todo-browser/wwwroot/backup/pst-export.js";
 import { PST_RESOURCE_ERROR, pstParserError } from "../crates/todo-browser/wwwroot/backup/pst-errors.js";
@@ -28,6 +29,7 @@ test("PST fixture matches the independently parsed Microsoft Rust-reader fixture
     assert.deepEqual(actual,new Uint8Array(expected));
     const fidelity=new Uint8Array(await fidelityPst().arrayBuffer());
     assert.deepEqual(fidelity,new Uint8Array(await readFile(new URL("../crates/todo-interop/tests/fixtures/fidelity.pst",import.meta.url))));
+    assert.deepEqual(new Uint8Array(await richNotesPst().arrayBuffer()),new Uint8Array(await readFile(new URL("../crates/todo-interop/tests/fixtures/rich-notes.pst",import.meta.url))));
   }finally{if(zone===undefined)delete process.env.TZ;else process.env.TZ=zone;}
 });
 

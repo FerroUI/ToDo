@@ -2231,6 +2231,7 @@ dependencies = [
 name = "todo-domain"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "chrono",
  "serde",
  "serde_json",
@@ -2265,6 +2266,7 @@ dependencies = [
 name = "todo-state"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "ferroui-dynamic-data",
  "ferroui-reactive",
  "ferroui-reactiveui",

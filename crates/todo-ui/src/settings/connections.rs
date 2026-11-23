@@ -26,11 +26,13 @@ pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
                 HostRequest::DisableOutlookCategories
             } else { HostRequest::EnableOutlookCategories })));
     if settings.outlook_categories_enabled {
-        content = content.child(action_button(
-            Icon::Repeat,
-            "Refresh category catalogue",
-            move || refresh.request(HostRequest::RefreshOutlookCategories),
-        ));
+        content = content
+            .child(action_button(
+                Icon::Repeat,
+                "Refresh category catalogue",
+                move || refresh.request(HostRequest::RefreshOutlookCategories),
+            ))
+            .child(super::category_catalog::view(vm.clone()));
     }
     content.child(section_label("Across your devices", p.text))
         .child(text_block().text("Sync My Day, list groups, ordering, and appearance between installations of this app using its OneDrive app folder. Microsoft's To Do app keeps its own presentation settings.")

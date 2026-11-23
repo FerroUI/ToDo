@@ -9,6 +9,7 @@ mod sort;
 mod task;
 mod task_action;
 mod task_dates;
+mod task_schedule;
 
 use ferroui_base::input::ContextRequestedEventArgs;
 use ferroui_base::Ref;
@@ -38,32 +39,42 @@ pub(crate) fn attach_task(
 ) {
     let model = vm.clone();
     lifetime::attach(&row.clone().upcast(), vm, move |anchor| {
-        identity(anchor).map_or_else(Vec::new, |id| task::items(model.clone(), id))
+        identity(anchor).map_or_else(Vec::new, |id| task::items(model.clone(), id, anchor))
     });
 }
 
 pub(crate) fn attach_list(button: &Ref<Button>, vm: Rc<AppViewModel>, id: Id) {
     let model = vm.clone();
-    lifetime::attach(&button.clone().upcast(), vm, move |_| {
-        list::items(model.clone(), id)
+    lifetime::attach(&button.clone().upcast(), vm, move |anchor| {
+        let mut items = list::items(model.clone(), id);
+        items.insert(
+            0,
+            crate::clipboard::paste_command(anchor, model.clone(), todo_domain::View::List(id)),
+        );
+        items
     });
 }
 
 /// Detail panes retain their toolbar while the selected task changes.
 pub(crate) fn task_options(button: &Ref<Button>, vm: Rc<AppViewModel>) {
     let model = vm.clone();
-    lifetime::attach(&button.clone().upcast(), vm, move |_| {
+    lifetime::attach(&button.clone().upcast(), vm, move |anchor| {
         model
             .selected()
-            .map_or_else(Vec::new, |id| task::items(model.clone(), id))
+            .map_or_else(Vec::new, |id| task::items(model.clone(), id, anchor))
     });
     open_on_click(button);
 }
 
 pub(crate) fn header_options(button: &Ref<Button>, vm: Rc<AppViewModel>) {
     let model = vm.clone();
-    lifetime::attach(&button.clone().upcast(), vm, move |_| {
-        header::items(model.clone())
+    lifetime::attach(&button.clone().upcast(), vm, move |anchor| {
+        let mut items = header::items(model.clone());
+        items.insert(
+            4,
+            crate::clipboard::paste_command(anchor, model.clone(), model.view()),
+        );
+        items
     });
     open_on_click(button);
 }
@@ -78,6 +89,18 @@ pub(crate) fn header_sort(button: &Ref<Button>, vm: Rc<AppViewModel>) {
 
 pub(crate) fn group_options(button: &Ref<Button>, vm: Rc<AppViewModel>, id: Id) {
     attach_group(button, vm, id);
+    open_on_click(button);
+}
+
+pub(crate) fn selection_options(button: &Ref<Button>, vm: Rc<AppViewModel>) {
+    let model = vm.clone();
+    lifetime::attach(&button.clone().upcast(), vm, move |anchor| {
+        model
+            .ordered_selection()
+            .first()
+            .copied()
+            .map_or_else(Vec::new, |id| task::items(model.clone(), id, anchor))
+    });
     open_on_click(button);
 }
 

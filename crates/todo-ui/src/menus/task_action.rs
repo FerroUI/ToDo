@@ -28,10 +28,7 @@ pub(super) fn move_to(
     selected: bool,
 ) -> Element {
     command(label, Icon::List, move || {
-        let actions = existing_actions(&vm, &ids, &|id, _| Action::MoveTask { id, list_id });
-        if !actions.is_empty() {
-            vm.dispatch(Action::Batch(actions));
-        }
+        vm.transfer_tasks(ids.to_vec(), list_id, None);
         let moved = ids.iter().all(|id| {
             vm.state()
                 .task(*id)

@@ -8,6 +8,21 @@ pub(super) struct Clock {
     pub has_at: bool,
 }
 
+pub(super) fn at(words: &[Word<'_>], start: usize) -> Option<(usize, u16)> {
+    let value = start + usize::from(words.get(start).is_some_and(|word| word.is("at")));
+    let word = words.get(value)?;
+    if words
+        .get(value + 1)
+        .is_some_and(|word| word.is("am") || word.is("pm"))
+    {
+        return Some((
+            value + 2,
+            clock(&format!("{}{}", word.text, words[value + 1].text))?,
+        ));
+    }
+    Some((value + 1, clock(word.text)?))
+}
+
 pub(super) fn suffix(words: &[Word<'_>]) -> Option<Clock> {
     let end = words.len();
     let last = words.last()?;

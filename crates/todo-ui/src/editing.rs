@@ -1,5 +1,5 @@
 use ferroui_base::input::KeyEventArgs;
-use ferroui_controls::{Control, TextBox};
+use ferroui_controls::{Control, RichEditBox, TextBox};
 use todo_domain::Action;
 use todo_state::AppViewModel;
 
@@ -8,14 +8,14 @@ pub(crate) fn is_composing(event: &KeyEventArgs) -> bool {
     let Some(source) = event.source().and_then(|source| source.cast::<Control>()) else {
         return false;
     };
-    source
-        .cast::<TextBox>()
-        .or_else(|| {
-            source
-                .get_visual_ancestors()
-                .find_map(|ancestor| ancestor.cast::<TextBox>())
-        })
-        .is_some_and(|field| field.is_composing_text())
+    source.get_self_and_visual_ancestors().any(|source| {
+        source
+            .cast::<TextBox>()
+            .is_some_and(|field| field.is_composing_text())
+            || source
+                .cast::<RichEditBox>()
+                .is_some_and(|field| field.editor().is_composing())
+    })
 }
 
 /// Commits visible document/settings editors before a host hides, closes or exports them.
@@ -26,6 +26,27 @@ pub fn commit_pending_edits(vm: &AppViewModel, root: &Control) {
     let mut changes = Vec::new();
     let mut rename = None;
     for visual in root.get_visual_descendants() {
+        if let Some(field) = visual
+            .cast::<RichEditBox>()
+            .filter(|field| field.name().as_deref() == Some("TaskNotes"))
+        {
+            // The editor stays mounted in preview mode so native undo/selection
+            // survive. It is still the authoritative pending document.
+            if let Some(task) = task {
+                if crate::detail::notes_document::settle_composition(&field).is_err() {
+                    continue;
+                }
+                let note = crate::detail::notes_document::read(&field);
+                let html = note.has_formatting().then(|| note.to_html());
+                if task.notes != note.text() || task.notes_html != html {
+                    changes.push(Action::SetRichNotes {
+                        id: task.id,
+                        html: note.to_html(),
+                    });
+                }
+            }
+            continue;
+        }
         let Some(field) = visual.cast::<TextBox>() else {
             continue;
         };

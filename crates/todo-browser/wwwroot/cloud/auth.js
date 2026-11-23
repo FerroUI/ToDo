@@ -234,6 +234,10 @@ function forgetSession() {
   forgetReturn();
 }
 
+// A local restore revokes automatic session selection before its durable write.
+// It retains the in-memory session until the serialized restore has completed.
+export function revokeResume() { sessionStorage.removeItem(ACCOUNT_KEY); }
+
 export async function disconnect() {
   const app = application, selected = account();
   forgetSession();

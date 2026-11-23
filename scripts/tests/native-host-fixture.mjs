@@ -11,7 +11,7 @@ export async function nativeHost(document, { prepare } = {}) {
   const code = join(root, "runtime"), data = join(root, "data");
   mkdirSync(code); mkdirSync(data);
   cpSync(join(repository, "crates/todo-desktop/native"), join(code,"native"), { recursive: true });
-  for (const path of ["cloud", "backup", "vendor/pst-writer"]) cpSync(join(repository,"crates/todo-browser/wwwroot",path), join(code,"web",path), { recursive: true });
+  for (const path of ["cloud", "backup", "vendor/pst-writer", "notes.js", "backgrounds.js"]) cpSync(join(repository,"crates/todo-browser/wwwroot",path), join(code,"web",path), { recursive: true });
   writeFileSync(join(code,"package.json"), '{"type":"module"}');
   const state = { document: structuredClone(document), statuses: [], callbacks: [], beforeCallback: null };
   const persist = () => writeFileSync(join(data,"tasks.json"), JSON.stringify(state.document));
@@ -39,8 +39,9 @@ export async function nativeHost(document, { prepare } = {}) {
       const { method, args }=message;state.callbacks.push(method);
       let value=null;
       if(method==="exportData") value=JSON.stringify(state.document);
-      else if(method==="validateImportData"||method==="prepareCloudData") value=JSON.stringify(JSON.parse(args.json));
-      else if(method==="importData"||method==="replaceFromCloud") {
+      else if(method==="validateImportData"||method==="prepareCloudData"||method==="prepareImportData") value=JSON.stringify(JSON.parse(args.json));
+      else if(method==="emptyAccountData") value=JSON.stringify({schema_version:1,settings:{},lists:[{id:1,name:"Tasks"}],tasks:[]});
+      else if(method==="importData"||method==="replaceFromCloud"||method==="replaceAccountData") {
         if(args.expected!==JSON.stringify(state.document)) throw new Error("Tasks changed during native compare-and-swap.");
         state.document=JSON.parse(args.json);persist();
       } else if(method==="addAttachment") {

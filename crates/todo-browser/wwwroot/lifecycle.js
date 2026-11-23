@@ -2,7 +2,7 @@ let current;
 
 // Browser window blur intentionally keeps FerroUI's focused editor. Interrupt
 // gestures separately; hiding/leaving the document still commits visible drafts.
-export function createLifecycle({ host, cancel, recover, flush, tick, reportError }) {
+export function createLifecycle({ host, cancel, recover, cancelPen = () => {}, flush, tick, reportError }) {
   const listeners = [];
   const invoke = action => {
     try { action(); } catch (error) { reportError(error); }
@@ -27,6 +27,12 @@ export function createLifecycle({ host, cancel, recover, flush, tick, reportErro
     // Capture runs before FerroUI's listener so old native pointers retire first.
     if (event.isTrusted && event.pointerType === "touch" && event.isPrimary) invoke(recover);
   }, true);
+  if (surface) listen(surface, "pointercancel", event => {
+    // The pinned native browser bridge retires touch cancellation itself. Pen
+    // cancellation uses the recorded native PenDevice without fabricating Up.
+    if (event.isTrusted && event.pointerType === "pen" && Number.isSafeInteger(event.pointerId))
+      invoke(() => cancelPen(event.pointerId));
+  }, true);
   const timer = host.setInterval(() => invoke(tick), 30_000);
   invoke(tick);
   return () => {
@@ -39,6 +45,7 @@ export function attachLifecycle(runtime, tick, reportError, host = window) {
   current?.();
   current = createLifecycle({ host, tick, reportError,
     cancel: () => runtime.cancelGestures(), recover: () => runtime.recoverTouchSequence(),
+    cancelPen: id => runtime.cancelPenPointer(id),
     flush: () => runtime.flushEdits() });
   return current;
 }

@@ -7,6 +7,51 @@ fn today() -> Date {
 }
 
 #[test]
+fn rich_notes_and_outlook_formatting_edits_survive_pst() {
+    let report = import_pst(
+        include_bytes!("fixtures/rich-notes.pst"),
+        &AppState::new(),
+        today(),
+    )
+    .unwrap();
+    let restored = report
+        .archive
+        .document
+        .tasks
+        .iter()
+        .find(|task| task.title == "Rich note roundtrip")
+        .unwrap();
+    assert_eq!(restored.notes, "日本語 #Release link\n• Review 👩🏽‍💻");
+    assert!(restored
+        .notes_html
+        .as_ref()
+        .unwrap()
+        .contains("<strong>日本語 #Release</strong>"));
+    assert!(restored.notes_html.as_ref().unwrap().contains("<ul>"));
+    assert_eq!(restored.steps[0].title, "Check");
+    let edited = report
+        .archive
+        .document
+        .tasks
+        .iter()
+        .find(|task| task.title == "Outlook formatting edit")
+        .unwrap();
+    assert!(edited
+        .notes_html
+        .as_ref()
+        .unwrap()
+        .contains("<em>日本語 #Release</em>"));
+    assert!(!edited.notes_html.as_ref().unwrap().contains("<strong>"));
+    assert!(edited.notes.contains("Steps:\n[ ] Check"));
+    assert_eq!(
+        AppState::from_json(&report.archive.document.to_json().unwrap())
+            .unwrap()
+            .tasks,
+        report.archive.document.tasks
+    );
+}
+
+#[test]
 fn reads_real_unicode_task_store_named_properties_and_file_bytes() {
     let report = import_pst(PST, &AppState::new(), today()).unwrap();
     assert_eq!(report.archive.document.tasks.len(), 2);

@@ -2,6 +2,46 @@ use super::{view_title, AppViewModel};
 use todo_domain::{Action, Id, SortOrder, View, TASKS_LIST};
 
 impl AppViewModel {
+    pub fn wallpaper(&self) -> Option<String> {
+        if let View::List(id) = self.view() {
+            return self
+                .state()
+                .list(id)
+                .and_then(|list| list.background.clone());
+        }
+        self.state()
+            .settings
+            .smart_backgrounds
+            .get(view_title(&self.view()))
+            .cloned()
+    }
+
+    pub fn set_wallpaper(&self, value: Option<String>) {
+        if value
+            .as_deref()
+            .is_some_and(|value| !todo_domain::backgrounds::valid_background(value))
+        {
+            self.report_error("Choose a supported background image or scene".into());
+            return;
+        }
+        if let View::List(id) = self.view() {
+            self.dispatch(Action::SetListTheme {
+                id,
+                color: self.accent(),
+                background: value,
+            });
+        } else {
+            let mut settings = self.state().settings.clone();
+            let key = view_title(&self.view()).to_owned();
+            if let Some(value) = value {
+                settings.smart_backgrounds.insert(key, value);
+            } else {
+                settings.smart_backgrounds.remove(&key);
+            }
+            self.dispatch(Action::SetSettings(settings));
+        }
+    }
+
     /// Root lists and groups share a navigation sequence; grouped lists use their siblings.
     pub fn move_list_by(&self, id: Id, delta: i32) {
         if id == TASKS_LIST || delta == 0 {

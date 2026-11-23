@@ -18,6 +18,26 @@ fn interruption_is_terminal_even_when_the_original_route_returns() {
 }
 
 #[test]
+fn account_replacement_invalidates_colliding_entities_before_any_origin_observation() {
+    let vm = vm();
+    vm.add_task("Source".into());
+    let id = vm.state().tasks[0].id;
+    let origin = DragOrigin::capture(&vm, DragItem::Task(id), DragInput::Mouse).unwrap();
+    let original = vm.export_json().unwrap();
+    let mut incoming = vm.state().clone();
+    incoming.tasks[0].title = "Other account, same entity ID".into();
+    vm.replace_account_document(&incoming.to_json().unwrap())
+        .unwrap();
+    assert_eq!(vm.view(), View::MyDay);
+    assert!(vm.selection().is_empty());
+    // Restore the first account before the drag planner observes either transition.
+    // Neither matching IDs nor coalesced reactive notifications may revive its origin.
+    vm.replace_account_document(&original).unwrap();
+    assert!(!origin.valid(&vm));
+    assert!(!origin.finish());
+}
+
+#[test]
 fn only_touch_hold_requires_a_manual_real_list_and_survives_selection() {
     let vm = vm();
     vm.add_task("Source".into());

@@ -1,7 +1,7 @@
 import { graphScopes, cloudEnvironment } from "./environment.js";
 
 export const OPTIONAL_CONSENT_KEY = "ferroui.todo.microsoft.optional-consent";
-const OPTIONAL = new Set(["MailboxSettings.Read", "Files.ReadWrite.AppFolder"]);
+const OPTIONAL = new Set(["MailboxSettings.Read", "MailboxSettings.ReadWrite", "Files.ReadWrite.AppFolder"]);
 const configurationKey = settings => JSON.stringify([
   settings.clientId.toLowerCase(), settings.tenant.toLowerCase(), settings.cloud || "global", settings.redirectUri,
 ]);

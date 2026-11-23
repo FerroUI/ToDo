@@ -17,6 +17,19 @@ impl AppState {
                 "Reminder time must be within one day".into(),
             ));
         }
+        if entry
+            .start_date
+            .zip(entry.due_date)
+            .is_some_and(|(start, due)| start > due)
+        {
+            return Err(DomainError::InvalidValue(
+                "The due date must be on or after the start date.".into(),
+            ));
+        }
+        if let Some(rule) = &entry.recurrence {
+            rule.validate()
+                .map_err(|message| DomainError::InvalidValue(message.into()))?;
+        }
         let list_id = view.destination_list();
         self.list_index(list_id)?;
         let position = self.next_task_position(list_id)?;
@@ -24,12 +37,14 @@ impl AppState {
         let mut task = Task::new(id, list_id, title, today);
         task.position = position;
         task.due_date = entry.due_date;
+        task.start_date = entry.start_date;
         task.reminder = entry.reminder;
+        task.recurrence = entry.recurrence;
         match view {
             View::MyDay => task.my_day = Some(today),
             View::Important => task.important = true,
             View::Planned if task.due_date.is_none() && task.reminder.is_none() => {
-                task.due_date = Some(today)
+                task.due_date = Some(task.start_date.map_or(today, |start| start.max(today)))
             }
             View::AssignedToMe => task.assigned_to = Some("me".into()),
             _ => {}

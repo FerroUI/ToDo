@@ -66,7 +66,7 @@ impl Transport {
         let parser_thread = parser.clone();
         let thread_epoch = epoch.clone();
         std::thread::spawn(move || {
-            let binary = std::env::var_os("TODO_NODE_BINARY").unwrap_or_else(|| "node".into());
+            let binary = todo_desktop::node_runtime::binary();
             let setup = prepare_runtime(&directory).and_then(|script| {
                 let version = Command::new(&binary).arg("--version").env_remove("NODE_OPTIONS").env_remove("NODE_PATH").output()
                     .map_err(|_| "Native services require Node.js 22 or newer. Install Node.js or set TODO_NODE_BINARY to its executable.".to_owned())?;

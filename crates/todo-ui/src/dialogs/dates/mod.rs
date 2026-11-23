@@ -8,13 +8,20 @@ use ferroui_base::input::Key;
 use ferroui_base::layout::VerticalAlignment;
 use ferroui_controls::TextBox;
 use ferroui_view::prelude::*;
-pub use recurrence::repeat;
+pub use recurrence::{repeat, repeat_bulk};
 use std::rc::Rc;
 use todo_controls::primary_button;
 use todo_domain::Id;
 use todo_state::{reminder_in_one_hour, AppViewModel};
 
 pub fn date_picker(vm: Rc<AppViewModel>, id: Id, reminder: bool) -> Element {
+    date_picker_bulk(vm, vec![id], reminder)
+}
+
+pub fn date_picker_bulk(vm: Rc<AppViewModel>, ids: Vec<Id>, reminder: bool) -> Element {
+    let Some(id) = ids.first().copied() else {
+        return Element::Empty;
+    };
     rerender(move || {
         let p = palette(&vm);
         let later = reminder_in_one_hour(vm.today(), vm.current_minutes());
@@ -47,13 +54,27 @@ pub fn date_picker(vm: Rc<AppViewModel>, id: Id, reminder: bool) -> Element {
             format!("{:02}:{:02}", minutes / 60, minutes % 60)
         });
         let error = use_signal(String::new);
+        let start = use_signal(|| {
+            vm.state()
+                .task(id)
+                .and_then(|task| task.start_date)
+                .map(|date| date.to_string())
+                .unwrap_or_default()
+        });
+        let edit_range = !reminder
+            && ids.len() == 1
+            && !vm.state().task(id).is_some_and(|task| task.is_planner());
         let field = use_signal(NodeRef::<TextBox>::new).get_untracked();
         let save = vm.clone();
+        let targets = ids.clone();
         let submit: Rc<dyn Fn()> = Rc::new(move || {
             let text = time.get();
-            if let Err(message) =
-                save.save_task_date(id, selected.get(), reminder.then_some(text.as_str()))
-            {
+            let result = if edit_range {
+                save.save_task_range(id, selected.get(), &start.get())
+            } else {
+                save.save_tasks_date(&targets, selected.get(), reminder.then_some(text.as_str()))
+            };
+            if let Err(message) = result {
                 error.set(message);
                 if let Some(field) = field.get_untracked() {
                     field.focus();
@@ -64,6 +85,13 @@ pub fn date_picker(vm: Rc<AppViewModel>, id: Id, reminder: bool) -> Element {
         let mut content = stack_panel()
             .spacing(12.0)
             .child(calendar::view(&vm, selected));
+        if edit_range {
+            content = content.child(recurrence::fields::labelled(
+                &vm,
+                "Start date (optional)",
+                recurrence::fields::date(&vm, "TaskRangeStart", "Task start date", start, error),
+            ));
+        }
         if reminder {
             let enter = submit.clone();
             content = content.child(

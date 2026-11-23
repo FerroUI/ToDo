@@ -22,6 +22,19 @@ test("presentation projection contains only allowed preferences and stable servi
   for(const secret of ["private-config","Never presentation data","Source title","auto_sync","planner_enabled","presentation_sync_enabled"]) assert(!serialized.includes(secret));
 });
 
+test("per-list visibility and auto-hide preferences synchronize independently without changing account consent", () => {
+  const source=state();
+  Object.assign(source.settings,{show_important:false,show_planned:true,hide_empty_smart_lists:true,show_all:false});
+  const projection=projectPresentation(source,graph,{4:G});
+  const records=recordLocalChanges(projection,{}, {},A).records;
+  validateReplica({kind:PRESENTATION_KIND,version:1,device:A,records});
+  const target=state();
+  Object.assign(target.settings,{show_important:true,show_planned:false,hide_empty_smart_lists:false,show_all:true,auto_sync:false});
+  const result=applyPresentation(target,graph,{4:G},records).draft;
+  for(const key of ["show_important","show_planned","hide_empty_smart_lists","show_all"]) assert.equal(result.settings[key],source.settings[key]);
+  assert.equal(result.settings.auto_sync,false);
+});
+
 test("a second device adopts groups, My Day, themes and sidebar order using its own IDs", () => {
   const source=state(), local=projectPresentation(source,graph,{4:G});
   const {records}=recordLocalChanges(local,{}, {},A);

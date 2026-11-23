@@ -1,3 +1,4 @@
+mod clipboard;
 mod detail;
 mod dialogs;
 mod drag;
@@ -33,6 +34,10 @@ pub fn cancel_gestures(root: &Control) -> bool {
 /// A browser host uses this only when a trusted primary Down starts a new sequence.
 pub fn interrupted_touch_contacts(root: &Control) -> Vec<i64> {
     touch::interrupted_contacts(root)
+}
+
+pub fn cancel_pen_pointer(root: &Control, raw_id: i64) -> bool {
+    touch::cancel_pen(root, raw_id)
 }
 
 /// Retains component owners, subscriptions and recyclable item templates for the view lifetime.

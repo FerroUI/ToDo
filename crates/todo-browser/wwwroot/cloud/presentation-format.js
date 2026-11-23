@@ -1,10 +1,11 @@
 // App-owned presentation state, separate from Microsoft's private To Do state.
+import { validBackground } from "../backgrounds.js";
 export const PRESENTATION_KIND = "ferroui.todo.presentation";
 export const MAX_PRESENTATION_BYTES = 4 * 1024 * 1024;
 export const MAX_REPLICAS = 128;
 export const PRESENTATION_SCOPE = Object.freeze(["Files.ReadWrite.AppFolder"]);
-export const SETTING_FIELDS = Object.freeze(["theme", "confirm_delete", "completion_sound", "show_completed", "show_all",
-  "show_completed_list", "show_assigned", "show_flagged_email", "week_starts_monday", "recognize_dates", "remove_recognized_dates", "smart_colors"]);
+export const SETTING_FIELDS = Object.freeze(["theme", "confirm_delete", "completion_sound", "show_completed", "show_important", "show_planned", "hide_empty_smart_lists", "show_all",
+  "show_completed_list", "show_assigned", "show_flagged_email", "week_starts_monday", "recognize_dates", "remove_recognized_dates", "smart_colors", "smart_backgrounds"]);
 export const LIST_FIELDS = Object.freeze(["color", "background", "position", "sort", "sort_reversed", "show_completed"]);
 export const TASK_FIELDS = Object.freeze(["my_day", "my_day_excluded", "position"]);
 export const GROUP_FIELDS = Object.freeze(["name", "collapsed", "position"]);
@@ -36,8 +37,9 @@ export function validFieldValue([kind, , field], value) {
     Array.isArray(item) && item.length === 2 && ["list", "group"].includes(item[0]) && text(item[1]));
   if (field === "theme") return ["System", "Light", "Dark"].includes(value);
   if (field === "smart_colors") return object(value) && Object.keys(value).length <= 64 && Object.entries(value).every(([name, hex]) => text(name, 128) && color(hex));
+  if (field === "smart_backgrounds") return object(value) && Object.keys(value).length <= 64 && Object.entries(value).every(([name, image]) => text(name, 128) && validBackground(image));
   if (field === "color") return color(value);
-  if (field === "background") return value === null || text(value, 128);
+  if (field === "background") return value === null || validBackground(value);
   if (field === "group") return value === null || validDevice(value);
   if (field === "sort") return ["Manual", "Importance", "DueDate", "MyDay", "Alphabetical", "Created"].includes(value);
   if (field === "position") return Number.isSafeInteger(value);

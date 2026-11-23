@@ -77,7 +77,8 @@ test("Microsoft archive restore makes fresh local entities, preserves the full r
   assert.deepEqual(result, { tasks: 1, files: 1, legacy: false }); assert.equal(target.writes.length, 1);
   const task = target.state.tasks[0];
   assert.equal(task.title, "Original task"); assert.equal(task.notes, "Preserve formatting");
-  assert.equal(task.important, false); assert.equal(task.completed, false); assert.equal(task.recurrence, null);
+  assert.equal(task.important, false); assert.equal(task.completed, false);
+  assert.deepEqual(task.recurrence, { unit: "Month", every: 2, anchor: "2026-11-01", days_of_week: ["monday"], ordinal: "second", end: { kind: "after", value: 9 } });
   assert.deepEqual(task.microsoft_data, value.lists[0].tasks[0], "HTML, unsupported recurrence, status, start time and extensions survive in the raw seed");
   assert.equal(task.steps[0].completed, true); assert.equal(task.linked_resources[0].application_name, "Outlook");
   assert.equal(task.created_on, "2026-11-21"); assert.equal(task.updated_on, "2026-11-22");

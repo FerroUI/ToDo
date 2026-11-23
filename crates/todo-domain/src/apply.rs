@@ -24,6 +24,18 @@ impl AppState {
                     changes
                 }
                 Action::SetSettings(settings) => {
+                    if !crate::backgrounds::valid_smart_backgrounds(&settings.smart_backgrounds) {
+                        return Err(DomainError::InvalidValue(
+                            "A smart list background is invalid or too large".into(),
+                        ));
+                    }
+                    crate::backgrounds::validate_collection(
+                        self.lists
+                            .iter()
+                            .filter_map(|list| list.background.as_deref())
+                            .chain(settings.smart_backgrounds.values().map(String::as_str)),
+                    )
+                    .map_err(|error| DomainError::InvalidValue(error.into()))?;
                     let changed = self.settings != settings;
                     self.settings = settings;
                     Changes {
@@ -32,6 +44,12 @@ impl AppState {
                         ..Changes::default()
                     }
                 }
+                Action::TransferTasks {
+                    ids,
+                    list_id,
+                    before,
+                } => self.transfer_tasks(&ids, list_id, before, today)?,
+                Action::PasteTasks { tasks, view } => self.paste_tasks(tasks, view, today)?,
                 Action::AddList { .. }
                 | Action::RenameList { .. }
                 | Action::DeleteList(_)

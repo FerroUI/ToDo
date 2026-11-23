@@ -19,13 +19,15 @@ pub(super) fn submenu(vm: Rc<AppViewModel>, ids: Rc<[Id]>) -> Element {
             },
         ));
     }
-    if ids.len() == 1 {
-        let custom = vm.clone();
-        let id = ids[0];
-        dates.push(command("Pick a date", Icon::Calendar, move || {
-            custom.show_panel(Panel::DueDate(id))
-        }));
-    }
+    let custom = vm.clone();
+    let targets = ids.to_vec();
+    dates.push(command("Pick a date", Icon::Calendar, move || {
+        custom.show_panel(if targets.len() == 1 {
+            Panel::DueDate(targets[0])
+        } else {
+            Panel::BulkDueDate(targets.clone())
+        })
+    }));
     dates.push(separator().into());
     dates.push(super::task_action::batch(
         vm,

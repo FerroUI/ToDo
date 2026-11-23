@@ -58,6 +58,9 @@ export function mergeTask(local, remote, details, record) {
 
 export function applyFields(local, fields, remote, details, today) {
   const previous = localFields(local);
+  // Planner exposes a plain description. Preserve local formatting while its
+  // text is unchanged, and retire it when a remote plain-text edit wins.
+  if (previous.notes !== fields.notes) delete local.notes_html;
   Object.assign(local, fields);
   if (!equal(previous, fields)) local.updated_on = today;
   if (previous.completed !== fields.completed) local.completed_on = fields.completed ? dateOnly(remote.completedDateTime) || today : null;

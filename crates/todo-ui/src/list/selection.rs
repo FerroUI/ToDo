@@ -13,6 +13,18 @@ pub(super) fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
     let move_tasks = vm.clone();
     let delete = vm.clone();
     let close = vm.clone();
+    let options = vm.clone();
+    let state = vm.state();
+    let selected = vm.selection();
+    let can_move = count > 0
+        && selected
+            .iter()
+            .all(|id| state.task(*id).is_some_and(|task| task.can_move()));
+    let can_delete = count > 0
+        && selected
+            .iter()
+            .all(|id| state.task(*id).is_some_and(|task| task.can_delete()));
+    drop(state);
     border()
         .corner_radius(5.0)
         .background(p.surface)
@@ -46,16 +58,20 @@ pub(super) fn view(vm: Rc<AppViewModel>, rows: Rc<Rows>) -> Element {
                             "Complete selected tasks",
                             move || complete.complete_selected_tasks(),
                         )))
-                        .child(border().is_enabled(count > 0).child(icon_button(
+                        .child(border().is_enabled(can_move).child(icon_button(
                             Icon::MoveToList,
                             "Move selected tasks",
                             move || move_tasks.show_panel(Panel::MoveSelection),
                         )))
-                        .child(border().is_enabled(count > 0).child(icon_button(
+                        .child(border().is_enabled(can_delete).child(icon_button(
                             Icon::Trash,
                             "Delete selected tasks",
                             move || delete.delete_selection(),
                         )))
+                        .child(todo_controls::toolbar_button(Icon::More, "Selected task options", p.text)
+                            .name("SelectionOptions")
+                            .is_enabled(count > 0)
+                            .with(move |button| crate::menus::selection_options(button, options.clone())))
                         .child(icon_button(Icon::Close, "Exit task selection", move || {
                             close.end_selection()
                         })),

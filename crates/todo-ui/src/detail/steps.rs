@@ -1,4 +1,3 @@
-use super::edit_field;
 use crate::palette;
 use ferroui_base::layout::VerticalAlignment;
 use ferroui_view::prelude::*;
@@ -22,7 +21,6 @@ pub(super) fn steps(vm: Rc<AppViewModel>, task: &Task) -> Element {
         let step_id = step.id;
         let toggle = vm.clone();
         let options = vm.clone();
-        let rename = vm.clone();
         let label = format!(
             "Mark {} as {}",
             step.title,
@@ -64,23 +62,9 @@ pub(super) fn steps(vm: Rc<AppViewModel>, task: &Task) -> Element {
                         )),
                 )
                 .child(
-                    border().grid_column(1).child(
-                        edit_field(
-                            &format!("Step{step_id}"),
-                            step.title.clone(),
-                            "Step",
-                            false,
-                            move |title| {
-                                rename.dispatch(Action::RenameStep {
-                                    task_id: id,
-                                    step_id,
-                                    title,
-                                })
-                            },
-                        )
-                        .foreground(if step.completed { p.secondary } else { p.text })
-                        .automation_properties_name(format!("Step: {}", step.title)),
-                    ),
+                    border()
+                        .grid_column(1)
+                        .child(super::step_text::view(vm.clone(), id, step)),
                 )
                 .child(
                     todo_controls::toolbar_button(

@@ -8,7 +8,8 @@ import { restorePortable } from "./backup/archive.js";
 import { exportMicrosoftArchive, restoreMicrosoftArchive } from "./cloud/archive.js";
 import { createDocumentStorage } from "./document-storage.js";
 import { synchronizeNavigation } from "./navigation.js";
-import { serviceEnvironment } from "./cloud/auth.js";
+import { serviceEnvironment, revokeResume } from "./cloud/auth.js";
+import { commitWorkspaceImport } from "./cloud/workspaces.js";
 
 const demo = new URLSearchParams(location.search).get("demo") === "1";
 const storageKey = demo ? "ferroui.todo.demo.v1" : "ferroui.todo.v1";
@@ -16,7 +17,11 @@ const documentStorage = createDocumentStorage(() => localStorage, storageKey);
 let runtime;
 
 export function attachRuntime(value) {
-  runtime = value;
+  runtime = Object.create(value);
+  Object.defineProperty(runtime, "importData", { value: json => demo ? value.importData(json)
+    : commitWorkspaceImport(value, json, prepared => value.importData(prepared), {
+      beforeCommit: revokeResume, afterCommit: acceptWorkspaceStorage,
+    }) });
   // Demo startup builds a sample directly in Rust and does not call load().
   if (demo) {
     try { documentStorage.load(); }
@@ -24,6 +29,7 @@ export function attachRuntime(value) {
   }
 }
 export function load() { return documentStorage.load(); }
+export function acceptWorkspaceStorage(contents) { documentStorage.acceptWorkspace(contents); }
 export function save(contents) {
   try { documentStorage.save(contents); microsoftDocumentChanged(contents); }
   // The existing wasm boundary reads JsValue::as_string; preserve the actionable message.
@@ -63,12 +69,19 @@ async function handle(action) {
     }
     case "connectMicrosoft":
     case "reconnectMicrosoft":
+    case "switchMicrosoftAccount":
+    case "openLocalWorkspace":
     case "signOutMicrosoft":
     case "disconnectMicrosoft":
     case "syncMicrosoft":
     case "enableOutlookCategories":
     case "refreshOutlookCategories":
     case "disableOutlookCategories":
+    case "enableOutlookCategoryEditing":
+    case "disableOutlookCategoryEditing":
+    case "createOutlookCategory":
+    case "updateOutlookCategory":
+    case "deleteOutlookCategory":
     case "enablePresentationSync":
     case "disablePresentationSync":
       await microsoftRequest(action, today()); break;

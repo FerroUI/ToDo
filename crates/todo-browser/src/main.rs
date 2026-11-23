@@ -33,6 +33,9 @@ pub fn run_main(query: &str, emoji_font: Vec<u8>) -> Result<(), JsValue> {
             "out",
             Some(BrowserPlatformOptions {
                 accessibility: BrowserAccessibilityMode::Enabled,
+                // Images are copied into the document; a transient file input
+                // works consistently across browsers without retaining grants.
+                prefer_file_dialog_polyfill: true,
                 ..Default::default()
             }),
         );

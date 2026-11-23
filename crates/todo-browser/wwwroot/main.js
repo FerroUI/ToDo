@@ -1,6 +1,6 @@
 import { FerroExports } from "./ferroui.js";
 import { loadModule } from "./ferroui-loader.js";
-import { attachRuntime, today, width, reportError } from "./host.js";
+import { attachRuntime, today, width, reportError, acceptWorkspaceStorage } from "./host.js";
 import { prepareMicrosoft, attachMicrosoft } from "./graph.js";
 import { registerOffline } from "./offline.js";
 import { loadEmojiFont } from "./fonts.js";
@@ -20,7 +20,7 @@ try {
     globalThis.todoApp = runtime;
     runtime.runMain(globalThis.location.search, emojiFont);
     attachNavigation(runtime);
-    void attachMicrosoft(runtime);
+    void attachMicrosoft(runtime, { workspaceChanged: acceptWorkspaceStorage });
     new ResizeObserver(() => runtime.resizeWindow(width())).observe(document.getElementById("out"));
     matchMedia("(prefers-color-scheme: dark)").addEventListener("change", event => runtime.updateTheme(event.matches));
     const tick = () => {

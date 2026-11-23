@@ -1,7 +1,7 @@
 import { cloudEnvironment, requireCloudService } from "../../crates/todo-browser/wwwroot/cloud/environment.js";
 
 export const GRAPH_APPLICATION_ID = "00000003-0000-0000-c000-000000000000";
-export const REGISTRATION_SCOPES = Object.freeze(["Tasks.ReadWrite", "User.Read", "MailboxSettings.Read", "Files.ReadWrite.AppFolder"]);
+export const REGISTRATION_SCOPES = Object.freeze(["Tasks.ReadWrite", "User.Read", "MailboxSettings.Read", "MailboxSettings.ReadWrite", "Files.ReadWrite.AppFolder"]);
 const GUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const AUDIENCES = Object.freeze({ both: "AzureADandPersonalMicrosoftAccount", organizations: "AzureADMultipleOrgs", tenant: "AzureADMyOrg", personal: "PersonalMicrosoftAccount" });
 

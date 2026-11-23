@@ -83,6 +83,7 @@ fn monthly_and_yearly_recurrence_preserve_the_original_day() {
         unit: RepeatUnit::Month,
         every: 1,
         anchor: Some(day("2026-01-31")),
+        ..Recurrence::monthly()
     };
     assert_eq!(
         recurrence.next_after(day("2026-01-31"), day("2026-01-31")),
@@ -96,6 +97,7 @@ fn monthly_and_yearly_recurrence_preserve_the_original_day() {
         unit: RepeatUnit::Year,
         every: 1,
         anchor: Some(day("2024-02-29")),
+        ..Recurrence::yearly()
     };
     assert_eq!(
         recurrence.next_after(day("2027-02-28"), day("2027-02-28")),

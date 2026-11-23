@@ -12,6 +12,7 @@ import { verifyGestureCancellation, verifyRefreshInterruption } from "./touch-in
 import { verifyNavigationReversal, verifyNoopRelease } from "./touch-navigation-cases.mjs";
 import { verifyMixedPointerCancellation } from "./touch-mixed-input.mjs";
 import { verifyWindowInterruption } from "./touch-window-lifecycle.mjs";
+import { verifyPenCancellation } from "./pen-input.mjs";
 
 export async function reviewTouch(ctx, output) {
   const recover = async () => {
@@ -47,6 +48,7 @@ export async function reviewTouch(ctx, output) {
     { name: "touch-navigation-reversal", run: () => verifyNavigationReversal(ctx) },
     { name: "touch-release-guards", run: () => verifyNoopRelease(ctx) },
     { name: "touch-mixed-pointer", run: () => verifyMixedPointerCancellation(ctx) },
+    { name: "pen-input", run: () => verifyPenCancellation(ctx) },
     { name: "touch-window-lifecycle", run: () => verifyWindowInterruption(ctx) },
     { name: "touch-sidebar", run: () => verifyTouchSidebar(ctx) },
   ], { recover, reportName: "touch-reviews.json" });

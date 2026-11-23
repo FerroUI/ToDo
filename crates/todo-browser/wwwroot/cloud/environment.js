@@ -11,7 +11,7 @@ const ENVIRONMENTS = Object.freeze({
     todoUrl: null, todoLabel: "Microsoft To Do unavailable", plannerUrl: null, plannerLabel: "Planner unavailable" }),
 });
 export const BASE_SCOPES = Object.freeze(["Tasks.ReadWrite", "User.Read"]);
-const PERMISSIONS = new Set([...BASE_SCOPES, "MailboxSettings.Read", "Files.ReadWrite.AppFolder"]);
+const PERMISSIONS = new Set([...BASE_SCOPES, "MailboxSettings.Read", "MailboxSettings.ReadWrite", "Files.ReadWrite.AppFolder"]);
 
 export function cloudEnvironment(value = "global") {
   if (typeof value !== "string" || !Object.hasOwn(ENVIRONMENTS, value.trim().toLowerCase())) {

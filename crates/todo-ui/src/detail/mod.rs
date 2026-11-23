@@ -3,11 +3,15 @@ mod attachments;
 mod categories;
 mod fields;
 mod new_step;
+mod note_links;
+mod notes;
+pub(crate) mod notes_document;
 mod notes_key;
 mod schedule_menu;
 mod scheduling;
 mod sources;
 mod step_menu;
+mod step_text;
 mod steps;
 
 use self::attachments::attachments;
@@ -138,20 +142,7 @@ pub fn view(vm: Rc<AppViewModel>, id: Id) -> Element {
     if !task.is_planner() {
         content = content.child(attachments(vm.clone(), &task));
     }
-    let note = vm.clone();
-    content = content.child(section(
-        vm.clone(),
-        border()
-            .min_height(110.0)
-            .padding((6.0, 8.0))
-            .child(edit_field(
-                "TaskNotes",
-                task.notes.clone(),
-                "Add a note",
-                true,
-                move |notes| note.dispatch(Action::SetNotes { id, notes }),
-            )),
-    ));
+    content = content.child(section(vm.clone(), notes::view(vm.clone(), id)));
     if !task.is_planner() {
         content = content.child(categories::view(vm.clone(), &task));
     }

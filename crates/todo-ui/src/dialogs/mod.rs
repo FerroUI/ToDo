@@ -1,3 +1,5 @@
+mod background_image;
+mod categories;
 mod dates;
 mod focus;
 mod forms;
@@ -29,9 +31,10 @@ pub fn view(vm: Rc<AppViewModel>) -> Element {
         Panel::RenameGroup(_) => "Edit group",
         Panel::MoveTask(_) | Panel::MoveSelection => "Move tasks to",
         Panel::MoveList(_) => "Move list to group",
-        Panel::DueDate(_) => "Due date",
-        Panel::Reminder(_) => "Remind me",
-        Panel::Repeat(_) => "Repeat",
+        Panel::DueDate(_) | Panel::BulkDueDate(_) => "Due date",
+        Panel::Reminder(_) | Panel::BulkReminder(_) => "Remind me",
+        Panel::Repeat(_) | Panel::BulkRepeat(_) => "Repeat",
+        Panel::BulkCategories(_) => "Categories",
         Panel::DeleteTask(_) => "Delete task?",
         Panel::DeleteSelection => "Delete selected tasks?",
         Panel::DeleteList(_) => "Delete list?",
@@ -45,8 +48,12 @@ pub fn view(vm: Rc<AppViewModel>) -> Element {
     };
     let content = match panel {
         Panel::DueDate(id) => dates::date_picker(vm.clone(), id, false),
+        Panel::BulkDueDate(ids) => dates::date_picker_bulk(vm.clone(), ids, false),
         Panel::Reminder(id) => dates::date_picker(vm.clone(), id, true),
+        Panel::BulkReminder(ids) => dates::date_picker_bulk(vm.clone(), ids, true),
         Panel::Repeat(id) => dates::repeat(vm.clone(), id),
+        Panel::BulkRepeat(ids) => dates::repeat_bulk(vm.clone(), ids),
+        Panel::BulkCategories(ids) => categories::view(vm.clone(), ids),
         Panel::NewList | Panel::NewGroup | Panel::RenameList(_) | Panel::RenameGroup(_) => {
             forms::name(vm.clone())
         }

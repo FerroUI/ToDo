@@ -64,35 +64,38 @@ pub(crate) fn sidebar_identity(control: &Control) -> Option<SidebarItem> {
         .and_then(|tag| tag.downcast_ref::<SidebarItem>().copied())
 }
 
-fn task_payload(event: &DragEventArgs, vm: &Rc<AppViewModel>) -> Option<(ItemDrag, Id)> {
+fn task_payload(event: &DragEventArgs, vm: &Rc<AppViewModel>) -> Option<ItemDrag> {
     let Some(drag) = payload(event, vm) else {
         event.set_drag_effects(ferroui_base::input::DragDropEffects::NONE);
         return None;
     };
-    let DragItem::Task(id) = drag.item else {
+    let DragItem::Task(_) = drag.item else {
         // A later sidebar handler on the same list button can accept its own payload.
         event.set_drag_effects(ferroui_base::input::DragDropEffects::NONE);
         return None;
     };
-    Some((drag, id))
+    Some(drag)
 }
 
 /// Compute against the live document at drop time; hover never changes task state.
-fn reorder(vm: &AppViewModel, id: Id, target: Id, after: bool) -> Option<Action> {
-    if id == target || vm.sort() != SortOrder::Manual {
+fn reorder(vm: &AppViewModel, ids: &[Id], target: Id, after: bool) -> Option<Action> {
+    if ids.is_empty() || ids.contains(&target) || vm.sort() != SortOrder::Manual {
         return None;
     }
     let View::List(list_id) = vm.view() else {
         return None;
     };
     let document = vm.state();
-    let source = document.task(id)?;
     let target = document.task(target)?;
-    if !source.can_move()
-        || !target.can_move()
-        || source.list_id != list_id
+    if !target.can_move()
         || target.list_id != list_id
-        || source.completed != target.completed
+        || !ids.iter().all(|id| {
+            document.task(*id).is_some_and(|source| {
+                source.can_move()
+                    && source.list_id == list_id
+                    && source.completed == target.completed
+            })
+        })
     {
         return None;
     }
@@ -101,7 +104,7 @@ fn reorder(vm: &AppViewModel, id: Id, target: Id, after: bool) -> Option<Action>
             .tasks
             .iter()
             .filter(|candidate| {
-                candidate.id != id
+                !ids.contains(&candidate.id)
                     && candidate.can_move()
                     && candidate.list_id == list_id
                     && candidate.completed == target.completed
@@ -112,14 +115,44 @@ fn reorder(vm: &AppViewModel, id: Id, target: Id, after: bool) -> Option<Action>
     } else {
         Some(target.id)
     };
-    Some(Action::ReorderTask { id, before })
+    Some(Action::TransferTasks {
+        ids: ids.to_vec(),
+        list_id,
+        before,
+    })
 }
 
-fn move_to(vm: &AppViewModel, id: Id, list_id: Id) -> Option<Action> {
+fn move_to(vm: &AppViewModel, ids: &[Id], list_id: Id) -> Option<Action> {
     let document = vm.state();
-    let source = document.task(id)?;
-    if !source.can_move() || source.list_id == list_id || document.list(list_id).is_none() {
+    if ids.is_empty()
+        || document.list(list_id).is_none()
+        || !ids
+            .iter()
+            .all(|id| document.task(*id).is_some_and(|source| source.can_move()))
+        || ids.iter().all(|id| {
+            document
+                .task(*id)
+                .is_some_and(|source| source.list_id == list_id)
+        })
+    {
         return None;
     }
-    Some(Action::MoveTask { id, list_id })
+    Some(Action::TransferTasks {
+        ids: ids.to_vec(),
+        list_id,
+        before: None,
+    })
+}
+
+fn commit(vm: &AppViewModel, action: Action) {
+    if let Action::TransferTasks {
+        ids,
+        list_id,
+        before,
+    } = action
+    {
+        vm.transfer_tasks(ids, list_id, before);
+    } else {
+        vm.dispatch(action);
+    }
 }

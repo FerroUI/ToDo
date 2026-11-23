@@ -1,5 +1,9 @@
+mod calculate;
+mod labels;
+mod validation;
+
 use crate::Date;
-use chrono::{Datelike, Duration, Months, Weekday};
+use chrono::Datelike;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -11,13 +15,137 @@ pub enum RepeatUnit {
     Year,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RepeatDay {
+    #[default]
+    Sunday,
+    Monday,
+    Tuesday,
+    Wednesday,
+    Thursday,
+    Friday,
+    Saturday,
+}
+
+impl RepeatDay {
+    pub const ALL: [Self; 7] = [
+        Self::Sunday,
+        Self::Monday,
+        Self::Tuesday,
+        Self::Wednesday,
+        Self::Thursday,
+        Self::Friday,
+        Self::Saturday,
+    ];
+    pub fn from_date(date: Date) -> Self {
+        Self::ALL[date.weekday().num_days_from_sunday() as usize]
+    }
+    pub fn number(self) -> u32 {
+        Self::ALL.iter().position(|day| *day == self).unwrap() as u32
+    }
+    pub fn is_sunday(&self) -> bool {
+        *self == Self::Sunday
+    }
+    pub fn short(self) -> &'static str {
+        ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][self.number() as usize]
+    }
+    pub fn label(self) -> &'static str {
+        [
+            "Sunday",
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+        ][self.number() as usize]
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WeekIndex {
+    First,
+    Second,
+    Third,
+    Fourth,
+    Last,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RelativeMode {
+    /// Graph: choose the earliest of the nth occurrences of each weekday.
+    #[default]
+    FirstMatch,
+    /// Outlook: choose the nth date from the combined set of matching weekdays.
+    NthMatchingDay,
+}
+impl RelativeMode {
+    pub fn is_first_match(&self) -> bool {
+        *self == Self::FirstMatch
+    }
+}
+impl WeekIndex {
+    pub const ALL: [Self; 5] = [
+        Self::First,
+        Self::Second,
+        Self::Third,
+        Self::Fourth,
+        Self::Last,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::First => "first",
+            Self::Second => "second",
+            Self::Third => "third",
+            Self::Fourth => "fourth",
+            Self::Last => "last",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "camelCase")]
+pub enum RepeatEnd {
+    #[default]
+    Never,
+    On(Date),
+    After(u32),
+}
+impl RepeatEnd {
+    pub fn is_never(&self) -> bool {
+        matches!(self, Self::Never)
+    }
+}
+
+/// A civil-calendar rule. The anchor is the inclusive start of the series;
+/// numbered ranges count scheduled occurrences, including skipped overdue dates.
+/// Optional selectors default to the anchor's weekday/day/month for old saves.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Recurrence {
     pub unit: RepeatUnit,
     pub every: u16,
-    /// Original civil date preserves e.g. January 31 -> February 28 -> March 31.
     #[serde(default)]
     pub anchor: Option<Date>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub days_of_week: Vec<RepeatDay>,
+    #[serde(default, skip_serializing_if = "RepeatDay::is_sunday")]
+    pub week_start: RepeatDay,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub day_of_month: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub month: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ordinal: Option<WeekIndex>,
+    #[serde(default, skip_serializing_if = "RelativeMode::is_first_match")]
+    pub relative_mode: RelativeMode,
+    #[serde(default, skip_serializing_if = "RepeatEnd::is_never")]
+    pub end: RepeatEnd,
+    /// Graph range timezone identity is retained; dates are not converted through UTC.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time_zone: Option<String>,
 }
 
 impl Recurrence {
@@ -26,6 +154,14 @@ impl Recurrence {
             unit,
             every: every.max(1),
             anchor: None,
+            days_of_week: Vec::new(),
+            week_start: RepeatDay::Sunday,
+            day_of_month: None,
+            month: None,
+            ordinal: None,
+            relative_mode: RelativeMode::FirstMatch,
+            end: RepeatEnd::Never,
+            time_zone: None,
         }
     }
     pub fn daily() -> Self {
@@ -43,78 +179,73 @@ impl Recurrence {
     pub fn yearly() -> Self {
         Self::new(RepeatUnit::Year, 1)
     }
-
-    /// Next occurrence strictly after both the current due date and completion date.
-    /// Arithmetic jumps over missed periods rather than looping over years of overdue days.
-    pub fn next_after(&self, current: Date, completed: Date) -> Option<Date> {
-        let every = u32::from(self.every.max(1));
-        let boundary = current.max(completed);
-        let anchor = self.anchor.unwrap_or(current);
-        match self.unit {
-            RepeatUnit::Day | RepeatUnit::Week => {
-                let days = i64::from(every) * if self.unit == RepeatUnit::Week { 7 } else { 1 };
-                let passed = (boundary - anchor).num_days().max(0);
-                anchor.checked_add_signed(Duration::days((passed / days + 1) * days))
+    pub fn same_pattern(&self, other: &Self) -> bool {
+        let (mut left, mut right) = (self.clone(), other.clone());
+        left.normalize();
+        right.normalize();
+        left.unit == right.unit
+            && left.every == right.every
+            && left.days_of_week == right.days_of_week
+            && left.week_start == right.week_start
+            && left.day_of_month == right.day_of_month
+            && left.month == right.month
+            && left.ordinal == right.ordinal
+            && left.relative_mode == right.relative_mode
+    }
+    pub fn normalize(&mut self) {
+        self.days_of_week.sort_unstable();
+        self.days_of_week.dedup();
+        if self.days_of_week.len() <= 1 || self.ordinal == Some(WeekIndex::First) {
+            self.relative_mode = RelativeMode::FirstMatch;
+        }
+        if let Some(anchor) = self.anchor {
+            if self.unit == RepeatUnit::Week && self.days_of_week == [RepeatDay::from_date(anchor)]
+            {
+                self.days_of_week.clear();
             }
-            RepeatUnit::Weekday => {
-                let mut candidate = current;
-                // Advance by every business days from the later date: weekday schedules have
-                // no backlog and a Friday occurrence is never regenerated for the weekend.
-                candidate = candidate.max(completed);
-                candidate = match candidate.weekday() {
-                    Weekday::Sat => candidate.checked_sub_signed(Duration::days(1))?,
-                    Weekday::Sun => candidate.checked_sub_signed(Duration::days(2))?,
-                    _ => candidate,
-                };
-                let full_weeks = every / 5;
-                candidate =
-                    candidate.checked_add_signed(Duration::days(i64::from(full_weeks * 7)))?;
-                for _ in 0..(every % 5) {
-                    candidate = candidate.succ_opt()?;
-                    while matches!(candidate.weekday(), Weekday::Sat | Weekday::Sun) {
-                        candidate = candidate.succ_opt()?;
-                    }
-                }
-                while matches!(candidate.weekday(), Weekday::Sat | Weekday::Sun) {
-                    candidate = candidate.succ_opt()?;
-                }
-                Some(candidate)
+            if matches!(self.unit, RepeatUnit::Month | RepeatUnit::Year)
+                && self.ordinal.is_none()
+                && self.day_of_month == Some(anchor.day() as u8)
+            {
+                self.day_of_month = None;
             }
-            RepeatUnit::Month | RepeatUnit::Year => {
-                let months = every * if self.unit == RepeatUnit::Year { 12 } else { 1 };
-                let passed = (boundary.year() - anchor.year()) * 12 + boundary.month() as i32
-                    - anchor.month() as i32;
-                let mut step = (passed.max(0) as u32 / months).max(1);
-                let mut candidate =
-                    anchor.checked_add_months(Months::new(step.checked_mul(months)?))?;
-                if candidate <= boundary {
-                    step += 1;
-                    candidate =
-                        anchor.checked_add_months(Months::new(step.checked_mul(months)?))?;
-                }
-                Some(candidate)
+            if self.unit == RepeatUnit::Year && self.month == Some(anchor.month() as u8) {
+                self.month = None;
             }
+        }
+        self.time_zone = self
+            .time_zone
+            .take()
+            .map(|zone| zone.trim().to_owned())
+            .filter(|zone| !zone.is_empty());
+    }
+    /// An explicit due-date edit starts the schedule from that date. Preserve a
+    /// selected multi-day/relative pattern; move an absolute selector with its date.
+    pub fn reanchor(&mut self, date: Date) {
+        self.anchor = Some(date);
+        if self.ordinal.is_none() {
+            if self.day_of_month.is_some() {
+                self.day_of_month = Some(date.day() as u8);
+            }
+            if self.month.is_some() {
+                self.month = Some(date.month() as u8);
+            }
+        }
+        if self.unit == RepeatUnit::Week && self.days_of_week.len() == 1 {
+            self.days_of_week[0] = RepeatDay::from_date(date);
         }
     }
-
-    pub fn label(&self) -> String {
-        if self.every == 1 {
-            return match self.unit {
-                RepeatUnit::Day => "Daily",
-                RepeatUnit::Weekday => "Weekdays",
-                RepeatUnit::Week => "Weekly",
-                RepeatUnit::Month => "Monthly",
-                RepeatUnit::Year => "Yearly",
+    /// A task copy has an independent series, retaining the original calendar
+    /// selectors even if its current occurrence is a clamped month-end date.
+    pub fn restart_from(&mut self, date: Date) {
+        if let Some(anchor) = self.anchor {
+            if matches!(self.unit, RepeatUnit::Month | RepeatUnit::Year) && self.ordinal.is_none() {
+                self.day_of_month.get_or_insert(anchor.day() as u8);
             }
-            .into();
+            if self.unit == RepeatUnit::Year {
+                self.month.get_or_insert(anchor.month() as u8);
+            }
         }
-        let unit = match self.unit {
-            RepeatUnit::Day => "days",
-            RepeatUnit::Weekday => "weekdays",
-            RepeatUnit::Week => "weeks",
-            RepeatUnit::Month => "months",
-            RepeatUnit::Year => "years",
-        };
-        format!("Every {} {unit}", self.every)
+        self.anchor = Some(date);
     }
 }

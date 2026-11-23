@@ -4,9 +4,10 @@ import { synchronizePresentation, forgetPresentationMappings, resetPresentationS
 import { PRESENTATION_SCOPE } from "./presentation-format.js";
 import { requireCloudService } from "./environment.js";
 import { requiresSyncReview } from "./automatic.js";
+import { CATEGORY_WRITE_SCOPES, categoryManagementActions, manageOutlookCategory } from "./category-management.js";
 
 const failures = new Map();
-export const connectedActions = Object.freeze(["enableOutlookCategories", "refreshOutlookCategories", "disableOutlookCategories", "enablePresentationSync", "disablePresentationSync"]);
+export const connectedActions = Object.freeze(["enableOutlookCategories", "refreshOutlookCategories", "disableOutlookCategories", "enableOutlookCategoryEditing", "disableOutlookCategoryEditing", ...categoryManagementActions, "enablePresentationSync", "disablePresentationSync"]);
 
 export function resetConnectedApps(runtime, { restore = false } = {}) {
   failures.clear(); forgetOutlookCategories(); runtime.outlookCategories("[]");
@@ -21,16 +22,30 @@ export function restoreConnectedApps(runtime, account, preferences) {
   else runtime.outlookCategories("[]");
 }
 
-export async function connectedAppRequest(runtime, kind) {
+export async function connectedAppRequest(runtime, request) {
+  const action = typeof request === "string" ? { kind: request } : request;
+  const kind = action?.kind;
   if (!connectedActions.includes(kind)) return false;
   const account = auth.accountKey();
   if (!account) throw new Error("Connect your Microsoft account first.");
-  const categories = kind.includes("OutlookCategories");
-  const preference = categories ? "outlook_categories_enabled" : "presentation_sync_enabled";
+  const settings = JSON.parse(runtime.exportData()).settings;
+  if (categoryManagementActions.includes(kind)) {
+    if (!settings.outlook_categories_enabled || !settings.outlook_categories_write_enabled) throw new Error("Enable Outlook category editing before changing the catalogue.");
+    runtime.outlookCategories(JSON.stringify(await manageOutlookCategory(account, action)));
+    runtime.hostStatus?.(kind === "deleteOutlookCategory" ? "Category removed from the Outlook catalogue. Existing task category names are retained."
+      : kind === "createOutlookCategory" ? "Outlook category created." : "Outlook category color updated.");
+    return true;
+  }
+  const editing = kind.endsWith("OutlookCategoryEditing");
+  const categories = editing || kind.includes("OutlookCategories");
+  const preference = editing ? "outlook_categories_write_enabled" : categories ? "outlook_categories_enabled" : "presentation_sync_enabled";
   const service = categories ? "categories" : "presentation";
   if (kind.startsWith("disable")) {
     runtime.setIntegrationPreference(preference, false);
-    if (categories) { forgetOutlookCategories(account); runtime.outlookCategories("[]"); }
+    if (categories && !editing) {
+      runtime.setIntegrationPreference("outlook_categories_write_enabled", false);
+      forgetOutlookCategories(account); runtime.outlookCategories("[]");
+    }
     failures.delete(service);
     return true;
   }
@@ -43,7 +58,8 @@ export async function connectedAppRequest(runtime, kind) {
       try { runtime.outlookCategories(JSON.stringify(await readOutlookCategories(account, { force: true }))); return true; }
       catch (error) { if (!error.requiresInteraction) throw error; }
     }
-    await auth.requestScopes(categories ? CATEGORY_SCOPES : PRESENTATION_SCOPE);
+    if (editing && !settings.outlook_categories_enabled) throw new Error("Connect Outlook categories first.");
+    await auth.requestScopes(editing ? CATEGORY_WRITE_SCOPES : categories ? CATEGORY_SCOPES : PRESENTATION_SCOPE);
   } catch (error) {
     // A rejected/blocked consent request must not pretend this service is active.
     runtime.setIntegrationPreference(preference, previous);

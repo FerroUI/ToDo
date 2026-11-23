@@ -9,7 +9,7 @@ use ferroui_view::prelude::*;
 use std::rc::Rc;
 use todo_controls::Icon;
 use todo_domain::{Action, Task};
-use todo_state::AppViewModel;
+use todo_state::{AppViewModel, Panel};
 
 pub(super) fn view(vm: Rc<AppViewModel>, task: &Task) -> Element {
     let p = palette(&vm);
@@ -35,6 +35,25 @@ pub(super) fn view(vm: Rc<AppViewModel>, task: &Task) -> Element {
     });
     let repeat = task.recurrence.as_ref().map(|rule| rule.label());
     let mut content = stack_panel();
+    if let Some(start) = task.start_date.filter(|_| !task.is_planner()) {
+        let open = vm.clone();
+        let clear = vm.clone();
+        content = content.child(row(
+            action(
+                Icon::Calendar,
+                &format!("Starts {}", vm.date_label(start)),
+                p.accent,
+            )
+            .name("TaskStartDate")
+            .on_click(move |_| open.show_panel(Panel::DueDate(id))),
+            Some(clear_button(
+                "Remove start date",
+                p.secondary,
+                "TaskStartDate",
+                move || clear.dispatch(Action::SetStartDate { id, date: None }),
+            )),
+        ));
+    }
     for (kind, symbol, label, active, clear_label, clear_action, name) in [
         (
             Kind::Reminder,

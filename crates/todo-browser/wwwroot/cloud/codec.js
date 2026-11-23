@@ -1,22 +1,20 @@
 import { windowsZones } from "./windows-zones.js";
+import { fromRecurrence, toRecurrence, recurrenceFields } from "./recurrence.js";
+import { noteFields, noteBody, richNoteFields } from "../notes.js";
 
 export const equal = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 const civil = value => value?.dateTime?.slice(0, 10) || null;
-const escape = text => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+const optionalNote = ({ notes, notes_html }) => notes_html ? { notes, notes_html } : { notes };
 export const fields = task => ({
-  title: task.title, notes: task.notes || "", important: !!task.important, completed: !!task.completed,
+  title: task.title, ...optionalNote(noteFields(task)), important: !!task.important, completed: !!task.completed,
   due_date: task.due_date || null,
+  start_date: task.start_date || civil(task.microsoft_data?.startDateTime),
   reminder: task.reminder ? { date: task.reminder.date, minutes_after_midnight: task.reminder.minutes_after_midnight } : null,
-  recurrence: task.recurrence || null, tags: [...(task.tags || [])].sort(),
+  recurrence: recurrenceFields(task.recurrence), tags: [...(task.tags || [])].sort(),
 });
 
-function textBody(body) {
-  if (String(body?.contentType).toLowerCase() !== "html") return body?.content || "";
-  const doc = new DOMParser().parseFromString(body.content || "", "text/html");
-  for (const element of doc.querySelectorAll("br")) element.replaceWith("\n");
-  for (const element of doc.querySelectorAll("p,div,li")) element.append("\n");
-  return (doc.body.textContent || "").trimEnd();
-}
+const bodyFields = body => String(body?.contentType).toLowerCase() === "html"
+  ? optionalNote(richNoteFields(body.content || "")) : { notes: body?.content || "" };
 
 function reminder(value) {
   if (!value) return null;
@@ -45,56 +43,25 @@ function instantInZone(text, zone) {
 }
 
 export function remoteFields(task) {
-  return { title: task.title || "Untitled task", notes: textBody(task.body), important: task.importance === "high",
+  return { title: task.title || "Untitled task", ...bodyFields(task.body), important: task.importance === "high",
     completed: task.status === "completed", due_date: civil(task.dueDateTime),
+    start_date: civil(task.startDateTime),
     reminder: task.isReminderOn ? reminder(task.reminderDateTime) : null,
     recurrence: fromRecurrence(task.recurrence), tags: [...(task.categories || [])].sort() };
-}
-
-function fromRecurrence(value) {
-  if (!value) return null;
-  const pattern = value.pattern;
-  const types = { daily: "Day", weekly: "Week", absoluteMonthly: "Month", absoluteYearly: "Year" };
-  const weekdays = pattern.type === "weekly" && equal([...(pattern.daysOfWeek || [])].sort(), ["friday", "monday", "thursday", "tuesday", "wednesday"]);
-  const unit = weekdays ? "Weekday" : types[pattern.type];
-  // Keep unsupported server patterns in Graph: patches only send fields the user changed.
-  if (!unit || value.range?.type !== "noEnd" || (weekdays && pattern.interval !== 1) || (pattern.type === "weekly" && !weekdays && pattern.daysOfWeek?.length !== 1)) return null;
-  const anchor = new Date(`${value.range.startDate}T12:00:00Z`);
-  if (!Number.isFinite(anchor.getTime())) return null;
-  const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-  // The local model anchors a period on its original date. A Graph pattern whose
-  // day differs from its range start cannot be projected without changing phase.
-  if (unit === "Week" && pattern.daysOfWeek[0] !== days[anchor.getUTCDay()]) return null;
-  if (["Month", "Year"].includes(unit) && pattern.dayOfMonth !== anchor.getUTCDate()) return null;
-  if (unit === "Year" && pattern.month !== anchor.getUTCMonth() + 1) return null;
-  return { unit, every: weekdays ? 1 : pattern.interval || 1, anchor: value.range?.startDate || null };
-}
-
-function toRecurrence(repeat, due, today) {
-  if (!repeat) return null;
-  const anchor = repeat.anchor || due || today;
-  const date = new Date(`${anchor}T12:00:00Z`);
-  const pattern = { type: { Day: "daily", Weekday: "weekly", Week: "weekly", Month: "absoluteMonthly", Year: "absoluteYearly" }[repeat.unit], interval: repeat.every };
-  if (repeat.unit === "Weekday") {
-    if (repeat.every !== 1) throw new Error("Microsoft sync supports the every-weekday schedule; custom business-day intervals remain local.");
-    pattern.daysOfWeek = ["monday", "tuesday", "wednesday", "thursday", "friday"];
-  }
-  if (repeat.unit === "Week") pattern.daysOfWeek = [["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][date.getUTCDay()]];
-  if (["Month", "Year"].includes(repeat.unit)) pattern.dayOfMonth = date.getUTCDate();
-  if (repeat.unit === "Year") pattern.month = date.getUTCMonth() + 1;
-  return { pattern, range: { type: "noEnd", startDate: anchor } };
 }
 
 export function patchFor(next, previous, today) {
   const patch = {};
   for (const key of Object.keys(next)) {
+    if (key === "notes_html" && previous && !next.notes_html && !previous.notes_html) continue;
     if (previous && equal(next[key], previous[key])) continue;
     switch (key) {
       case "title": patch.title = next.title; break;
-      case "notes": patch.body = { contentType: "html", content: escape(next.notes).replaceAll("\n", "<br>") }; break;
+      case "notes": case "notes_html": patch.body = noteBody(next); break;
       case "important": patch.importance = next.important ? "high" : "normal"; break;
       case "completed": patch.status = next.completed ? "completed" : "notStarted"; break;
       case "due_date": patch.dueDateTime = next.due_date ? { dateTime: `${next.due_date}T00:00:00`, timeZone: "UTC" } : null; break;
+      case "start_date": patch.startDateTime = next.start_date ? { dateTime: `${next.start_date}T00:00:00`, timeZone: "UTC" } : null; break;
       case "tags": patch.categories = next.tags; break;
       case "recurrence": patch.recurrence = toRecurrence(next.recurrence, next.due_date, today); break;
       case "reminder": {
@@ -108,12 +75,24 @@ export function patchFor(next, previous, today) {
       }
     }
   }
+  if (previous && !equal(next.notes_html || null, previous.notes_html || null)) patch.body = noteBody(next);
   return patch;
 }
 
 export function mergeFields(local, remote, baseLocal, baseRemote, label) {
   const merged = {};
   for (const key of Object.keys(local)) {
+    if (key === "notes_html") continue;
+    if (key === "notes" && [local, remote, baseLocal, baseRemote].some(value => Object.hasOwn(value, "notes_html"))) {
+      // Text and formatting are one logical field. Never merge a changed body
+      // with the other side's stale markup; legacy journals have no HTML field.
+      const left = noteFields(local), right = noteFields(remote);
+      const localChanged = !equal(left, noteFields(baseLocal));
+      const remoteChanged = !equal(right, noteFields(baseRemote));
+      if (localChanged && remoteChanged && !equal(left, right)) throw new Error(`Sync conflict in “${label}” (notes). This device and Microsoft both changed it. Resolve the difference before syncing again.`);
+      Object.assign(merged, optionalNote(localChanged ? left : right));
+      continue;
+    }
     const localChanged = !equal(local[key], baseLocal[key]);
     const remoteChanged = !equal(remote[key], baseRemote[key]);
     if (localChanged && remoteChanged && !equal(local[key], remote[key])) throw new Error(`Sync conflict in “${label}” (${key}). This device and Microsoft both changed it. Resolve the difference before syncing again.`);

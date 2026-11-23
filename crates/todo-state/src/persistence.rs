@@ -25,6 +25,12 @@ impl AppViewModel {
             .map_err(|error| error.to_string())
     }
 
+    pub fn prepare_import_json(&self, json: &str) -> Result<String, String> {
+        self.prepare_document(json, true)?
+            .to_json()
+            .map_err(|error| error.to_string())
+    }
+
     fn prepare_document(&self, json: &str, record_undo: bool) -> Result<AppState, String> {
         let mut document = AppState::from_json(json).map_err(|error| error.to_string())?;
         if !record_undo {
@@ -51,6 +57,7 @@ impl AppViewModel {
 
     fn replace_document(&self, json: &str, record_undo: bool, message: &str) -> Result<(), String> {
         let document = self.prepare_document(json, record_undo)?;
+        self.clear_task_clipboard();
         if *self.document.borrow() == document {
             if self.dirty.get() {
                 self.persist()?;
@@ -182,7 +189,16 @@ impl AppViewModel {
                 ));
             }
             if !task.notes.is_empty() {
-                html.push_str(&format!("<p class=notes>{}</p>", escape(&task.notes)));
+                let rich = task
+                    .notes_html
+                    .as_deref()
+                    .and_then(|html| todo_domain::notes::RichNote::from_html(html).ok())
+                    .filter(|note| note.text() == task.notes);
+                if let Some(note) = rich {
+                    html.push_str(&note.to_html());
+                } else {
+                    html.push_str(&format!("<p class=notes>{}</p>", escape(&task.notes)));
+                }
             }
             html.push_str("</article>");
         }

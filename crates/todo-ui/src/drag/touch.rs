@@ -149,7 +149,7 @@ impl TouchDrag {
             if !self.state.origin.finish() {
                 return;
             }
-            vm.dispatch(plan.action);
+            super::commit(&vm, plan.action);
             if let DragItem::Sidebar(item) = self.state.origin.item {
                 let root = self.state.root.clone();
                 ferroui_base::threading::Dispatcher::ui_thread().post_local(

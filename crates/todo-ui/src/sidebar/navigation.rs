@@ -10,10 +10,8 @@ pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
     let p = palette(&vm);
     let state = vm.state();
     let counts = Counts::new(&state, vm.today());
-    let show_all = state.settings.show_all;
-    let show_completed = state.settings.show_completed_list;
-    let show_assigned = state.settings.show_assigned;
-    let show_flagged = state.settings.show_flagged_email;
+    let settings = state.settings.clone();
+    let current = vm.view();
     let mut lists = state.lists.clone();
     lists.sort_by_key(|l| (l.position, l.id));
     let groups = state.groups.clone();
@@ -29,44 +27,14 @@ pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
         (View::MyDay, Icon::Sun, "#797775"),
         (View::Important, Icon::Star, "#B65B7E"),
         (View::Planned, Icon::Calendar, "#287F6F"),
+        (View::AssignedToMe, Icon::Person, "#328591"),
+        (View::FlaggedEmail, Icon::Flag, "#C96F38"),
+        (View::All, Icon::Home, "#6B779F"),
+        (View::Completed, Icon::Check, "#398663"),
     ] {
-        nav = nav.child(nav_item(vm.clone(), target, symbol, color, &counts));
-    }
-    if show_assigned {
-        nav = nav.child(nav_item(
-            vm.clone(),
-            View::AssignedToMe,
-            Icon::Person,
-            "#328591",
-            &counts,
-        ));
-    }
-    if show_flagged {
-        nav = nav.child(nav_item(
-            vm.clone(),
-            View::FlaggedEmail,
-            Icon::Flag,
-            "#C96F38",
-            &counts,
-        ));
-    }
-    if show_all {
-        nav = nav.child(nav_item(
-            vm.clone(),
-            View::All,
-            Icon::Home,
-            "#6B779F",
-            &counts,
-        ));
-    }
-    if show_completed {
-        nav = nav.child(nav_item(
-            vm.clone(),
-            View::Completed,
-            Icon::Check,
-            "#398663",
-            &counts,
-        ));
+        if settings.smart_list_visible(&target, counts.get(&target), &current) {
+            nav = nav.child(nav_item(vm.clone(), target, symbol, color, &counts));
+        }
     }
     nav = nav
         .child(nav_item(

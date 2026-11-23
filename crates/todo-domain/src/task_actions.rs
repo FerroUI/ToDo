@@ -28,7 +28,21 @@ impl AppState {
                 let title = nonempty(title)?;
                 self.edit_task(id, today, |task| task.title = title)
             }
-            Action::SetNotes { id, notes } => self.edit_task(id, today, |task| task.notes = notes),
+            Action::SetNotes { id, notes } => self.edit_task(id, today, |task| {
+                // A plain editor/older integration must never leave stale rich content.
+                if task.notes != notes {
+                    task.notes_html = None;
+                }
+                task.notes = notes;
+            }),
+            Action::SetRichNotes { id, html } => {
+                let note = crate::notes::RichNote::from_html(&html)
+                    .map_err(|error| DomainError::InvalidValue(error.into()))?;
+                self.edit_task(id, today, |task| {
+                    task.notes = note.text();
+                    task.notes_html = note.has_formatting().then(|| note.to_html());
+                })
+            }
             Action::ToggleCompleted(id) => {
                 let completed = !self.tasks[self.task_index(id)?].completed;
                 self.complete_task(id, completed, today)
@@ -44,15 +58,54 @@ impl AppState {
                 task.my_day = day;
                 task.my_day_excluded = if day.is_none() { Some(today) } else { None };
             }),
-            Action::SetDueDate { id, date } => self.edit_task(id, today, |task| {
+            Action::SetDueDate { id, date } => {
+                let task = &self.tasks[self.task_index(id)?];
+                if task
+                    .start_date
+                    .zip(date)
+                    .is_some_and(|(start, due)| start > due)
+                {
+                    return Err(DomainError::InvalidValue(
+                        "The due date must be on or after the start date.".into(),
+                    ));
+                }
                 if task.due_date == date {
-                    return;
+                    return Ok(Changes::default());
                 }
-                task.due_date = date;
-                if let (Some(recurrence), Some(date)) = (&mut task.recurrence, date) {
-                    recurrence.anchor = Some(date);
+                let mut recurrence = task.recurrence.clone();
+                if let (Some(rule), Some(date)) = (&mut recurrence, date) {
+                    rule.reanchor(date);
+                    rule.validate()
+                        .map_err(|message| DomainError::InvalidValue(message.into()))?;
                 }
-            }),
+                self.edit_task(id, today, |task| {
+                    task.due_date = date;
+                    task.recurrence = recurrence;
+                })
+            }
+            Action::SetStartDate { id, date } => {
+                let task = &self.tasks[self.task_index(id)?];
+                if date
+                    .zip(task.due_date)
+                    .is_some_and(|(start, due)| start > due)
+                {
+                    return Err(DomainError::InvalidValue(
+                        "The start date must be on or before the due date.".into(),
+                    ));
+                }
+                self.edit_task(id, today, |task| {
+                    task.start_date = date;
+                    if date.is_none() {
+                        if let Some(source) = task
+                            .microsoft_data
+                            .as_mut()
+                            .and_then(|value| value.as_object_mut())
+                        {
+                            source.insert("startDateTime".into(), serde_json::Value::Null);
+                        }
+                    }
+                })
+            }
             Action::SetReminder { id, mut reminder } => {
                 if reminder
                     .as_ref()
@@ -83,19 +136,43 @@ impl AppState {
                 }
                 let index = self.task_index(id)?;
                 if let Some(value) = &mut recurrence {
+                    value.normalize();
                     if value.anchor.is_none() {
                         let task = &self.tasks[index];
                         // Saving an unchanged rule must not shift a month-end
                         // series from its original anchor to a clamped date.
-                        value.anchor = match task.recurrence.as_ref().filter(|existing| {
-                            existing.unit == value.unit && existing.every == value.every
-                        }) {
+                        value.anchor = match task
+                            .recurrence
+                            .as_ref()
+                            .filter(|existing| existing.same_pattern(value))
+                        {
                             Some(existing) => existing.anchor,
                             None => Some(task.due_date.unwrap_or(today)),
                         };
                     }
+                    value
+                        .validate()
+                        .map_err(|message| DomainError::InvalidValue(message.into()))?;
+                    value.normalize();
                 }
                 self.edit_task(id, today, |task| {
+                    if task.recurrence != recurrence && !task.completed {
+                        task.recurrence_generated = false;
+                    }
+                    if recurrence.is_none() {
+                        // Older archives retained unsupported Graph patterns
+                        // with no local projection. Record an explicit removal
+                        // in their upload seed so an upgrade cannot restore it.
+                        if let Some(source) = task
+                            .microsoft_data
+                            .as_mut()
+                            .and_then(|value| value.as_object_mut())
+                        {
+                            if source.contains_key("recurrence") {
+                                source.insert("recurrence".into(), serde_json::Value::Null);
+                            }
+                        }
+                    }
                     task.recurrence = recurrence;
                 })
             }
@@ -126,7 +203,10 @@ impl AppState {
             Action::DuplicateTask(id) => {
                 let original = self.tasks[self.task_index(id)?].clone();
                 let position = self.next_task_position(original.list_id)?;
-                let task = self.duplicate(original, today, position);
+                let mut task = self.duplicate(original, today, position);
+                if let Some(rule) = &mut task.recurrence {
+                    rule.restart_from(task.due_date.unwrap_or(today));
+                }
                 let id = task.id;
                 self.tasks.push(task);
                 Ok(Changes {
@@ -223,6 +303,9 @@ impl AppState {
             next_task.my_day = None;
             next_task.my_day_excluded = None;
             next_task.due_date = Some(next);
+            next_task.start_date = next_task
+                .start_date
+                .and_then(|start| next.checked_add_signed(start - old_due));
             if let Some(reminder) = &mut next_task.reminder {
                 reminder.date = next
                     .checked_add_signed(reminder.date - old_due)

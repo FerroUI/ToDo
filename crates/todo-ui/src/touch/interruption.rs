@@ -8,7 +8,18 @@ pub(crate) fn has_active(root: &Control) -> bool {
 }
 
 pub(crate) fn cancel_active(root: &Control) -> bool {
-    recognizer(root).is_some_and(|recognizer| recognizer.interrupt())
+    recognizer(root)
+        .is_some_and(|recognizer| recognizer.interrupt() | super::pen::cancel(&recognizer, None))
+}
+
+pub(crate) fn cancel_pen(root: &Control, id: i64) -> bool {
+    recognizer(root).is_some_and(|recognizer| {
+        if !recognizer.pens.borrow().contains_key(&id) {
+            return false;
+        }
+        recognizer.interrupt();
+        super::pen::cancel(&recognizer, Some(id))
+    })
 }
 
 pub(crate) fn interrupted_contacts(root: &Control) -> Vec<i64> {

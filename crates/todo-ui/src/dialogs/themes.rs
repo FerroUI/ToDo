@@ -1,9 +1,10 @@
 use crate::palette;
 use ferroui_base::layout::{HorizontalAlignment as H, Orientation};
+use ferroui_controls::{Control, TopLevel};
 use ferroui_view::prelude::*;
 use std::rc::Rc;
 use todo_controls::{Palette, ALL_LIST_THEMES};
-use todo_domain::{Action, View};
+use todo_domain::View;
 use todo_state::{AppViewModel, Panel};
 
 pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
@@ -42,19 +43,68 @@ pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
             selected_accent.eq_ignore_ascii_case(theme.accent),
             p,
             move || {
-                if let View::List(id) = select.view() {
-                    select.dispatch(Action::SetListTheme {
-                        id,
-                        color: color.clone(),
-                        background: None,
-                    });
-                } else {
-                    select.set_smart_color(color.clone());
-                }
+                select.set_smart_color(color.clone());
                 select.show_panel(Panel::None);
             },
         ));
     }
+    let selected = vm
+        .wallpaper()
+        .or_else(|| matches!(vm.view(), View::MyDay).then(|| "scene:mountains".into()));
+    let mut gallery = wrap_panel()
+        .orientation(Orientation::Horizontal)
+        .item_width(94.0)
+        .item_height(80.0);
+    for scene in crate::list::wallpaper::SCENES {
+        let select = vm.clone();
+        let id = scene.id;
+        gallery = gallery.child(
+            button()
+                .name(format!("Wallpaper{}", scene.name.replace(' ', "")))
+                .class("todo-flat")
+                .width(86.0)
+                .height(72.0)
+                .margin(4.0)
+                .padding(0.0)
+                .clip_to_bounds(true)
+                .border_thickness(2.0)
+                .border_brush(if selected.as_deref() == Some(id) {
+                    p.accent
+                } else {
+                    "Transparent"
+                })
+                .automation_properties_name(format!("{} background", scene.name))
+                .automation_properties_item_status(
+                    (selected.as_deref() == Some(id)).then(|| "Selected".to_owned()),
+                )
+                .child(
+                    grid()
+                        .child(
+                            crate::list::wallpaper::view(id, vm.is_dark())
+                                .unwrap_or(Element::Empty),
+                        )
+                        .child(
+                            border()
+                                .vertical_alignment(ferroui_base::layout::VerticalAlignment::Bottom)
+                                .background("#99000000")
+                                .padding(3.0)
+                                .child(
+                                    text_block()
+                                        .text(scene.name)
+                                        .font_size(11.0)
+                                        .foreground("#FFFFFF"),
+                                ),
+                        ),
+                )
+                .on_click(move |event| {
+                    select.set_wallpaper(Some(id.into()));
+                    select.show_panel(Panel::None);
+                    event.set_handled(true);
+                }),
+        );
+    }
+    let custom = vm.clone();
+    let clear = vm.clone();
     stack_panel()
         .spacing(12.0)
         .child(
@@ -65,6 +115,21 @@ pub(super) fn view(vm: Rc<AppViewModel>) -> Element {
                 .margin(8.0),
         )
         .child(swatches)
+        .child(text_block().text("Original backgrounds").font_size(13.0).foreground(p.secondary).margin((8.0, 6.0)))
+        .child(gallery)
+        .child(wrap_panel().orientation(Orientation::Horizontal)
+            .child(button().name("ChooseBackgroundImage").content("Choose image…").margin(4.0)
+                .automation_properties_name("Choose a custom background image")
+                .on_click(move |event| {
+                    if let Some(root) = event.source().and_then(|source| source.cast::<Control>()).and_then(|source| TopLevel::get_top_level(Some(&source))) {
+                        super::background_image::choose(custom.clone(), root);
+                    }
+                    event.set_handled(true);
+                }))
+            .child(button().name("ClearBackground").content("No background").margin(4.0)
+                .on_click(move |event| { clear.set_wallpaper(Some("none".into())); clear.show_panel(Panel::None); event.set_handled(true); })))
+        .child(text_block().text("JPEG or PNG, up to 8 MiB and 12 megapixels. A resized copy travels with this list in backups and device settings. Custom backgrounds share a 2 MiB document budget.")
+            .font_size(12.0).foreground(p.secondary).text_wrapping(ferroui_base::media::TextWrapping::Wrap).margin(8.0))
         .into()
 }
 

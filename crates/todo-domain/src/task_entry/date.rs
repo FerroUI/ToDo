@@ -1,41 +1,31 @@
 use super::Word;
 use crate::Date;
-use chrono::{Datelike, Days, Weekday};
+use chrono::Weekday;
 
 pub(super) fn suffix(words: &[Word<'_>], today: Date) -> Option<(usize, Date)> {
-    let end = words.len();
-    let last = words.last()?;
-    let (mut start, date) = if end >= 2 && words[end - 2].is("next") && last.is("week") {
-        let days = 7 - today.weekday().num_days_from_monday();
-        (end - 2, today.checked_add_days(Days::new(days.into()))?)
-    } else if last.is("today") {
-        (end - 1, today)
-    } else if last.is("tomorrow") {
-        (end - 1, today.succ_opt()?)
-    } else if let Some(day) = weekday(last.text) {
-        let delta = (day.num_days_from_monday() + 7 - today.weekday().num_days_from_monday()) % 7;
-        let next = end >= 2 && words[end - 2].is("next");
-        let days = if next && delta == 0 { 7 } else { delta };
-        (
-            end - 1 - usize::from(next),
-            today.checked_add_days(Days::new(days.into()))?,
-        )
-    } else if is_iso(last.text) {
-        (end - 1, Date::parse_from_str(last.text, "%Y-%m-%d").ok()?)
-    } else {
-        return None;
-    };
-    if start > 0
-        && ["on", "by", "due"]
-            .iter()
-            .any(|word| words[start - 1].is(word))
-    {
-        start -= 1;
-        if start > 0 && words[start - 1].is("due") {
+    for position in words.len().saturating_sub(6)..words.len() {
+        let Some((end, date)) = super::date_phrase::at(words, position, today) else {
+            continue;
+        };
+        if end != words.len() {
+            continue;
+        }
+        let mut start = position;
+        if start > 0
+            && ["on", "by", "due"]
+                .iter()
+                .any(|word| words[start - 1].is(word))
+        {
             start -= 1;
+            if start > 0 && words[start - 1].is("due") {
+                start -= 1;
+            }
+        }
+        if !ambiguous_prefix(words, start) {
+            return Some((start, date));
         }
     }
-    (!ambiguous_prefix(words, start)).then_some((start, date))
+    None
 }
 
 /// Do not reinterpret the last half of a range, alternative, or negation.
@@ -43,7 +33,7 @@ pub(super) fn ambiguous_prefix(words: &[Word<'_>], start: usize) -> bool {
     start > 0
         && [
             "or", "and", "to", "through", "until", "before", "after", "not", "except", "every",
-            "each",
+            "each", "never", "without",
         ]
         .iter()
         .any(|word| words[start - 1].is(word))
@@ -95,14 +85,6 @@ fn month(value: &str) -> bool {
     ]
     .iter()
     .any(|month| value.eq_ignore_ascii_case(month))
-}
-
-fn is_iso(value: &str) -> bool {
-    value.len() == 10
-        && value.bytes().enumerate().all(|(index, byte)| match index {
-            4 | 7 => byte == b'-',
-            _ => byte.is_ascii_digit(),
-        })
 }
 
 fn weekday(value: &str) -> Option<Weekday> {

@@ -25,6 +25,10 @@ pub enum Action {
         id: Id,
         notes: String,
     },
+    SetRichNotes {
+        id: Id,
+        html: String,
+    },
     ToggleCompleted(Id),
     SetCompleted {
         id: Id,
@@ -40,6 +44,10 @@ pub enum Action {
         day: Option<Date>,
     },
     SetDueDate {
+        id: Id,
+        date: Option<Date>,
+    },
+    SetStartDate {
         id: Id,
         date: Option<Date>,
     },
@@ -66,6 +74,17 @@ pub enum Action {
     ReorderTask {
         id: Id,
         before: Option<Id>,
+    },
+    /// Move an ordered block, preserving selection order in one atomic transaction.
+    TransferTasks {
+        ids: Vec<Id>,
+        list_id: Id,
+        before: Option<Id>,
+    },
+    /// Independent copies with newly allocated task and child identifiers.
+    PasteTasks {
+        tasks: Vec<crate::Task>,
+        view: crate::View,
     },
     DuplicateTask(Id),
     DeleteTask(Id),
